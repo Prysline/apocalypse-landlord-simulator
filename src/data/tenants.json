@@ -1,9 +1,8 @@
 [
   {
-    "id": "doctor",
-    "name": "醫生",
-    "type": "doctor",
-    "displayName": "醫生",
+    "typeId": "doctor",
+    "typeName": "醫生",
+    "category": "doctor",
     "rent": 15,
     "skill": "醫療",
     "infectionRisk": 0.1,
@@ -40,10 +39,9 @@
     }
   },
   {
-    "id": "worker",
-    "name": "工人",
-    "type": "worker",
-    "displayName": "工人",
+    "typeId": "worker",
+    "typeName": "工人",
+    "category": "worker",
     "rent": 12,
     "skill": "維修",
     "infectionRisk": 0.2,
@@ -79,10 +77,9 @@
     }
   },
   {
-    "id": "farmer",
-    "name": "農夫",
-    "type": "farmer",
-    "displayName": "農夫",
+    "typeId": "farmer",
+    "typeName": "農夫",
+    "category": "farmer",
     "rent": 10,
     "skill": "種植",
     "infectionRisk": 0.15,
@@ -118,10 +115,9 @@
     }
   },
   {
-    "id": "soldier",
-    "name": "軍人",
-    "type": "soldier",
-    "displayName": "軍人",
+    "typeId": "soldier",
+    "typeName": "軍人",
+    "category": "soldier",
     "rent": 18,
     "skill": "戰鬥",
     "infectionRisk": 0.25,
@@ -158,10 +154,9 @@
     }
   },
   {
-    "id": "elder",
-    "name": "老人",
-    "type": "elder",
-    "displayName": "老人",
+    "typeId": "elder",
+    "typeName": "老人",
+    "category": "elder",
     "rent": 8,
     "skill": "經驗",
     "infectionRisk": 0.3,
