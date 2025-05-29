@@ -142,6 +142,22 @@ class DataManager {
       this.cache.set(dataType, data);
 
       console.log(`✅ 成功載入 ${dataType} 資料:`, data);
+
+      // 當 rules 載入完成後，注入到 GameHelpers
+      if (dataType === "rules" && data) {
+        if (
+          window.GameHelpers &&
+          typeof window.initializeGameHelpers === "function"
+        ) {
+          const success = window.initializeGameHelpers(data);
+          console.log(
+            success
+              ? "✅ GameHelpers 配置注入成功"
+              : "⚠️ GameHelpers 配置注入失敗"
+          );
+        }
+      } 
+
       return data;
     } catch (error) {
       console.error(`❌ 載入 ${dataType} 資料失敗:`, error);

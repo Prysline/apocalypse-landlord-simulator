@@ -2,37 +2,75 @@
   "gameBalance": {
     "landlord": {
       "dailyFoodConsumption": 2,
-      "hungerThresholds": {
-        "satisfied": 0,
-        "hungry": 3,
-        "starving": 5,
-        "critical": 7
-      },
-      "hungerEffects": {
-        "workEfficiencyPenalty": 0.8,
-        "criticalFailureRate": 0.1
+      "hungerSystem": {
+        "levels": [
+          { "threshold": 0, "name": "飽足", "severity": "good" },
+          { "threshold": 1, "name": "微餓", "severity": "normal" },
+          { "threshold": 2, "name": "有點餓", "severity": "warning" },
+          { "threshold": 3, "name": "飢餓", "severity": "concern" },
+          { "threshold": 4, "name": "很餓", "severity": "danger" },
+          { "threshold": 5, "name": "極度飢餓", "severity": "critical" },
+          { "threshold": 7, "name": "瀕臨餓死", "severity": "fatal" }
+        ],
+        "hungerEffects": {
+          "workEfficiencyPenalty": 0.8,
+          "criticalFailureRate": 0.1
+        }
       }
     },
     "tenants": {
       "dailyFoodConsumption": 2,
       "elderMedicalConsumption": 1,
-      "satisfactionRange": {
-        "min": 0,
-        "max": 100,
-        "default": 50
-      },
-      "satisfactionFactors": {
-        "reinforcedRoom": 3,
-        "needsRepair": -8,
-        "lowPersonalFood": -10,
-        "highPersonalCash": 5,
-        "highBuildingDefense": 4,
-        "lowBuildingDefense": -6,
-        "emergencyTraining": 2,
-        "buildingQuality": 3,
-        "patrolSystem": 4,
-        "socialNetwork": 3,
-        "elderHarmonyBonus": 2
+      "satisfactionSystem": {
+        "baseValue": 50,
+        "range": { "min": 0, "max": 100 },
+        "factors": {
+          "reinforcedRoom": 3,
+          "needsRepair": -8,
+          "lowPersonalFood": -10,
+          "highPersonalCash": 5,
+          "highBuildingDefense": 4,
+          "lowBuildingDefense": -6,
+          "emergencyTraining": 2,
+          "buildingQuality": 3,
+          "patrolSystem": 4,
+          "socialNetwork": 3,
+          "elderHarmonyBonus": 2
+        },
+        "display": {
+          "levels": [
+            {
+              "threshold": 80,
+              "name": "非常滿意",
+              "emoji": "😁",
+              "severity": "excellent"
+            },
+            {
+              "threshold": 60,
+              "name": "滿意",
+              "emoji": "😊",
+              "severity": "good"
+            },
+            {
+              "threshold": 40,
+              "name": "普通",
+              "emoji": "😐",
+              "severity": "normal"
+            },
+            {
+              "threshold": 20,
+              "name": "不滿",
+              "emoji": "😞",
+              "severity": "warning"
+            },
+            {
+              "threshold": 0,
+              "name": "極度不滿",
+              "emoji": "😡",
+              "severity": "critical"
+            }
+          ]
+        }
       }
     },
     "resources": {
@@ -118,12 +156,12 @@
       },
       "defenseSystem": {
         "levels": [
-          { "value": 0, "name": "脆弱", "description": "無防禦能力" },
-          { "value": 3, "name": "基本", "description": "基礎防護" },
-          { "value": 6, "name": "穩固", "description": "中等防禦" },
-          { "value": 9, "name": "堅固", "description": "良好防禦" },
-          { "value": 12, "name": "要塞", "description": "強力防禦" },
-          { "value": 15, "name": "銅牆鐵壁", "description": "最高防禦" }
+          { "threshold": 0, "name": "脆弱", "severity": "critical" },
+          { "threshold": 1, "name": "基本", "severity": "warning" },
+          { "threshold": 3, "name": "穩固", "severity": "normal" },
+          { "threshold": 6, "name": "堅固", "severity": "good" },
+          { "threshold": 9, "name": "要塞", "severity": "excellent" },
+          { "threshold": 13, "name": "銅牆鐵壁", "severity": "perfect" }
         ]
       }
     },
@@ -137,6 +175,19 @@
         "elderReduction": 0.12,
         "harmoniumBonusReduction": 0.02
       }
+    }
+  },
+  "ui": {
+    "colorSchemes": {
+      "critical": "#ff6666",
+      "danger": "#ff3333",
+      "warning": "#ffaa66",
+      "concern": "#ff9966",
+      "normal": "#ffcc66",
+      "good": "#66ccff",
+      "excellent": "#66ff66",
+      "perfect": "#66ff66",
+      "fatal": "#cc0000"
     }
   },
   "progression": {
@@ -224,6 +275,81 @@
         "food": 1,
         "allTenantsInfected": true
       }
+    }
+  },
+  "content": {
+    "nameGeneration": {
+      "surnames": ["陳", "林", "黃", "張", "李", "王", "吳", "劉", "蔡", "楊"],
+      "givenNames": [
+        "志明",
+        "小華",
+        "小美",
+        "阿珍",
+        "大雄",
+        "靜香",
+        "胖虎",
+        "小夫",
+        "阿強",
+        "小玉",
+        "建國",
+        "淑芬",
+        "家豪",
+        "怡君",
+        "俊傑",
+        "雅婷",
+        "明哲",
+        "佳蓉",
+        "宗翰",
+        "麗娟"
+      ],
+      "nicknames": [
+        "小明",
+        "小華",
+        "小李",
+        "老王",
+        "阿強",
+        "小美",
+        "阿珍",
+        "大雄",
+        "靜香",
+        "胖虎",
+        "小張",
+        "阿陳",
+        "小林",
+        "老劉",
+        "阿花",
+        "小玉",
+        "阿寶",
+        "小鳳",
+        "阿義",
+        "小雲"
+      ]
+    },
+    "appearanceDescriptions": {
+      "normal": [
+        "看起來精神狀態不錯",
+        "衣著整潔，談吐得體",
+        "眼神清澈，反應靈敏",
+        "握手時手掌溫暖有力",
+        "說話條理清晰，很有條理",
+        "看起來很健康，氣色不錯",
+        "動作自然流暢",
+        "笑容真誠，讓人感到舒適",
+        "舉止得宜，顯得有教養",
+        "聲音宏亮，中氣十足"
+      ],
+      "infected": [
+        "眼神有點呆滯，反應遲鈍",
+        "皮膚蒼白，手有輕微顫抖",
+        "說話時偶爾停頓，像在想什麼",
+        "衣服有些血跡，說是意外受傷",
+        "體溫似乎偏低，一直在發抖",
+        "有股奇怪的味道，像是腐肉",
+        "走路姿勢略顯僵硬",
+        "避免眼神接觸，顯得很緊張",
+        "臉色灰敗，沒有血色",
+        "呼吸聲有些異常，帶著喘息"
+      ]
     }
   }
 }
