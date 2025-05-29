@@ -568,12 +568,20 @@ class TenantSystem {
 class TenantFactory {
   constructor(dataManager) {
     this.dataManager = dataManager;
+    this.idCounter = 0;
+  }
+
+  generateUniqueId() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const counter = ++this.idCounter;
+    return `${timestamp}_${random}_${counter}`;
   }
 
   createApplicant(config) {
     return {
-      id: Date.now() + Math.random(),
       ...config,
+      id: this.generateUniqueId(),
       name: this.generateName(),
       infected: Math.random() < config.infectionRisk,
       personalResources: { ...config.personalResources },

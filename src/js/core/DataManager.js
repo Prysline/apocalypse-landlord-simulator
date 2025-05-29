@@ -25,7 +25,14 @@ class DataManager {
       if (!Array.isArray(data)) throw new Error("租客資料必須是陣列");
 
       data.forEach((tenant, index) => {
-        const required = ["name", "type", "rent", "skill", "infectionRisk"];
+        const required = [
+          "typeId",
+          "typeName",
+          "category",
+          "rent",
+          "skill",
+          "infectionRisk",
+        ];
         required.forEach((field) => {
           if (!(field in tenant)) {
             throw new Error(`租客 ${index}: 缺少必要欄位 ${field}`);
