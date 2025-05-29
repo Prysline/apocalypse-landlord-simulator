@@ -1,0 +1,590 @@
+{
+  "random_events": [
+    {
+      "id": "zombie_attack",
+      "category": "combat",
+      "title": "殭屍襲擊",
+      "description": "一群殭屍正在靠近房屋！",
+      "priority": 1,
+      "trigger": {
+        "type": "random",
+        "probability": 0.3,
+        "conditions": [
+          {
+            "type": "dayRange",
+            "min": 3
+          }
+        ]
+      },
+      "choices": [
+        {
+          "id": "fortify_defense",
+          "text": "加固防禦 (-5建材)",
+          "icon": "🛡️",
+          "conditions": [
+            {
+              "type": "hasResource",
+              "resource": "materials",
+              "amount": 5
+            }
+          ],
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "materials",
+              "amount": -5
+            },
+            {
+              "type": "checkSoldierBonus",
+              "effects": [
+                {
+                  "type": "modifyState",
+                  "path": "buildingDefense",
+                  "value": 2,
+                  "operation": "add"
+                },
+                {
+                  "type": "logMessage",
+                  "message": "軍人租客協助防禦，效果更佳！",
+                  "logType": "skill"
+                }
+              ]
+            },
+            {
+              "type": "logMessage",
+              "message": "成功抵禦襲擊",
+              "logType": "event"
+            }
+          ]
+        },
+        {
+          "id": "counter_attack",
+          "text": "冒險反擊",
+          "icon": "⚔️",
+          "conditions": [],
+          "effects": [
+            {
+              "type": "probabilityCheck",
+              "condition": {
+                "base": 0.6,
+                "modifiers": [
+                  {
+                    "type": "hasTenantType",
+                    "tenantType": "soldier",
+                    "bonus": 0.2
+                  }
+                ]
+              },
+              "success": [
+                {
+                  "type": "logMessage",
+                  "message": "成功擊退殭屍！",
+                  "logType": "event"
+                }
+              ],
+              "failure": [
+                {
+                  "type": "damageRandomRoom",
+                  "target": "random"
+                },
+                {
+                  "type": "logMessage",
+                  "message": "反擊失敗，房屋受損",
+                  "logType": "danger"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trader_caravan",
+      "category": "economic",
+      "title": "商隊過路",
+      "description": "一個商隊經過附近，他們願意進行物資交易",
+      "priority": 2,
+      "trigger": {
+        "type": "random",
+        "probability": 0.25,
+        "conditions": [
+          {
+            "type": "or",
+            "conditions": [
+              {
+                "type": "hasResource",
+                "resource": "fuel",
+                "amount": 2
+              },
+              {
+                "type": "hasResource",
+                "resource": "cash",
+                "amount": 20
+              }
+            ]
+          }
+        ]
+      },
+      "choices": [
+        {
+          "id": "trade_fuel_for_food",
+          "text": "用燃料換食物 (-3燃料, +10食物)",
+          "icon": "🔄",
+          "conditions": [
+            {
+              "type": "hasResource",
+              "resource": "fuel",
+              "amount": 3
+            }
+          ],
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "fuel",
+              "amount": -3
+            },
+            {
+              "type": "modifyResource",
+              "resource": "food",
+              "amount": 10
+            },
+            {
+              "type": "logMessage",
+              "message": "與商隊交易：燃料換食物",
+              "logType": "rent"
+            }
+          ]
+        },
+        {
+          "id": "buy_medical_supplies",
+          "text": "用現金買醫療用品 (-$15, +4醫療)",
+          "icon": "💊",
+          "conditions": [
+            {
+              "type": "hasResource",
+              "resource": "cash",
+              "amount": 15
+            }
+          ],
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "cash",
+              "amount": -15
+            },
+            {
+              "type": "modifyResource",
+              "resource": "medical",
+              "amount": 4
+            },
+            {
+              "type": "logMessage",
+              "message": "與商隊交易：現金換醫療用品",
+              "logType": "rent"
+            }
+          ]
+        },
+        {
+          "id": "sell_materials",
+          "text": "出售建材換現金 (-6建材, +$20)",
+          "icon": "💰",
+          "conditions": [
+            {
+              "type": "hasResource",
+              "resource": "materials",
+              "amount": 6
+            }
+          ],
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "materials",
+              "amount": -6
+            },
+            {
+              "type": "modifyResource",
+              "resource": "cash",
+              "amount": 20
+            },
+            {
+              "type": "logMessage",
+              "message": "與商隊交易：建材換現金",
+              "logType": "rent"
+            }
+          ]
+        },
+        {
+          "id": "refuse_trade",
+          "text": "拒絕交易",
+          "icon": "❌",
+          "conditions": [],
+          "effects": [
+            {
+              "type": "logMessage",
+              "message": "拒絕了商隊的交易提議",
+              "logType": "event"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "conflict_events": [
+    {
+      "id": "resource_dispute",
+      "category": "social",
+      "title": "資源分配糾紛",
+      "description": "租客們對共用資源的使用產生分歧，氣氛緊張",
+      "priority": 1,
+      "trigger": {
+        "type": "conditional",
+        "conditions": [
+          {
+            "type": "and",
+            "conditions": [
+              {
+                "type": "hasTenantType",
+                "tenantType": "any",
+                "count": 2
+              },
+              {
+                "type": "or",
+                "conditions": [
+                  {
+                    "type": "resourceScarcity",
+                    "resource": "food",
+                    "threshold": "insufficient"
+                  },
+                  {
+                    "type": "hasResource",
+                    "resource": "fuel",
+                    "amount": 5,
+                    "operator": "<"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "dynamicChoices": {
+        "base": [
+          {
+            "id": "increase_shared_resources",
+            "text": "增加共用資源 (-6食物, -3燃料)",
+            "conditions": [
+              {
+                "type": "and",
+                "conditions": [
+                  {
+                    "type": "hasResource",
+                    "resource": "food",
+                    "amount": 6
+                  },
+                  {
+                    "type": "hasResource",
+                    "resource": "fuel",
+                    "amount": 3
+                  }
+                ]
+              }
+            ],
+            "effects": [
+              {
+                "type": "modifyResource",
+                "resource": "food",
+                "amount": -6
+              },
+              {
+                "type": "modifyResource",
+                "resource": "fuel",
+                "amount": -3
+              },
+              {
+                "type": "improveTenantSatisfaction",
+                "target": "all",
+                "amount": 3
+              },
+              {
+                "type": "logMessage",
+                "message": "增加共用資源，平息了分配糾紛",
+                "logType": "event"
+              }
+            ]
+          },
+          {
+            "id": "establish_usage_rules",
+            "text": "制定使用規則 (-$8制作規章)",
+            "conditions": [
+              {
+                "type": "hasResource",
+                "resource": "cash",
+                "amount": 8
+              }
+            ],
+            "effects": [
+              {
+                "type": "modifyResource",
+                "resource": "cash",
+                "amount": -8
+              },
+              {
+                "type": "improveTenantSatisfaction",
+                "target": "all",
+                "amount": -2
+              },
+              {
+                "type": "logMessage",
+                "message": "制定了資源使用規章，勉強解決糾紛",
+                "logType": "event"
+              }
+            ]
+          }
+        ],
+        "conditional": [
+          {
+            "condition": {
+              "type": "hasTenantType",
+              "tenantType": "elder",
+              "count": 1
+            },
+            "choice": {
+              "id": "elder_mediation",
+              "text": "請長者進行資源調解",
+              "icon": "👴",
+              "effects": [
+                {
+                  "type": "elderMediation",
+                  "context": "resource_dispute"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "noise_complaint",
+      "category": "social",
+      "title": "噪音投訴",
+      "description": "有租客因為鄰居的噪音而無法休息，雙方發生爭執",
+      "priority": 2,
+      "trigger": {
+        "type": "conditional",
+        "conditions": [
+          {
+            "type": "hasTenantType",
+            "tenantType": "any",
+            "count": 2
+          }
+        ]
+      },
+      "dynamicChoices": {
+        "base": [
+          {
+            "id": "support_complainant",
+            "text": "支持投訴方 (-2食物安撫)",
+            "conditions": [
+              {
+                "type": "hasResource",
+                "resource": "food",
+                "amount": 2
+              }
+            ],
+            "effects": [
+              {
+                "type": "modifyResource",
+                "resource": "food",
+                "amount": -2
+              },
+              {
+                "type": "logMessage",
+                "message": "支付食物安撫投訴方，暫時平息糾紛",
+                "logType": "event"
+              }
+            ]
+          }
+        ],
+        "conditional": [
+          {
+            "condition": {
+              "type": "hasTenantType",
+              "tenantType": "worker",
+              "count": 1
+            },
+            "choice": {
+              "id": "worker_soundproofing",
+              "text": "請工人安裝隔音設施 (-2建材)",
+              "conditions": [
+                {
+                  "type": "hasResource",
+                  "resource": "materials",
+                  "amount": 2
+                }
+              ],
+              "effects": [
+                {
+                  "type": "workerSoundproofing",
+                  "context": "noise_complaint"
+                }
+              ]
+            }
+          },
+          {
+            "condition": {
+              "type": "hasTenantType",
+              "tenantType": "elder",
+              "count": 1
+            },
+            "choice": {
+              "id": "elder_noise_mediation",
+              "text": "請長者調解噪音糾紛",
+              "effects": [
+                {
+                  "type": "elderMediation",
+                  "context": "noise_complaint"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "special_events": [
+    {
+      "id": "medical_emergency",
+      "category": "crisis",
+      "title": "醫療緊急狀況",
+      "description": "有租客突然重病，需要立即醫療協助",
+      "priority": 3,
+      "trigger": {
+        "type": "conditional",
+        "conditions": [
+          {
+            "type": "and",
+            "conditions": [
+              {
+                "type": "hasTenantType",
+                "tenantType": "any",
+                "count": 1
+              },
+              {
+                "type": "probability",
+                "chance": 0.15
+              }
+            ]
+          }
+        ]
+      },
+      "choices": [
+        {
+          "id": "use_medical_supplies",
+          "text": "使用醫療用品 (-3醫療用品)",
+          "conditions": [
+            {
+              "type": "hasResource",
+              "resource": "medical",
+              "amount": 3
+            }
+          ],
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "medical",
+              "amount": -3
+            },
+            {
+              "type": "healTenant",
+              "target": "sick"
+            },
+            {
+              "type": "logMessage",
+              "message": "及時治療，租客康復了",
+              "logType": "event"
+            }
+          ]
+        },
+        {
+          "id": "seek_doctor_help",
+          "text": "尋求醫生租客協助",
+          "conditions": [
+            {
+              "type": "hasTenantType",
+              "tenantType": "doctor",
+              "count": 1
+            }
+          ],
+          "effects": [
+            {
+              "type": "doctorEmergencyTreatment",
+              "target": "sick"
+            }
+          ]
+        },
+        {
+          "id": "do_nothing",
+          "text": "無法提供協助",
+          "conditions": [],
+          "effects": [
+            {
+              "type": "probabilityCheck",
+              "condition": {
+                "base": 0.6
+              },
+              "success": [
+                {
+                  "type": "logMessage",
+                  "message": "租客靠自己恢復了健康",
+                  "logType": "event"
+                }
+              ],
+              "failure": [
+                {
+                  "type": "removeTenant",
+                  "target": "sick"
+                },
+                {
+                  "type": "logMessage",
+                  "message": "租客因缺乏治療而離開了",
+                  "logType": "danger"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scripted_events": [
+    {
+      "id": "first_week_guidance",
+      "category": "tutorial",
+      "title": "生存指導",
+      "description": "一位經驗豐富的倖存者給了你一些建議",
+      "priority": 0,
+      "trigger": {
+        "type": "scripted",
+        "day": 7
+      },
+      "choices": [
+        {
+          "id": "accept_guidance",
+          "text": "接受建議",
+          "effects": [
+            {
+              "type": "modifyResource",
+              "resource": "food",
+              "amount": 5
+            },
+            {
+              "type": "logMessage",
+              "message": "獲得了寶貴的生存建議和補給",
+              "logType": "event"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

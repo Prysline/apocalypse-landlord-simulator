@@ -1,0 +1,229 @@
+{
+  "gameBalance": {
+    "landlord": {
+      "dailyFoodConsumption": 2,
+      "hungerThresholds": {
+        "satisfied": 0,
+        "hungry": 3,
+        "starving": 5,
+        "critical": 7
+      },
+      "hungerEffects": {
+        "workEfficiencyPenalty": 0.8,
+        "criticalFailureRate": 0.1
+      }
+    },
+    "tenants": {
+      "dailyFoodConsumption": 2,
+      "elderMedicalConsumption": 1,
+      "satisfactionRange": {
+        "min": 0,
+        "max": 100,
+        "default": 50
+      },
+      "satisfactionFactors": {
+        "reinforcedRoom": 3,
+        "needsRepair": -8,
+        "lowPersonalFood": -10,
+        "highPersonalCash": 5,
+        "highBuildingDefense": 4,
+        "lowBuildingDefense": -6,
+        "emergencyTraining": 2,
+        "buildingQuality": 3,
+        "patrolSystem": 4,
+        "socialNetwork": 3,
+        "elderHarmonyBonus": 2
+      }
+    },
+    "resources": {
+      "starting": {
+        "food": 20,
+        "materials": 15,
+        "medical": 10,
+        "fuel": 8,
+        "cash": 50
+      },
+      "dailyConsumption": {
+        "fuel": 1
+      },
+      "resourceValues": {
+        "food": 1.5,
+        "materials": 3,
+        "medical": 4,
+        "fuel": 3
+      }
+    },
+    "economy": {
+      "rentPayment": {
+        "reinforcementBonus": 0.2,
+        "resourceExchangeRates": {
+          "food": 1.5,
+          "materials": 3,
+          "medical": 4,
+          "fuel": 3
+        }
+      },
+      "trading": {
+        "merchantVisitChance": 0.4,
+        "trademarkup": 1.2,
+        "bulkDiscountThreshold": 5
+      }
+    }
+  },
+  "mechanics": {
+    "harvest": {
+      "baseAmount": 2,
+      "farmerBonus": 2,
+      "cooldownDays": 2,
+      "cropGrowthDays": 3,
+      "cropYieldRange": {
+        "min": 8,
+        "max": 15
+      }
+    },
+    "scavenging": {
+      "maxPerDay": 2,
+      "baseSuccessRates": {
+        "soldier": 85,
+        "worker": 75,
+        "farmer": 65,
+        "doctor": 50,
+        "elder": 40
+      },
+      "bonusFromSkills": 15,
+      "rewardRanges": {
+        "food": {
+          "min": 3,
+          "max": 8
+        },
+        "materials": {
+          "min": 2,
+          "max": 6
+        },
+        "medical": {
+          "min": 1,
+          "max": 4
+        }
+      }
+    },
+    "building": {
+      "maxRooms": 6,
+      "repairCosts": {
+        "base": 3,
+        "withWorker": 2
+      },
+      "reinforcementCost": {
+        "materials": 4,
+        "cash": 18
+      },
+      "defenseSystem": {
+        "levels": [
+          { "value": 0, "name": "脆弱", "description": "無防禦能力" },
+          { "value": 3, "name": "基本", "description": "基礎防護" },
+          { "value": 6, "name": "穩固", "description": "中等防禦" },
+          { "value": 9, "name": "堅固", "description": "良好防禦" },
+          { "value": 12, "name": "要塞", "description": "強力防禦" },
+          { "value": 15, "name": "銅牆鐵壁", "description": "最高防禦" }
+        ]
+      }
+    },
+    "events": {
+      "randomEventChance": 0.3,
+      "conflictBaseChance": 0.25,
+      "conflictModifiers": {
+        "tenantCountMultiplier": 0.08,
+        "satisfactionPenalty": 0.003,
+        "resourceScarcityBonus": 0.1,
+        "elderReduction": 0.12,
+        "harmoniumBonusReduction": 0.02
+      }
+    }
+  },
+  "progression": {
+    "tenantUnlocks": {
+      "doctor": {
+        "minDay": 3,
+        "conditions": ["medical_emergency_survived"]
+      },
+      "soldier": {
+        "minDay": 7,
+        "conditions": ["buildingDefense >= 3"]
+      },
+      "elder": {
+        "minDay": 5,
+        "conditions": ["totalTenants >= 2"]
+      }
+    },
+    "skillUnlocks": {
+      "specialSkills": {
+        "requirements": {
+          "emergencyTraining": "first_medical_emergency",
+          "buildingUpgrade": "day >= 10",
+          "patrolSystem": "zombie_attack_survived",
+          "establishNetwork": "successful_mediation >= 3"
+        }
+      }
+    },
+    "difficultyScaling": {
+      "weeklyProgression": [
+        {
+          "week": 1,
+          "eventFrequency": 0.2,
+          "resourceScarcity": 0.1,
+          "tenantDemands": 0.8
+        },
+        {
+          "week": 2,
+          "eventFrequency": 0.3,
+          "resourceScarcity": 0.2,
+          "tenantDemands": 1.0
+        },
+        {
+          "week": 3,
+          "eventFrequency": 0.4,
+          "resourceScarcity": 0.3,
+          "tenantDemands": 1.2
+        }
+      ]
+    }
+  },
+  "validation": {
+    "criticalThresholds": {
+      "minCashForSurvival": 10,
+      "minFoodForWeek": 14,
+      "maxConsecutiveDeficit": 3
+    },
+    "warningLevels": {
+      "lowResources": {
+        "food": 5,
+        "materials": 3,
+        "medical": 2,
+        "fuel": 2,
+        "cash": 15
+      },
+      "tenantSatisfaction": {
+        "critical": 20,
+        "warning": 40
+      }
+    }
+  },
+  "debug": {
+    "enabledFeatures": {
+      "detailedLogging": false,
+      "skipCooldowns": false,
+      "infiniteResources": false,
+      "forceEvents": false
+    },
+    "testScenarios": {
+      "wealthTest": {
+        "cash": 1000,
+        "allResources": 100
+      },
+      "crisisTest": {
+        "cash": 5,
+        "food": 1,
+        "allTenantsInfected": true
+      }
+    }
+  }
+}

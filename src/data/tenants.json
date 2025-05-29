@@ -1,0 +1,200 @@
+[
+  {
+    "id": "doctor",
+    "name": "醫生",
+    "type": "doctor",
+    "displayName": "醫生",
+    "rent": 15,
+    "skill": "醫療",
+    "infectionRisk": 0.1,
+    "rarity": "uncommon",
+    "description": "可以治療感染，檢測可疑租客，提供醫療服務",
+    "personalResources": {
+      "food": 3,
+      "materials": 0,
+      "medical": 5,
+      "fuel": 0,
+      "cash": 20
+    },
+    "traits": ["professional", "cautious", "valuable"],
+    "baseStats": {
+      "health": 90,
+      "workEfficiency": 85,
+      "socialability": 70,
+      "survivability": 75
+    },
+    "skillIds": [
+      "heal_infection",
+      "health_check",
+      "medical_production",
+      "emergency_training"
+    ],
+    "preferences": {
+      "roomType": "clean",
+      "neighbors": ["worker", "elder"],
+      "conflicts": ["soldier"]
+    },
+    "unlockConditions": {
+      "day": 3,
+      "events": ["medical_emergency"]
+    }
+  },
+  {
+    "id": "worker",
+    "name": "工人",
+    "type": "worker",
+    "displayName": "工人",
+    "rent": 12,
+    "skill": "維修",
+    "infectionRisk": 0.2,
+    "rarity": "common",
+    "description": "擅長維修建築，房間升級，建築改良",
+    "personalResources": {
+      "food": 4,
+      "materials": 8,
+      "medical": 0,
+      "fuel": 0,
+      "cash": 15
+    },
+    "traits": ["practical", "hardworking", "reliable"],
+    "baseStats": {
+      "health": 95,
+      "workEfficiency": 90,
+      "socialability": 60,
+      "survivability": 80
+    },
+    "skillIds": [
+      "efficient_repair",
+      "reinforce_room",
+      "daily_maintenance",
+      "building_upgrade"
+    ],
+    "preferences": {
+      "roomType": "workshop",
+      "neighbors": ["farmer", "doctor"],
+      "conflicts": []
+    },
+    "unlockConditions": {
+      "day": 1
+    }
+  },
+  {
+    "id": "farmer",
+    "name": "農夫",
+    "type": "farmer",
+    "displayName": "農夫",
+    "rent": 10,
+    "skill": "種植",
+    "infectionRisk": 0.15,
+    "rarity": "common",
+    "description": "提升院子採集效率，種植作物，野外採集",
+    "personalResources": {
+      "food": 8,
+      "materials": 2,
+      "medical": 0,
+      "fuel": 0,
+      "cash": 12
+    },
+    "traits": ["natural", "patient", "resourceful"],
+    "baseStats": {
+      "health": 85,
+      "workEfficiency": 75,
+      "socialability": 80,
+      "survivability": 85
+    },
+    "skillIds": [
+      "harvest_bonus",
+      "plant_crops",
+      "wild_foraging",
+      "food_preservation"
+    ],
+    "preferences": {
+      "roomType": "garden_view",
+      "neighbors": ["elder", "worker"],
+      "conflicts": ["soldier"]
+    },
+    "unlockConditions": {
+      "day": 1
+    }
+  },
+  {
+    "id": "soldier",
+    "name": "軍人",
+    "type": "soldier",
+    "displayName": "軍人",
+    "rent": 18,
+    "skill": "戰鬥",
+    "infectionRisk": 0.25,
+    "rarity": "rare",
+    "description": "戰鬥力強，提升房屋防禦，安全管理",
+    "personalResources": {
+      "food": 5,
+      "materials": 3,
+      "medical": 0,
+      "fuel": 0,
+      "cash": 25
+    },
+    "traits": ["combat_ready", "disciplined", "protective"],
+    "baseStats": {
+      "health": 100,
+      "workEfficiency": 80,
+      "socialability": 50,
+      "survivability": 95
+    },
+    "skillIds": [
+      "combat_bonus",
+      "night_watch",
+      "defensive_construction",
+      "patrol_system"
+    ],
+    "preferences": {
+      "roomType": "secure",
+      "neighbors": ["worker"],
+      "conflicts": ["farmer", "elder"]
+    },
+    "unlockConditions": {
+      "day": 7,
+      "buildingDefense": 3
+    }
+  },
+  {
+    "id": "elder",
+    "name": "老人",
+    "type": "elder",
+    "displayName": "老人",
+    "rent": 8,
+    "skill": "經驗",
+    "infectionRisk": 0.3,
+    "rarity": "uncommon",
+    "description": "經驗豐富，調解糾紛，社交管理，人際網絡",
+    "personalResources": {
+      "food": 2,
+      "materials": 0,
+      "medical": 3,
+      "fuel": 0,
+      "cash": 30
+    },
+    "traits": ["wise", "diplomatic", "fragile"],
+    "baseStats": {
+      "health": 60,
+      "workEfficiency": 50,
+      "socialability": 95,
+      "survivability": 40
+    },
+    "skillIds": [
+      "peacemaker",
+      "conflict_mediation",
+      "life_guidance",
+      "establish_network"
+    ],
+    "preferences": {
+      "roomType": "quiet",
+      "neighbors": ["doctor", "farmer"],
+      "conflicts": ["soldier"]
+    },
+    "unlockConditions": {
+      "day": 5,
+      "totalTenants": 2
+    }
+  }
+]
