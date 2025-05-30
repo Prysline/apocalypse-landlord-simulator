@@ -1,4 +1,40 @@
 {
+  "gameDefaults": {
+    "initialResources": {
+      "food": 20,
+      "materials": 15,
+      "medical": 10,
+      "fuel": 8,
+      "cash": 50
+    },
+    "initialRooms": {
+      "count": 2,
+      "defaultState": {
+        "needsRepair": false,
+        "reinforced": false,
+        "tenant": null
+      }
+    },
+    "initialLandlord": {
+      "day": 1,
+      "time": "day",
+      "hunger": 0,
+      "buildingDefense": 0,
+      "rentCollected": false,
+      "harvestUsed": false,
+      "harvestCooldown": 0,
+      "scavengeUsed": 0
+    },
+    "initialGlobalEffects": {
+      "emergencyTraining": false,
+      "foodPreservation": false,
+      "patrolSystem": false,
+      "socialNetwork": false,
+      "nightWatchActive": false,
+      "harmoniumBonus": 0
+    }
+  },
+
   "gameBalance": {
     "landlord": {
       "dailyFoodConsumption": 2,
@@ -89,6 +125,20 @@
         "materials": 3,
         "medical": 4,
         "fuel": 3
+      },
+      "warningThresholds": {
+        "food": 5,
+        "materials": 3,
+        "medical": 2,
+        "fuel": 2,
+        "cash": 15
+      },
+      "criticalThresholds": {
+        "food": 2,
+        "materials": 1,
+        "medical": 1,
+        "fuel": 1,
+        "cash": 5
       }
     },
     "economy": {
@@ -175,6 +225,12 @@
         "elderReduction": 0.12,
         "harmoniumBonusReduction": 0.02
       }
+    },
+    "probability": {
+      "baseInfectionRisk": 0.2,
+      "medicalEmergencyChance": 0.15,
+      "mutualAidChance": 0.3,
+      "autoRepairChance": 0.3
     }
   },
   "ui": {
@@ -188,6 +244,41 @@
       "excellent": "#66ff66",
       "perfect": "#66ff66",
       "fatal": "#cc0000"
+    },
+    "display": {
+      "maxLogVisible": 50,
+      "maxHistoryDisplay": 10,
+      "maxApplicantsPerVisit": 3,
+      "maxErrorsDisplay": 5
+    },
+    "colors": {
+      "backgroundPrimary": "#2a2a2a",
+      "backgroundSecondary": "#1a1a1a",
+      "textPrimary": "#e0e0e0",
+      "borderDefault": "#555",
+      "borderHover": "#888",
+      "tenantColors": {
+        "doctor": "#66cc66",
+        "worker": "#cc8866",
+        "soldier": "#cc6666",
+        "farmer": "#66aa44",
+        "elder": "#cc66cc"
+      },
+      "logColors": {
+        "event": "#ffcc66",
+        "rent": "#66ff66",
+        "danger": "#ff6666",
+        "skill": "#66ccff"
+      }
+    },
+    "typography": {
+      "fontFamily": "\"Courier New\", monospace",
+      "fontSize": {
+        "small": "11px",
+        "normal": "12px",
+        "medium": "14px"
+      },
+      "lineHeight": 1.2
     }
   },
   "progression": {

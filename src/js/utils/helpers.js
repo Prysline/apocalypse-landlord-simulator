@@ -1,9 +1,9 @@
 /**
- * Game Utilities - 配置驅動的遊戲輔助函數模組
- * 重構原則：所有資料來源於 rules.json，helpers.js 只負責邏輯轉換
+ * Game Utilities v2.0 - 配置驅動的遊戲輔助函數模組
+ * 重構原則：所有遊戲數據來源於 rules.json，提供統一存取介面
  *
- * 設計模式：策略模式 + 工廠模式
- * 核心特性：配置驅動、格式化工具、隨機生成、狀態計算
+ * 設計模式：策略模式 + 適配器模式 + 單例模式
+ * 核心特性：配置驅動、統一存取、後備機制、格式化工具
  */
 
 export class GameHelpers {
@@ -12,10 +12,11 @@ export class GameHelpers {
     this.initialized = false;
 
     // 快取常用的配置區塊
-    this.colorSchemes = {};
+    this.gameDefaults = {};
+    this.gameBalance = {};
+    this.mechanics = {};
+    this.uiConfig = {};
     this.contentConfig = {};
-    this.balanceConfig = {};
-    this.mechanicsConfig = {};
 
     // 如果有配置就立即初始化，否則等待注入
     if (rulesConfig) {
@@ -28,19 +29,35 @@ export class GameHelpers {
    */
   initialize() {
     if (!this.config) {
-      console.warn("⚠️ GameHelpers: 配置未載入，使用預設實作");
+      console.warn("⚠️ GameHelpers: 配置未載入，使用最小後備模式");
+      this.initializeFallbackMode();
       return false;
     }
 
     // 快取常用的配置區塊
-    this.colorSchemes = this.config.ui?.colorSchemes || {};
+    this.gameDefaults = this.config.gameDefaults || {};
+    this.gameBalance = this.config.gameBalance || {};
+    this.mechanics = this.config.mechanics || {};
+    this.uiConfig = this.config.ui || {};
     this.contentConfig = this.config.content || {};
-    this.balanceConfig = this.config.gameBalance || {};
-    this.mechanicsConfig = this.config.mechanics || {};
 
     this.initialized = true;
     console.log("✅ GameHelpers: 配置驅動模式已啟用");
     return true;
+  }
+
+  /**
+   * 初始化後備模式
+   */
+  initializeFallbackMode() {
+    this.gameDefaults = this.getMinimalDefaults();
+    this.gameBalance = this.getMinimalBalance();
+    this.mechanics = this.getMinimalMechanics();
+    this.uiConfig = this.getMinimalUI();
+    this.contentConfig = this.getMinimalContent();
+
+    this.initialized = true;
+    console.log("🔄 GameHelpers: 後備模式已啟用");
   }
 
   /**
@@ -51,13 +68,133 @@ export class GameHelpers {
     return this.initialize();
   }
 
+  // ==================== 配置數據存取介面 ====================
+
+  /**
+   * 統一的配置存取介面
+   */
+  getConfig(path, defaultValue = undefined) {
+    if (!this.initialized) {
+      console.warn(`⚠️ GameHelpers 未初始化，無法存取 ${path}`);
+      return defaultValue;
+    }
+
+    const value = this.safeGet(this.config, path);
+    return value !== undefined ? value : defaultValue;
+  }
+
+  /**
+   * 取得遊戲預設值
+   */
+  getGameDefault(path, defaultValue = undefined) {
+    return this.safeGet(this.gameDefaults, path) ?? defaultValue;
+  }
+
+  /**
+   * 取得遊戲平衡參數
+   */
+  getGameBalance(path, defaultValue = undefined) {
+    return this.safeGet(this.gameBalance, path) ?? defaultValue;
+  }
+
+  /**
+   * 取得遊戲機制參數
+   */
+  getMechanics(path, defaultValue = undefined) {
+    return this.safeGet(this.mechanics, path) ?? defaultValue;
+  }
+
+  /**
+   * 取得UI配置
+   */
+  getUIConfig(path, defaultValue = undefined) {
+    return this.safeGet(this.uiConfig, path) ?? defaultValue;
+  }
+
+  /**
+   * 取得內容配置
+   */
+  getContentConfig(path, defaultValue = undefined) {
+    return this.safeGet(this.contentConfig, path) ?? defaultValue;
+  }
+
+  // ==================== 遊戲初始化支援 ====================
+
+  /**
+   * 取得初始遊戲狀態
+   */
+  getInitialGameState() {
+    return {
+      day: this.getGameDefault("initialLandlord.day", 1),
+      time: this.getGameDefault("initialLandlord.time", "day"),
+      resources: {
+        ...this.getGameDefault("initialResources", {
+          food: 20,
+          materials: 15,
+          medical: 10,
+          fuel: 8,
+          cash: 50,
+        }),
+      },
+      landlordHunger: this.getGameDefault("initialLandlord.hunger", 0),
+      harvestUsed: this.getGameDefault("initialLandlord.harvestUsed", false),
+      harvestCooldown: this.getGameDefault(
+        "initialLandlord.harvestCooldown",
+        0
+      ),
+      scavengeUsed: this.getGameDefault("initialLandlord.scavengeUsed", 0),
+      maxScavengePerDay: this.getMechanics("scavenging.maxPerDay", 2),
+      rentCollected: this.getGameDefault(
+        "initialLandlord.rentCollected",
+        false
+      ),
+      buildingDefense: this.getGameDefault(
+        "initialLandlord.buildingDefense",
+        0
+      ),
+      tenantSatisfaction: {},
+
+      // 全域效果
+      ...this.getGameDefault("initialGlobalEffects", {
+        emergencyTraining: false,
+        foodPreservation: false,
+        patrolSystem: false,
+        socialNetwork: false,
+        nightWatchActive: false,
+        harmoniumBonus: 0,
+      }),
+    };
+  }
+
+  /**
+   * 取得初始房間配置
+   */
+  getInitialRooms() {
+    const roomConfig = this.getGameDefault("initialRooms", {
+      count: 2,
+      defaultState: { needsRepair: false, reinforced: false, tenant: null },
+    });
+
+    const rooms = [];
+    for (let i = 1; i <= roomConfig.count; i++) {
+      rooms.push({
+        id: i,
+        ...roomConfig.defaultState,
+      });
+    }
+
+    return rooms;
+  }
+
   // ==================== 狀態格式化系統 ====================
 
   /**
    * 通用的等級狀態格式化器
    */
-  formatLevelStatus(value, levelConfig, displayFormat = "withValue") {
-    if (!this.initialized || !levelConfig?.levels) {
+  formatLevelStatus(value, levelConfigPath, displayFormat = "withValue") {
+    const levelConfig = this.getConfig(levelConfigPath);
+
+    if (!levelConfig?.levels) {
       return this._fallbackFormat(value, "unknown");
     }
 
@@ -90,27 +227,31 @@ export class GameHelpers {
    * 防禦狀態格式化
    */
   getDefenseStatus(defense) {
-    const defenseConfig = this.mechanicsConfig.building?.defenseSystem;
-    return this.formatLevelStatus(defense, defenseConfig, "withValue");
+    return this.formatLevelStatus(
+      defense,
+      "mechanics.building.defenseSystem",
+      "withValue"
+    );
   }
 
   /**
    * 飢餓狀態格式化
    */
   getHungerStatus(hunger) {
-    const hungerConfig = this.balanceConfig.landlord?.hungerSystem;
-    return this.formatLevelStatus(hunger, hungerConfig, "withValue");
+    return this.formatLevelStatus(
+      hunger,
+      "gameBalance.landlord.hungerSystem",
+      "withValue"
+    );
   }
 
   /**
    * 滿意度狀態格式化
    */
   getSatisfactionStatus(satisfaction) {
-    const satisfactionConfig =
-      this.balanceConfig.tenants?.satisfactionSystem?.display;
     return this.formatLevelStatus(
       satisfaction,
-      satisfactionConfig,
+      "gameBalance.tenants.satisfactionSystem.display",
       "withEmoji"
     );
   }
@@ -119,7 +260,89 @@ export class GameHelpers {
    * 根據嚴重程度取得顏色
    */
   getColorBySeverity(severity) {
-    return this.colorSchemes[severity] || this.colorSchemes.normal || "#ffcc66";
+    return (
+      this.getUIConfig(`colorSchemes.${severity}`) ||
+      this.getUIConfig("colorSchemes.normal") ||
+      "#ffcc66"
+    );
+  }
+
+  // ==================== 遊戲參數快速存取 ====================
+
+  /**
+   * 取得消耗相關參數
+   */
+  getConsumption() {
+    return {
+      landlordDailyFood: this.getGameBalance(
+        "landlord.dailyFoodConsumption",
+        2
+      ),
+      tenantDailyFood: this.getGameBalance("tenants.dailyFoodConsumption", 2),
+      elderDailyMedical: this.getGameBalance(
+        "tenants.elderMedicalConsumption",
+        1
+      ),
+      buildingDailyFuel: this.getGameBalance(
+        "resources.dailyConsumption.fuel",
+        1
+      ),
+      harvestBaseAmount: this.getMechanics("harvest.baseAmount", 2),
+      farmerHarvestBonus: this.getMechanics("harvest.farmerBonus", 2),
+    };
+  }
+
+  /**
+   * 取得機率相關參數
+   */
+  getProbabilities() {
+    return {
+      baseInfectionRisk: this.getMechanics(
+        "probability.baseInfectionRisk",
+        0.2
+      ),
+      randomEventChance: this.getMechanics("events.randomEventChance", 0.3),
+      conflictBaseChance: this.getMechanics("events.conflictBaseChance", 0.25),
+      medicalEmergencyChance: this.getMechanics(
+        "probability.medicalEmergencyChance",
+        0.15
+      ),
+      mutualAidChance: this.getMechanics("probability.mutualAidChance", 0.3),
+      autoRepairChance: this.getMechanics("probability.autoRepairChance", 0.3),
+    };
+  }
+
+  /**
+   * 取得時間相關參數
+   */
+  getTimeParameters() {
+    return {
+      harvestCooldownDays: this.getMechanics("harvest.cooldownDays", 2),
+      cropGrowthDays: this.getMechanics("harvest.cropGrowthDays", 3),
+      maxScavengePerDay: this.getMechanics("scavenging.maxPerDay", 2),
+    };
+  }
+
+  /**
+   * 取得經濟相關參數
+   */
+  getEconomicParameters() {
+    return {
+      reinforcementRentBonus: this.getGameBalance(
+        "economy.rentPayment.reinforcementBonus",
+        0.2
+      ),
+      resourceExchangeRates: this.getGameBalance(
+        "economy.rentPayment.resourceExchangeRates",
+        {
+          food: 1.5,
+          materials: 3,
+          medical: 4,
+          fuel: 3,
+        }
+      ),
+      tradeMarkup: this.getGameBalance("economy.trading.trademarkup", 1.2),
+    };
   }
 
   // ==================== 名稱生成系統 ====================
@@ -128,12 +351,13 @@ export class GameHelpers {
    * 生成隨機姓名
    */
   generateName(type = "nickname") {
-    if (!this.initialized || !this.contentConfig.nameGeneration) {
+    const nameConfig = this.getContentConfig("nameGeneration");
+
+    if (!nameConfig) {
       return this._fallbackNameGeneration(type);
     }
 
-    const { surnames, givenNames, nicknames } =
-      this.contentConfig.nameGeneration;
+    const { surnames, givenNames, nicknames } = nameConfig;
 
     switch (type) {
       case "full":
@@ -174,28 +398,22 @@ export class GameHelpers {
    * 獲取正常外觀描述
    */
   getNormalAppearance() {
-    if (
-      !this.initialized ||
-      !this.contentConfig.appearanceDescriptions?.normal
-    ) {
-      return this._fallbackAppearance("normal");
-    }
-    return this._randomSelect(this.contentConfig.appearanceDescriptions.normal);
+    const appearances = this.getContentConfig("appearanceDescriptions.normal");
+    return appearances
+      ? this._randomSelect(appearances)
+      : this._fallbackAppearance("normal");
   }
 
   /**
    * 獲取感染外觀描述
    */
   getInfectedAppearance() {
-    if (
-      !this.initialized ||
-      !this.contentConfig.appearanceDescriptions?.infected
-    ) {
-      return this._fallbackAppearance("infected");
-    }
-    return this._randomSelect(
-      this.contentConfig.appearanceDescriptions.infected
+    const appearances = this.getContentConfig(
+      "appearanceDescriptions.infected"
     );
+    return appearances
+      ? this._randomSelect(appearances)
+      : this._fallbackAppearance("infected");
   }
 
   /**
@@ -218,93 +436,15 @@ export class GameHelpers {
   // ==================== 數值計算與驗證 ====================
 
   /**
-   * 安全的數值範圍限定
-   */
-  clamp(value, min, max) {
-    if (typeof value !== "number" || isNaN(value)) {
-      console.warn(`clamp: 無效的數值 ${value}，使用最小值 ${min}`);
-      return min;
-    }
-    return Math.max(min, Math.min(max, value));
-  }
-
-  /**
-   * 百分比計算
-   */
-  calculatePercentage(current, total, precision = 1) {
-    if (total === 0) return 0;
-    const percentage = (current / total) * 100;
-    return (
-      Math.round(percentage * Math.pow(10, precision)) / Math.pow(10, precision)
-    );
-  }
-
-  /**
-   * 範圍內隨機整數
-   */
-  randomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
-  /**
-   * 加權隨機選擇
-   */
-  weightedRandomSelect(items, weights) {
-    if (items.length !== weights.length) {
-      throw new Error("物品數量與權重數量不匹配");
-    }
-
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-    let random = Math.random() * totalWeight;
-
-    for (let i = 0; i < items.length; i++) {
-      random -= weights[i];
-      if (random <= 0) {
-        return items[i];
-      }
-    }
-
-    return items[items.length - 1];
-  }
-
-  // ==================== 遊戲時間處理 ====================
-
-  /**
-   * 格式化遊戲時間
-   */
-  formatGameTime(day, timeOfDay = "day") {
-    const timeText = timeOfDay === "day" ? "白天" : "夜晚";
-    return `第 ${day} 天 ${timeText}`;
-  }
-
-  /**
-   * 計算遊戲週數
-   */
-  getGameWeek(day) {
-    return Math.ceil(day / 7);
-  }
-
-  /**
-   * 檢查是否為遊戲週末
-   */
-  isGameWeekend(day) {
-    const dayOfWeek = ((day - 1) % 7) + 1;
-    return dayOfWeek === 6 || dayOfWeek === 7; // 週六或週日
-  }
-
-  // ==================== 遊戲平衡計算 ====================
-
-  /**
    * 計算租客滿意度
    */
   calculateTenantSatisfaction(tenant, room, gameState, globalEffects = {}) {
-    if (!this.initialized || !this.balanceConfig.tenants?.satisfactionSystem) {
-      return 50; // 預設值
+    const system = this.getGameBalance("tenants.satisfactionSystem");
+    if (!system) {
+      return 50; // 後備預設值
     }
 
-    const system = this.balanceConfig.tenants.satisfactionSystem;
     const factors = system.factors || {};
-
     let satisfaction = system.baseValue || 50;
 
     // 房間條件影響
@@ -341,10 +481,6 @@ export class GameHelpers {
    * 計算資源稀缺性
    */
   calculateResourceScarcity(resources, tenantCount = 1) {
-    if (!this.initialized || !this.balanceConfig.resources) {
-      return { overall: "normal", details: {} };
-    }
-
     const scarcityLevels = {
       abundant: { min: 1.5, label: "充足", color: "#66ff66" },
       normal: { min: 1.0, label: "正常", color: "#ffcc66" },
@@ -406,32 +542,44 @@ export class GameHelpers {
    * 取得每日消耗量
    */
   getDailyConsumption(resourceType, tenantCount = 1) {
-    if (!this.initialized || !this.balanceConfig) {
-      const defaults = { food: 2, fuel: 1, medical: 0.1, materials: 0.1 };
-      return (defaults[resourceType] || 0) * Math.max(1, tenantCount);
-    }
-
-    const consumption = this.balanceConfig.resources?.dailyConsumption || {};
-    const landlordConsumption =
-      this.balanceConfig.landlord?.dailyFoodConsumption || 2;
-    const tenantConsumption =
-      this.balanceConfig.tenants?.dailyFoodConsumption || 2;
+    const consumption = this.getConsumption();
 
     switch (resourceType) {
       case "food":
-        return landlordConsumption + tenantConsumption * tenantCount;
+        return (
+          consumption.landlordDailyFood +
+          consumption.tenantDailyFood * tenantCount
+        );
       case "fuel":
-        return consumption.fuel || 1;
+        return consumption.buildingDailyFuel;
       case "medical":
-        return (consumption.medical || 0.1) * tenantCount;
+        return consumption.elderDailyMedical * 0.1 * tenantCount; // 假設10%是老人
       case "materials":
-        return consumption.materials || 0.1;
+        return 0.1; // 基礎磨損
       default:
         return 0;
     }
   }
 
-  // ==================== 私有輔助方法 ====================
+  // ==================== 工具方法 ====================
+
+  /**
+   * 安全的數值範圍限定
+   */
+  clamp(value, min, max) {
+    if (typeof value !== "number" || isNaN(value)) {
+      console.warn(`clamp: 無效的數值 ${value}，使用最小值 ${min}`);
+      return min;
+    }
+    return Math.max(min, Math.min(max, value));
+  }
+
+  /**
+   * 範圍內隨機整數
+   */
+  randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
   /**
    * 從陣列中隨機選擇
@@ -441,6 +589,90 @@ export class GameHelpers {
       return "";
     }
     return array[Math.floor(Math.random() * array.length)];
+  }
+
+  /**
+   * 安全取得嵌套物件值
+   */
+  safeGet(obj, path, defaultValue = undefined) {
+    if (!obj || !path) return defaultValue;
+
+    const keys = path.split(".");
+    let current = obj;
+
+    for (const key of keys) {
+      if (current === null || current === undefined || !(key in current)) {
+        return defaultValue;
+      }
+      current = current[key];
+    }
+
+    return current;
+  }
+
+  // ==================== 後備數據提供 ====================
+
+  /**
+   * 最小預設值（緊急後備）
+   */
+  getMinimalDefaults() {
+    return {
+      initialResources: {
+        food: 20,
+        materials: 15,
+        medical: 10,
+        fuel: 8,
+        cash: 50,
+      },
+      initialLandlord: { day: 1, time: "day", hunger: 0, buildingDefense: 0 },
+      initialRooms: {
+        count: 2,
+        defaultState: { needsRepair: false, reinforced: false, tenant: null },
+      },
+      initialGlobalEffects: {
+        emergencyTraining: false,
+        foodPreservation: false,
+        patrolSystem: false,
+      },
+    };
+  }
+
+  getMinimalBalance() {
+    return {
+      landlord: { dailyFoodConsumption: 2 },
+      tenants: {
+        dailyFoodConsumption: 2,
+        satisfactionSystem: { baseValue: 50, range: { min: 0, max: 100 } },
+      },
+      economy: { rentPayment: { reinforcementBonus: 0.2 } },
+    };
+  }
+
+  getMinimalMechanics() {
+    return {
+      harvest: { baseAmount: 2, farmerBonus: 2, cooldownDays: 2 },
+      scavenging: { maxPerDay: 2 },
+      probability: { baseInfectionRisk: 0.2 },
+    };
+  }
+
+  getMinimalUI() {
+    return {
+      colorSchemes: { normal: "#ffcc66", critical: "#ff6666", good: "#66ff66" },
+      display: { maxLogVisible: 50, maxApplicantsPerVisit: 3 },
+    };
+  }
+
+  getMinimalContent() {
+    return {
+      nameGeneration: {
+        nicknames: ["小明", "小華", "老王", "阿強"],
+      },
+      appearanceDescriptions: {
+        normal: ["看起來還算正常"],
+        infected: ["狀態可疑"],
+      },
+    };
   }
 
   /**
@@ -472,103 +704,7 @@ export class GameHelpers {
     return type === "infected" ? "狀態可疑" : "看起來還算正常";
   }
 
-  // ==================== 物件工具方法 ====================
-
-  /**
-   * 深度複製物件
-   */
-  deepClone(obj) {
-    if (obj === null || typeof obj !== "object") {
-      return obj;
-    }
-
-    if (obj instanceof Date) {
-      return new Date(obj.getTime());
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => this.deepClone(item));
-    }
-
-    const clonedObj = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        clonedObj[key] = this.deepClone(obj[key]);
-      }
-    }
-
-    return clonedObj;
-  }
-
-  /**
-   * 安全取得嵌套物件值
-   */
-  safeGet(obj, path, defaultValue = undefined) {
-    const keys = path.split(".");
-    let current = obj;
-
-    for (const key of keys) {
-      if (current === null || current === undefined || !(key in current)) {
-        return defaultValue;
-      }
-      current = current[key];
-    }
-
-    return current;
-  }
-
-  /**
-   * 合併物件（深度合併）
-   */
-  deepMerge(target, source) {
-    const result = this.deepClone(target);
-
-    for (const key in source) {
-      if (source.hasOwnProperty(key)) {
-        if (
-          source[key] &&
-          typeof source[key] === "object" &&
-          !Array.isArray(source[key])
-        ) {
-          result[key] = this.deepMerge(result[key] || {}, source[key]);
-        } else {
-          result[key] = source[key];
-        }
-      }
-    }
-
-    return result;
-  }
-
-  // ==================== 字串工具方法 ====================
-
-  /**
-   * 首字母大寫
-   */
-  capitalize(str) {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-  }
-
-  /**
-   * 格式化數字（添加千分位逗號）
-   */
-  formatNumber(num, precision = 0) {
-    if (typeof num !== "number") return "0";
-
-    const fixed = num.toFixed(precision);
-    return fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  }
-
-  /**
-   * 截斷文字
-   */
-  truncateText(text, maxLength, suffix = "...") {
-    if (!text || text.length <= maxLength) return text;
-    return text.substring(0, maxLength - suffix.length) + suffix;
-  }
-
-  // ==================== 除錯與狀態檢查 ====================
+  // ==================== 狀態檢查與除錯 ====================
 
   /**
    * 取得當前狀態
@@ -577,11 +713,18 @@ export class GameHelpers {
     return {
       initialized: this.initialized,
       configLoaded: !!this.config,
-      availableSections: this.config ? Object.keys(this.config) : [],
-      colorSchemesCount: Object.keys(this.colorSchemes).length,
-      hasContentConfig: !!this.contentConfig?.nameGeneration,
-      hasBalanceConfig: !!this.balanceConfig?.landlord,
-      hasMechanicsConfig: !!this.mechanicsConfig?.building,
+      mode: this.config ? "config-driven" : "fallback",
+      availableSections: this.config
+        ? Object.keys(this.config)
+        : ["minimal fallback"],
+      hasGameDefaults:
+        !!this.gameDefaults && Object.keys(this.gameDefaults).length > 0,
+      hasGameBalance:
+        !!this.gameBalance && Object.keys(this.gameBalance).length > 0,
+      hasMechanics: !!this.mechanics && Object.keys(this.mechanics).length > 0,
+      hasUIConfig: !!this.uiConfig && Object.keys(this.uiConfig).length > 0,
+      hasContentConfig:
+        !!this.contentConfig && Object.keys(this.contentConfig).length > 0,
     };
   }
 
@@ -592,31 +735,25 @@ export class GameHelpers {
     const issues = [];
 
     if (!this.config) {
-      issues.push("配置未載入");
+      issues.push("配置未載入，使用後備模式");
       return issues;
     }
 
     // 檢查必要區塊
-    const requiredSections = ["gameBalance", "mechanics", "content", "ui"];
+    const requiredSections = ["gameDefaults", "gameBalance", "mechanics", "ui"];
     requiredSections.forEach((section) => {
       if (!this.config[section]) {
         issues.push(`缺少 ${section} 配置區塊`);
       }
     });
 
-    // 檢查色彩配置
-    if (!this.colorSchemes || Object.keys(this.colorSchemes).length === 0) {
-      issues.push("缺少色彩配置");
+    // 檢查關鍵配置
+    if (!this.getGameDefault("initialResources")) {
+      issues.push("缺少初始資源配置");
     }
 
-    // 檢查名稱生成配置
-    if (!this.contentConfig?.nameGeneration?.nicknames) {
-      issues.push("缺少名稱生成配置");
-    }
-
-    // 檢查平衡配置
-    if (!this.balanceConfig?.landlord?.hungerSystem) {
-      issues.push("缺少房東飢餓系統配置");
+    if (!this.getGameBalance("landlord.dailyFoodConsumption")) {
+      issues.push("缺少房東每日消耗配置");
     }
 
     return issues;
@@ -626,7 +763,7 @@ export class GameHelpers {
    * 除錯印出
    */
   debugPrint() {
-    console.group("🛠️ GameHelpers 狀態");
+    console.group("🛠️ GameHelpers v2.0 狀態");
     console.log("狀態:", this.getStatus());
 
     const issues = this.validateConfig();
@@ -637,13 +774,17 @@ export class GameHelpers {
     }
 
     console.log("可用方法:", [
+      "getInitialGameState",
+      "getInitialRooms",
+      "getConsumption",
+      "getProbabilities",
+      "getTimeParameters",
+      "getEconomicParameters",
       "generateName",
       "getDefenseStatus",
       "getHungerStatus",
-      "getSatisfactionStatus",
       "calculateTenantSatisfaction",
       "calculateResourceScarcity",
-      "formatGameTime",
     ]);
     console.groupEnd();
   }

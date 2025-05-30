@@ -1,6 +1,7 @@
 /**
- * 末日房東模擬器 v2.0 - 主程式進入點
+ * 末日房東模擬器 v2.0 - 主程式進入點（配置驅動重構版）
  * 職責：應用程式初始化、模組載入協調、全域狀態管理
+ * 重構：移除硬編碼常數，改用配置驅動模式
  */
 
 // 核心系統模組
@@ -11,14 +12,53 @@ import { GameBridge } from "./core/GameBridge.js";
 // 工具函數模組
 import { GameHelpers } from "./utils/helpers.js";
 
+// 系統級常數（僅技術限制、錯誤代碼等）
+import {
+  SYSTEM_LIMITS,
+  UI_CONSTANTS,
+  DATA_TYPES,
+  ERROR_CODES,
+  MESSAGE_TEMPLATES,
+} from "./utils/constants.js";
+
 /**
  * 應用程式主類
  * 負責整個遊戲的啟動、模組協調、生命週期管理
  */
 class Game {
   constructor() {
-    // 遊戲狀態 - 從配置檔案初始化
-    this.gameState = {
+    // 遊戲狀態 - 初期使用最小預設值，待配置載入後更新
+    this.gameState = this.getMinimalInitialState();
+
+    // 系統模組實例
+    this.dataManager = null;
+    this.ruleEngine = null;
+    this.gameBridge = null;
+    this.gameHelpers = null;
+
+    // 配置狀態
+    this.configLoaded = false;
+    this.rulesConfig = null;
+
+    // 初始化狀態追蹤
+    this.initializationStatus = {
+      dataManager: false,
+      ruleEngine: false,
+      gameBridge: false,
+      gameHelpers: false,
+      configApplied: false,
+      complete: false,
+    };
+
+    // 錯誤處理機制
+    this.errorHandler = this.createErrorHandler();
+  }
+
+  /**
+   * 取得最小初始狀態（配置載入前的安全預設值）
+   */
+  getMinimalInitialState() {
+    return {
       day: 1,
       time: "day",
       resources: { food: 20, materials: 15, medical: 10, fuel: 8, cash: 50 },
@@ -38,31 +78,13 @@ class Game {
       tenantSatisfaction: {},
       harmoniumBonus: 0,
 
-      // 新增：全域效果追蹤
+      // 全域效果（最小預設）
       emergencyTraining: false,
       foodPreservation: false,
       patrolSystem: false,
       socialNetwork: false,
       nightWatchActive: false,
     };
-
-    // 系統模組實例
-    this.dataManager = null;
-    this.ruleEngine = null;
-    this.gameBridge = null;
-    this.gameHelpers = null;
-
-    // 初始化狀態追蹤
-    this.initializationStatus = {
-      dataManager: false,
-      ruleEngine: false,
-      gameBridge: false,
-      gameHelpers: false,
-      complete: false,
-    };
-
-    // 錯誤處理機制
-    this.errorHandler = this.createErrorHandler();
   }
 
   /**
@@ -78,13 +100,16 @@ class Game {
       // 階段 2：載入遊戲配置
       await this.loadGameConfiguration();
 
-      // 階段 3：建立系統整合
+      // 階段 3：應用配置到遊戲狀態
+      await this.applyConfigurationToGameState();
+
+      // 階段 4：建立系統整合
       await this.establishSystemIntegration();
 
-      // 階段 4：啟動遊戲介面
+      // 階段 5：啟動遊戲介面
       await this.initializeGameInterface();
 
-      // 階段 5：完成啟動
+      // 階段 6：完成啟動
       this.completeInitialization();
     } catch (error) {
       this.errorHandler.handleInitializationError(error);
@@ -116,7 +141,7 @@ class Game {
     this.initializationStatus.gameBridge = true;
     this.updateSystemStatus("gameBridge", "✅ 連接");
 
-    // 初始化遊戲輔助工具
+    // 初始化遊戲輔助工具（使用後備模式）
     this.gameHelpers = new GameHelpers();
     this.initializationStatus.gameHelpers = true;
 
@@ -130,9 +155,17 @@ class Game {
     console.log("📊 正在載入遊戲配置資料...");
 
     try {
-      // 載入所有配置檔案
-      const configTypes = ["tenants", "skills", "events", "rules"];
-      const loadPromises = configTypes.map((type) =>
+      // 優先載入 rules 配置
+      this.rulesConfig = await this.dataManager
+        .loadData("rules")
+        .catch((error) => {
+          console.warn("⚠️ rules.json 載入失敗，使用預設配置:", error.message);
+          return this.dataManager.getDefaultData("rules");
+        });
+
+      // 載入其他配置檔案
+      const otherConfigTypes = ["tenants", "skills", "events"];
+      const loadPromises = otherConfigTypes.map((type) =>
         this.dataManager.loadData(type).catch((error) => {
           console.warn(`⚠️ 載入 ${type} 配置失敗，使用預設值:`, error.message);
           return this.dataManager.getDefaultData(type);
@@ -140,16 +173,49 @@ class Game {
       );
 
       await Promise.all(loadPromises);
-
-      // 如果規則配置載入成功，初始化 GameHelpers
-      const rulesConfig = this.dataManager.getCachedData("rules");
-      if (rulesConfig && this.gameHelpers) {
-        this.gameHelpers.injectConfig(rulesConfig);
-      }
+      this.configLoaded = true;
 
       console.log("✅ 遊戲配置載入完成");
     } catch (error) {
-      console.warn("⚠️ 部分配置載入失敗，使用預設配置:", error.message);
+      console.warn("⚠️ 配置載入過程發生錯誤，使用最小配置:", error.message);
+      this.rulesConfig = this.dataManager.getDefaultData("rules");
+      this.configLoaded = false;
+    }
+  }
+
+  /**
+   * 應用配置到遊戲狀態
+   */
+  async applyConfigurationToGameState() {
+    console.log("🔧 正在應用配置到遊戲狀態...");
+
+    try {
+      // 注入配置到 GameHelpers
+      if (this.rulesConfig && this.gameHelpers) {
+        const injectionSuccess = this.gameHelpers.injectConfig(
+          this.rulesConfig
+        );
+
+        if (injectionSuccess) {
+          // 使用配置驅動的初始狀態
+          this.gameState = {
+            ...this.gameHelpers.getInitialGameState(),
+            // 保留當前運行時狀態（如有）
+            applicants: this.gameState.applicants,
+            visitors: this.gameState.visitors,
+          };
+
+          // 更新房間配置
+          this.gameState.rooms = this.gameHelpers.getInitialRooms();
+
+          this.initializationStatus.configApplied = true;
+          console.log("✅ 配置驅動的遊戲狀態已應用");
+        } else {
+          console.warn("⚠️ 配置注入失敗，保持最小狀態");
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ 配置應用失敗，使用預設狀態:", error.message);
     }
   }
 
@@ -181,9 +247,14 @@ class Game {
     this.setupUIEventListeners();
 
     // 初始化遊戲記錄
-    this.addLog("歡迎來到末日房東模擬器 v2.0！", "event");
-    this.addLog("當前使用全新的ES6模組化架構", "event");
-    this.addLog("所有系統模組已成功載入並就緒", "event");
+    this.addLog(MESSAGE_TEMPLATES.SYSTEM.READY, "event");
+    this.addLog("配置驅動模式已啟用，所有參數來自 rules.json", "event");
+
+    if (this.gameHelpers && this.gameHelpers.getStatus().configLoaded) {
+      this.addLog("✅ 遊戲配置載入成功", "event");
+    } else {
+      this.addLog("⚠️ 使用後備配置模式", "danger");
+    }
 
     // 更新顯示
     this.updateDisplay();
@@ -200,7 +271,9 @@ class Game {
     // 更新系統狀態顯示
     const statusEl = document.getElementById("systemStatus");
     if (statusEl) {
-      statusEl.textContent = "🟢 模組化系統 v2.0 - 運行中";
+      statusEl.textContent = this.configLoaded
+        ? "🟢 配置驅動系統 v2.0 - 運行中"
+        : "🟡 配置驅動系統 v2.0 - 後備模式";
       statusEl.className = "system-status modular";
     }
 
@@ -316,9 +389,13 @@ class Game {
     this.gameState.rooms.forEach((room) => {
       if (room.tenant && !room.tenant.infected) {
         let rent = room.tenant.rent;
-        if (room.reinforced) {
-          rent = Math.floor(rent * 1.2); // 加固房間 +20% 租金
+
+        // 使用配置驅動的加成計算
+        if (room.reinforced && this.gameHelpers) {
+          const economicParams = this.gameHelpers.getEconomicParameters();
+          rent = Math.floor(rent * (1 + economicParams.reinforcementRentBonus));
         }
+
         totalRent += rent;
       }
     });
@@ -327,7 +404,10 @@ class Game {
     this.gameState.rentCollected = true;
 
     if (totalRent > 0) {
-      this.addLog(`收取房租 $${totalRent}`, "rent");
+      this.addLog(
+        MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalRent, "現金收租"),
+        "rent"
+      );
     } else {
       this.addLog("今日沒有房租收入", "event");
     }
@@ -337,7 +417,7 @@ class Game {
 
   // 顯示訪客
   handleShowVisitors() {
-    // 生成訪客（暫時使用簡化版本）
+    // 生成訪客（使用配置驅動的參數）
     this.generateApplicants();
 
     const modal = document.getElementById("visitorModal");
@@ -388,15 +468,27 @@ class Game {
       moveInDate: this.gameState.day,
     };
 
-    // 初始化租客滿意度
-    this.gameState.tenantSatisfaction[applicant.name] = 50;
+    // 初始化租客滿意度（使用配置驅動的基礎值）
+    const baseSatisfaction = this.gameHelpers
+      ? this.gameHelpers.getGameBalance(
+          "tenants.satisfactionSystem.baseValue",
+          50
+        )
+      : 50;
+
+    this.gameState.tenantSatisfaction[applicant.name] = baseSatisfaction;
 
     // 從申請者列表移除
     this.gameState.applicants = this.gameState.applicants.filter(
       (a) => a.id !== applicantId
     );
 
-    this.addLog(`新租客 ${applicant.name} 入住房間 ${emptyRoom.id}`, "rent");
+    this.addLog(
+      MESSAGE_TEMPLATES.GAME.ACTION_SUCCESS(
+        `${applicant.name} 入住房間 ${emptyRoom.id}`
+      ),
+      "rent"
+    );
     this.closeModal();
     this.updateDisplay();
 
@@ -435,21 +527,45 @@ class Game {
       return;
     }
 
-    const baseAmount = 2;
-    // 農夫加成（後續在業務系統中實作）
+    // 使用配置驅動的參數
+    const consumption = this.gameHelpers
+      ? this.gameHelpers.getConsumption()
+      : {
+          harvestBaseAmount: 2,
+          farmerHarvestBonus: 2,
+        };
+
+    const baseAmount = consumption.harvestBaseAmount;
+
+    // 農夫加成
     const farmerCount = this.gameState.rooms.filter(
       (room) =>
-        room.tenant && room.tenant.type === "farmer" && !room.tenant.infected
+        room.tenant &&
+        (room.tenant.type === DATA_TYPES.TENANT_TYPES.FARMER ||
+          room.tenant.typeId === DATA_TYPES.TENANT_TYPES.FARMER) &&
+        !room.tenant.infected
     ).length;
 
-    const totalAmount = baseAmount + farmerCount * 2;
+    const totalAmount =
+      baseAmount + farmerCount * consumption.farmerHarvestBonus;
 
-    this.gameState.resources.food += totalAmount;
+    this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] += totalAmount;
     this.gameState.harvestUsed = true;
-    this.gameState.harvestCooldown = 2;
 
-    const bonusText = farmerCount > 0 ? ` (農夫加成 +${farmerCount * 2})` : "";
-    this.addLog(`院子採集獲得 ${totalAmount} 食物${bonusText}`, "rent");
+    // 使用配置驅動的冷卻時間
+    const timeParams = this.gameHelpers
+      ? this.gameHelpers.getTimeParameters()
+      : { harvestCooldownDays: 2 };
+    this.gameState.harvestCooldown = timeParams.harvestCooldownDays;
+
+    const bonusText =
+      farmerCount > 0
+        ? ` (農夫加成 +${farmerCount * consumption.farmerHarvestBonus})`
+        : "";
+    this.addLog(
+      MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalAmount, `食物${bonusText}`),
+      "rent"
+    );
 
     this.updateDisplay();
   }
@@ -474,35 +590,62 @@ class Game {
     this.processLandlordConsumption();
 
     // 燃料消費
-    if (this.gameState.resources.fuel > 0) {
-      this.gameState.resources.fuel -= 1;
-      this.addLog("房屋設施消耗了 1 燃料", "event");
-    } else {
-      this.addLog("燃料不足！房屋設施無法正常運作", "danger");
-    }
+    this.processBuildingConsumption();
 
-    this.addLog("新的一天開始了", "event");
+    this.addLog(
+      MESSAGE_TEMPLATES.GAME.STATE_CHANGED(`第${this.gameState.day}天開始`),
+      "event"
+    );
     this.updateDisplay();
   }
 
   // 處理房東消費
   processLandlordConsumption() {
-    const dailyConsumption = 2;
+    const consumption = this.gameHelpers
+      ? this.gameHelpers.getConsumption()
+      : { landlordDailyFood: 2 };
+    const dailyConsumption = consumption.landlordDailyFood;
 
-    if (this.gameState.resources.food >= dailyConsumption) {
-      this.gameState.resources.food -= dailyConsumption;
+    if (
+      this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] >=
+      dailyConsumption
+    ) {
+      this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] -=
+        dailyConsumption;
       this.gameState.landlordHunger = Math.max(
         0,
         this.gameState.landlordHunger - 1
       );
       this.addLog(`房東消耗了 ${dailyConsumption} 食物`, "event");
-    } else if (this.gameState.resources.food >= 1) {
-      this.gameState.resources.food -= 1;
+    } else if (this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] >= 1) {
+      this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] -= 1;
       this.gameState.landlordHunger += 1;
-      this.addLog("房東只吃了 1 食物，仍感到飢餓", "danger");
+      this.addLog(
+        MESSAGE_TEMPLATES.ERROR.INSUFFICIENT_DATA + "，房東仍感到飢餓",
+        "danger"
+      );
     } else {
       this.gameState.landlordHunger += 2;
-      this.addLog("房東沒有食物可吃！", "danger");
+      this.addLog(MESSAGE_TEMPLATES.ERROR.INSUFFICIENT_DATA + "！", "danger");
+    }
+  }
+
+  // 處理建築消費
+  processBuildingConsumption() {
+    const consumption = this.gameHelpers
+      ? this.gameHelpers.getConsumption()
+      : { buildingDailyFuel: 1 };
+    const fuelConsumption = consumption.buildingDailyFuel;
+
+    if (
+      this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FUEL] >=
+      fuelConsumption
+    ) {
+      this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FUEL] -=
+        fuelConsumption;
+      this.addLog(`房屋設施消耗了 ${fuelConsumption} 燃料`, "event");
+    } else {
+      this.addLog("燃料不足！", "danger");
     }
   }
 
@@ -519,43 +662,57 @@ class Game {
    * 工具函數
    */
 
-  // 生成申請者（簡化版本）
+  // 生成申請者（使用配置驅動的參數）
   generateApplicants() {
     if (this.gameState.applicants.length > 0) return;
 
-    const count = Math.floor(Math.random() * 3) + 1;
+    const count = Math.min(
+      Math.floor(Math.random() * 3) + 1,
+      UI_CONSTANTS.DISPLAY?.MAX_APPLICANTS_PER_VISIT || 3
+    );
+
+    // 使用配置驅動的機率參數
+    const probabilities = this.gameHelpers
+      ? this.gameHelpers.getProbabilities()
+      : { baseInfectionRisk: 0.2 };
+
     const types = [
       {
         name: "醫生",
-        type: "doctor",
+        type: DATA_TYPES.TENANT_TYPES.DOCTOR,
+        typeId: DATA_TYPES.TENANT_TYPES.DOCTOR,
         typeName: "醫生",
         rent: 15,
         description: "可以治療感染，檢測可疑租客",
       },
       {
         name: "工人",
-        type: "worker",
+        type: DATA_TYPES.TENANT_TYPES.WORKER,
+        typeId: DATA_TYPES.TENANT_TYPES.WORKER,
         typeName: "工人",
         rent: 12,
         description: "擅長維修建築，房間升級",
       },
       {
         name: "農夫",
-        type: "farmer",
+        type: DATA_TYPES.TENANT_TYPES.FARMER,
+        typeId: DATA_TYPES.TENANT_TYPES.FARMER,
         typeName: "農夫",
         rent: 10,
         description: "提升院子採集效率，種植作物",
       },
       {
         name: "軍人",
-        type: "soldier",
+        type: DATA_TYPES.TENANT_TYPES.SOLDIER,
+        typeId: DATA_TYPES.TENANT_TYPES.SOLDIER,
         typeName: "軍人",
         rent: 18,
         description: "戰鬥力強，提升房屋防禦",
       },
       {
         name: "老人",
-        type: "elder",
+        type: DATA_TYPES.TENANT_TYPES.ELDER,
+        typeId: DATA_TYPES.TENANT_TYPES.ELDER,
         typeName: "老人",
         rent: 8,
         description: "經驗豐富，調解糾紛",
@@ -566,7 +723,7 @@ class Game {
 
     for (let i = 0; i < count; i++) {
       const typeTemplate = types[Math.floor(Math.random() * types.length)];
-      const infected = Math.random() < 0.2;
+      const infected = Math.random() < probabilities.baseInfectionRisk;
 
       const applicant = {
         ...typeTemplate,
@@ -583,6 +740,11 @@ class Game {
   }
 
   generateRandomName() {
+    if (this.gameHelpers) {
+      return this.gameHelpers.generateName("nickname");
+    }
+
+    // 後備名稱生成
     const names = [
       "小明",
       "小華",
@@ -599,6 +761,11 @@ class Game {
   }
 
   getNormalAppearance() {
+    if (this.gameHelpers) {
+      return this.gameHelpers.getNormalAppearance();
+    }
+
+    // 後備外觀描述
     const appearances = [
       "看起來精神狀態不錯",
       "衣著整潔，談吐得體",
@@ -609,6 +776,11 @@ class Game {
   }
 
   getInfectedAppearance() {
+    if (this.gameHelpers) {
+      return this.gameHelpers.getInfectedAppearance();
+    }
+
+    // 後備外觀描述
     const appearances = [
       "眼神有點呆滯，反應遲鈍",
       "皮膚蒼白，手有輕微顫抖",
@@ -621,40 +793,77 @@ class Game {
   // 添加遊戲記錄
   addLog(message, type = "event") {
     const log = document.getElementById("gameLog");
+    if (!log) return;
+
     const entry = document.createElement("div");
     entry.className = `log-entry ${type}`;
     entry.textContent = `第${this.gameState.day}天: ${message}`;
     log.appendChild(entry);
+
+    // 限制日誌條目數量
+    const maxEntries = UI_CONSTANTS.LAYOUT?.MAX_LOG_VISIBLE || 50;
+    const entries = log.children;
+    if (entries.length > maxEntries) {
+      log.removeChild(entries[0]);
+    }
+
     log.scrollTop = log.scrollHeight;
   }
 
   // 更新顯示
   updateDisplay() {
     // 更新基本狀態
-    document.getElementById("day").textContent = this.gameState.day;
-    document.getElementById("time").textContent =
-      this.gameState.time === "day" ? "白天" : "夜晚";
-    document.getElementById("cash").textContent = this.gameState.resources.cash;
+    this.updateElement("day", this.gameState.day);
+    this.updateElement("time", this.gameState.time === "day" ? "白天" : "夜晚");
+    this.updateElement("cash", this.gameState.resources.cash);
 
-    // 更新狀態文字
-    document.getElementById("buildingDefenseText").textContent = this
-      .gameHelpers
-      ? this.gameHelpers.getDefenseStatus(this.gameState.buildingDefense).text
-      : `防禦(${this.gameState.buildingDefense})`;
+    // 更新狀態文字（使用 GameHelpers 的格式化）
+    if (this.gameHelpers) {
+      const defenseStatus = this.gameHelpers.getDefenseStatus(
+        this.gameState.buildingDefense
+      );
+      const hungerStatus = this.gameHelpers.getHungerStatus(
+        this.gameState.landlordHunger
+      );
 
-    document.getElementById("landlordHungerText").textContent = this.gameHelpers
-      ? this.gameHelpers.getHungerStatus(this.gameState.landlordHunger).text
-      : `飢餓(${this.gameState.landlordHunger})`;
+      this.updateElement("buildingDefenseText", defenseStatus.text);
+      this.updateElement("landlordHungerText", hungerStatus.text);
 
-    document.getElementById("scavengeCount").textContent =
-      this.gameState.scavengeUsed;
+      // 設定狀態顏色
+      const defenseEl = document.getElementById("buildingDefenseText");
+      const hungerEl = document.getElementById("landlordHungerText");
+
+      if (defenseEl) {
+        defenseEl.style.color = defenseStatus.color;
+        if (defenseStatus.critical) defenseEl.classList.add("danger-status");
+      }
+
+      if (hungerEl) {
+        hungerEl.style.color = hungerStatus.color;
+        if (hungerStatus.critical) hungerEl.classList.add("danger-status");
+      }
+    } else {
+      // 後備狀態顯示
+      this.updateElement(
+        "buildingDefenseText",
+        `防禦(${this.gameState.buildingDefense})`
+      );
+      this.updateElement(
+        "landlordHungerText",
+        `飢餓(${this.gameState.landlordHunger})`
+      );
+    }
+
+    this.updateElement("scavengeCount", this.gameState.scavengeUsed);
 
     // 更新資源顯示
-    ["food", "materials", "medical", "fuel"].forEach((resource) => {
-      const element = document.getElementById(resource);
-      if (element) {
-        element.textContent = this.gameState.resources[resource];
-      }
+    [
+      DATA_TYPES.RESOURCE_TYPES.FOOD,
+      DATA_TYPES.RESOURCE_TYPES.MATERIALS,
+      DATA_TYPES.RESOURCE_TYPES.MEDICAL,
+      DATA_TYPES.RESOURCE_TYPES.FUEL,
+    ].forEach((resource) => {
+      this.updateElement(resource, this.gameState.resources[resource]);
     });
 
     // 更新房間顯示
@@ -662,6 +871,14 @@ class Game {
 
     // 更新租客列表
     this.updateTenantList();
+  }
+
+  // 安全的元素更新
+  updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = value;
+    }
   }
 
   // 更新房間顯示
@@ -709,6 +926,8 @@ class Game {
   // 更新租客列表
   updateTenantList() {
     const tenantList = document.getElementById("tenantList");
+    if (!tenantList) return;
+
     const tenants = this.gameState.rooms
       .filter((room) => room.tenant)
       .map((room) => room.tenant);
@@ -726,7 +945,7 @@ class Game {
 
           return `<div class="tenant-item ${
             tenant.infected ? "infected" : ""
-          } ${tenant.type}">
+          } ${tenant.type || tenant.typeId}">
           ${tenant.name} (${tenant.typeName || tenant.type})<br>
           <small>房租: ${tenant.rent}/天</small><br>
           <small>滿意度: ${satisfaction}%</small>
@@ -757,6 +976,7 @@ class Game {
     return {
       version: "2.0.0",
       architecture: "ES6 Modules",
+      mode: this.configLoaded ? "config-driven" : "fallback",
       initialization: this.initializationStatus,
       gameState: {
         day: this.gameState.day,
@@ -768,6 +988,10 @@ class Game {
         ruleEngine: !!this.ruleEngine,
         gameBridge: !!this.gameBridge,
         gameHelpers: !!this.gameHelpers,
+      },
+      config: {
+        loaded: this.configLoaded,
+        helpersStatus: this.gameHelpers ? this.gameHelpers.getStatus() : null,
       },
     };
   }
@@ -793,7 +1017,7 @@ class Game {
 
       handleRuntimeError: (error, context) => {
         console.error(`❌ 執行時錯誤 (${context}):`, error);
-        this.addLog(`系統錯誤: ${error.message}`, "danger");
+        this.addLog(MESSAGE_TEMPLATES.ERROR.GENERIC + `: ${context}`, "danger");
       },
     };
   }
@@ -807,7 +1031,8 @@ class Game {
     try {
       // 使用最基本的功能初始化
       this.setupUIEventListeners();
-      this.addLog("遊戲以降級模式啟動", "danger");
+      this.addLog(MESSAGE_TEMPLATES.ERROR.GENERIC, "danger");
+      this.addLog("系統正在降級模式下運行", "danger");
       this.addLog("部分功能可能不可用", "danger");
       this.updateDisplay();
     } catch (fallbackError) {

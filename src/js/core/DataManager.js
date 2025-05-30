@@ -1,20 +1,25 @@
 /**
- * DataManager - 統一資料載入與管理機制
+ * DataManager - 統一資料載入與管理機制（更新版）
  * 職責：
  * 1. 從 JSON 配置檔案載入遊戲資料
- * 2. 提供資料驗證與一致性檢查
+ * 2. 整合統一的資料驗證系統
  * 3. 管理資料快取與更新
  * 4. 支援熱重載（開發階段）
  *
  * 設計模式：單例模式 + 工廠模式
- * 核心特性：非同步載入、錯誤處理、快取機制、驗證框架
+ * 核心特性：非同步載入、錯誤處理、快取機制、模組化驗證
  */
+
+import {
+  defaultValidatorFactory,
+  ValidationResult,
+} from "../utils/validators.js";
+import { SYSTEM_LIMITS, ERROR_CODES } from "../utils/constants.js";
 
 export class DataManager {
   constructor() {
     // 資料快取系統
     this.cache = new Map();
-    this.validators = new Map();
     this.loadPromises = new Map();
 
     // 載入狀態追蹤
@@ -27,225 +32,12 @@ export class DataManager {
 
     // 錯誤記錄
     this.errorLog = [];
+    this.maxErrorLogSize = SYSTEM_LIMITS.HISTORY.MAX_ERROR_LOG;
 
-    // 註冊內建資料驗證器
-    this.registerValidators();
-  }
+    // 驗證器工廠實例
+    this.validatorFactory = defaultValidatorFactory;
 
-  /**
-   * 註冊各種資料類型的驗證器
-   * 採用策略模式，每種資料類型有專屬的驗證策略
-   */
-  registerValidators() {
-    // 租客資料驗證器
-    this.validators.set("tenants", (data) => {
-      if (!Array.isArray(data)) {
-        throw new Error("租客資料必須是陣列格式");
-      }
-
-      data.forEach((tenant, index) => {
-        const required = [
-          "typeId",
-          "typeName",
-          "category",
-          "rent",
-          "skill",
-          "infectionRisk",
-          "description",
-        ];
-
-        // 檢查必要欄位
-        required.forEach((field) => {
-          if (!(field in tenant)) {
-            throw new Error(`租客 ${index}: 缺少必要欄位 ${field}`);
-          }
-        });
-
-        // 資料類型驗證
-        if (typeof tenant.rent !== "number" || tenant.rent <= 0) {
-          throw new Error(`租客 ${index}: 房租必須是正數`);
-        }
-
-        if (
-          typeof tenant.infectionRisk !== "number" ||
-          tenant.infectionRisk < 0 ||
-          tenant.infectionRisk > 1
-        ) {
-          throw new Error(`租客 ${index}: 感染風險必須是 0-1 之間的數值`);
-        }
-
-        // 個人資源結構驗證
-        if (tenant.personalResources) {
-          const resourceKeys = ["food", "materials", "medical", "fuel", "cash"];
-          resourceKeys.forEach((key) => {
-            if (
-              tenant.personalResources[key] !== undefined &&
-              typeof tenant.personalResources[key] !== "number"
-            ) {
-              throw new Error(
-                `租客 ${index}: personalResources.${key} 必須是數值`
-              );
-            }
-          });
-        }
-      });
-
-      return true;
-    });
-
-    // 技能資料驗證器
-    this.validators.set("skills", (data) => {
-      if (typeof data !== "object" || data === null) {
-        throw new Error("技能資料必須是物件格式");
-      }
-
-      Object.entries(data).forEach(([tenantType, skills]) => {
-        if (!Array.isArray(skills)) {
-          throw new Error(`租客類型 ${tenantType} 的技能資料必須是陣列`);
-        }
-
-        skills.forEach((skill, index) => {
-          const required = ["id", "name", "type", "description"];
-          required.forEach((field) => {
-            if (!(field in skill)) {
-              throw new Error(
-                `${tenantType} 技能 ${index}: 缺少必要欄位 ${field}`
-              );
-            }
-          });
-
-          // 技能類型驗證
-          const validTypes = ["active", "passive", "special"];
-          if (!validTypes.includes(skill.type)) {
-            throw new Error(
-              `${tenantType} 技能 ${index}: 技能類型必須是 ${validTypes.join(
-                ", "
-              )} 之一`
-            );
-          }
-
-          // 成本結構驗證
-          if (skill.cost) {
-            Object.entries(skill.cost).forEach(([resource, amount]) => {
-              if (typeof amount !== "number" || amount < 0) {
-                throw new Error(
-                  `${tenantType} 技能 ${index}: 成本 ${resource} 必須是非負數`
-                );
-              }
-            });
-          }
-        });
-      });
-
-      return true;
-    });
-
-    // 事件資料驗證器
-    this.validators.set("events", (data) => {
-      if (typeof data !== "object" || data === null) {
-        throw new Error("事件資料必須是物件格式");
-      }
-
-      // 驗證事件分類結構
-      const requiredCategories = [
-        "random_events",
-        "conflict_events",
-        "special_events",
-      ];
-      requiredCategories.forEach((category) => {
-        if (!data[category] || !Array.isArray(data[category])) {
-          throw new Error(`事件資料缺少 ${category} 分類或格式錯誤`);
-        }
-      });
-
-      // 驗證每個事件
-      Object.entries(data).forEach(([category, events]) => {
-        if (Array.isArray(events)) {
-          events.forEach((event, index) => {
-            // 1. 檢查基本欄位
-            ["id", "title", "description"].forEach((field) => {
-              if (!(field in event)) {
-                throw new Error(
-                  `${category} 事件 ${index}: 缺少必要欄位 ${field}`
-                );
-              }
-            });
-
-            // 2. 必須有 choices 或 dynamicChoices
-            const hasChoices = "choices" in event;
-            const hasDynamic = "dynamicChoices" in event;
-            if (!hasChoices && !hasDynamic) {
-              throw new Error(
-                `${category} 事件 ${index}: 必須包含 choices 或 dynamicChoices 其中之一`
-              );
-            }
-
-            // 3. 如果有 choices，就檢查為陣列
-            if (hasChoices && !Array.isArray(event.choices)) {
-              throw new Error(`${category} 事件 ${index}: choices 必須是陣列`);
-            }
-
-            // 4. 如果有 dynamicChoices，就檢查裡面的 base（必須）和 conditional（若有）為陣列
-            if (hasDynamic) {
-              const dc = event.dynamicChoices;
-              if (!dc || !Array.isArray(dc.base)) {
-                throw new Error(
-                  `${category} 事件 ${index}: dynamicChoices.base 必須是陣列`
-                );
-              }
-              if ("conditional" in dc && !Array.isArray(dc.conditional)) {
-                throw new Error(
-                  `${category} 事件 ${index}: dynamicChoices.conditional 必須是陣列`
-                );
-              }
-            }
-          });
-        }
-      });
-
-      return true;
-    });
-
-    // 規則資料驗證器
-    this.validators.set("rules", (data) => {
-      if (typeof data !== "object" || data === null) {
-        throw new Error("規則資料必須是物件格式");
-      }
-
-      const requiredSections = ["gameBalance", "mechanics", "progression"];
-      requiredSections.forEach((section) => {
-        if (!(section in data)) {
-          throw new Error(`規則資料缺少必要區塊: ${section}`);
-        }
-      });
-
-      // 驗證 gameBalance 結構
-      if (data.gameBalance) {
-        const balance = data.gameBalance;
-
-        // 驗證房東配置
-        if (balance.landlord && balance.landlord.hungerSystem) {
-          const hungerSystem = balance.landlord.hungerSystem;
-          if (!hungerSystem.levels || !Array.isArray(hungerSystem.levels)) {
-            throw new Error(
-              "規則資料: landlord.hungerSystem.levels 必須是陣列"
-            );
-          }
-        }
-
-        // 驗證租客配置
-        if (balance.tenants && balance.tenants.satisfactionSystem) {
-          const satisfactionSystem = balance.tenants.satisfactionSystem;
-          if (typeof satisfactionSystem.baseValue !== "number") {
-            throw new Error(
-              "規則資料: tenants.satisfactionSystem.baseValue 必須是數值"
-            );
-          }
-        }
-      }
-
-      return true;
-    });
+    console.log("📦 DataManager 初始化完成，整合驗證模組");
   }
 
   /**
@@ -275,8 +67,18 @@ export class DataManager {
       console.log(`🔄 開始載入 ${dataType} 資料...`);
       const data = await loadPromise;
 
-      // 資料驗證
-      this.validateData(dataType, data);
+      // 使用新的驗證系統
+      const validationResult = this.validateData(dataType, data);
+
+      if (!validationResult.isValid) {
+        const firstError = validationResult.getFirstError();
+        throw new Error(`資料驗證失敗: ${firstError?.message || "未知錯誤"}`);
+      }
+
+      // 記錄驗證警告
+      if (validationResult.warnings.length > 0) {
+        console.warn(`⚠️ ${dataType} 資料驗證警告:`, validationResult.warnings);
+      }
 
       // 快取資料
       this.cache.set(dataType, data);
@@ -285,10 +87,13 @@ export class DataManager {
       console.log(`✅ 成功載入並驗證 ${dataType} 資料`);
 
       // 特殊處理：rules 載入完成後初始化 GameHelpers
-      if (dataType === "rules" && data && window.GameHelpers) {
+      if (dataType === "rules" && data && window.gameApp) {
         try {
-          if (typeof window.initializeGameHelpers === "function") {
-            const success = window.initializeGameHelpers(data);
+          if (
+            window.gameApp.gameHelpers &&
+            typeof window.gameApp.gameHelpers.injectConfig === "function"
+          ) {
+            const success = window.gameApp.gameHelpers.injectConfig(data);
             console.log(
               success
                 ? "✅ GameHelpers 配置注入成功"
@@ -306,22 +111,23 @@ export class DataManager {
       console.error(`❌ ${errorMessage}`);
 
       // 記錄錯誤
-      this.errorLog.push({
-        timestamp: new Date().toISOString(),
-        dataType,
-        error: error.message,
-        stack: error.stack,
-      });
+      this.recordError(dataType, error);
 
       // 嘗試使用預設資料
       console.warn(`🔄 嘗試使用 ${dataType} 預設資料...`);
       const defaultData = this.getDefaultData(dataType);
 
       if (defaultData) {
-        this.cache.set(dataType, defaultData);
-        this.loadingStatus[dataType] = true;
-        console.log(`✅ ${dataType} 預設資料載入成功`);
-        return defaultData;
+        // 驗證預設資料
+        const defaultValidation = this.validateData(dataType, defaultData);
+        if (defaultValidation.isValid) {
+          this.cache.set(dataType, defaultData);
+          this.loadingStatus[dataType] = true;
+          console.log(`✅ ${dataType} 預設資料載入成功`);
+          return defaultData;
+        } else {
+          console.error(`❌ 預設資料也驗證失敗:`, defaultValidation.errors);
+        }
       }
 
       throw new Error(errorMessage);
@@ -361,27 +167,51 @@ export class DataManager {
   }
 
   /**
-   * 資料驗證
+   * 資料驗證（使用新的驗證系統）
    * @param {string} dataType - 資料類型
    * @param {any} data - 待驗證的資料
+   * @returns {ValidationResult} 驗證結果
    */
   validateData(dataType, data) {
-    const validator = this.validators.get(dataType);
+    try {
+      const validationResult = this.validatorFactory.validate(dataType, data);
 
-    if (validator) {
-      try {
-        const isValid = validator(data);
-        if (isValid) {
-          console.log(`✅ ${dataType} 資料驗證通過`);
-        }
-        return isValid;
-      } catch (validationError) {
-        throw new Error(`資料驗證失敗: ${validationError.message}`);
+      if (validationResult.isValid) {
+        console.log(`✅ ${dataType} 資料驗證通過`);
+      } else {
+        console.warn(`⚠️ ${dataType} 資料驗證失敗:`, validationResult.errors);
       }
-    }
 
-    console.warn(`⚠️ 沒有為 ${dataType} 註冊驗證器，跳過驗證`);
-    return true;
+      return validationResult;
+    } catch (error) {
+      console.error(`❌ 驗證器執行錯誤:`, error);
+      return new ValidationResult(false).addError(
+        `驗證過程發生錯誤: ${error.message}`,
+        null,
+        ERROR_CODES.DATA_VALIDATION_FAILED
+      );
+    }
+  }
+
+  /**
+   * 記錄錯誤
+   * @private
+   */
+  recordError(dataType, error) {
+    const errorRecord = {
+      timestamp: new Date().toISOString(),
+      dataType,
+      error: error.message,
+      stack: error.stack,
+      code: ERROR_CODES.DATA_LOAD_FAILED,
+    };
+
+    this.errorLog.unshift(errorRecord);
+
+    // 限制錯誤記錄大小
+    if (this.errorLog.length > this.maxErrorLogSize) {
+      this.errorLog = this.errorLog.slice(0, this.maxErrorLogSize);
+    }
   }
 
   /**
@@ -674,7 +504,7 @@ export class DataManager {
    * @returns {Array} 錯誤記錄陣列
    */
   getErrorLog(limit = 10) {
-    return this.errorLog.slice(-limit).reverse(); // 最新的錯誤在前
+    return this.errorLog.slice(0, limit);
   }
 
   /**
@@ -686,6 +516,24 @@ export class DataManager {
   }
 
   /**
+   * 驗證指定資料類型
+   * @param {string} dataType - 資料類型
+   * @param {any} data - 資料內容
+   * @returns {ValidationResult} 驗證結果
+   */
+  validateSpecificData(dataType, data) {
+    return this.validateData(dataType, data);
+  }
+
+  /**
+   * 取得驗證器工廠
+   * @returns {ValidatorFactory} 驗證器工廠實例
+   */
+  getValidatorFactory() {
+    return this.validatorFactory;
+  }
+
+  /**
    * 匯出偵錯資訊
    * @returns {Object} 完整的偵錯資訊
    */
@@ -694,12 +542,15 @@ export class DataManager {
       loadingStatus: this.getLoadingStatus(),
       cachedDataTypes: this.getLoadedDataTypes(),
       errorLog: this.getErrorLog(),
-      validators: Array.from(this.validators.keys()),
+      validatorTypes: this.validatorFactory.getAvailableTypes(),
       cacheInfo: {
         size: this.cache.size,
         keys: Array.from(this.cache.keys()),
       },
       activePromises: Array.from(this.loadPromises.keys()),
+      systemLimits: {
+        maxErrorLogSize: this.maxErrorLogSize,
+      },
     };
   }
 }
