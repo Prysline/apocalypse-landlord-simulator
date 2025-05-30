@@ -2,9 +2,9 @@
 
 ## 📁 專案架構概覽
 
-本專案採用**漸進式重構策略**，從單一HTML檔案架構演進為模組化系統。當前處於對話2A完成階段，已建立完整的業務系統核心架構。
+本專案採用**直接模組分離重構策略**，從當前的混合架構 v1.1 直接升級為完整的ES6模組化系統。此決策基於前期技術驗證的充分準備，旨在一次到位建立現代化的開發架構。
 
-## 🏗️ 完整目錄結構
+## 🏗️ 目標檔案結構
 
 ```
 apocalypse-landlord-simulator/
@@ -12,7 +12,7 @@ apocalypse-landlord-simulator/
 ├── PROJECT_STRUCTURE.md               # 本檔案 - 專案結構與進度追蹤
 ├── LICENSE                            # 開源授權協議
 ├── .gitignore                         # Git版本控制忽略規則
-├── package.json                       # Node.js專案配置（未來Vite使用）
+├── package.json                       # Node.js專案配置（未來使用）
 │
 ├── public/                            # 🌐 靜態資源目錄
 │   ├── favicon.ico                    # 網站圖示
@@ -20,154 +20,200 @@ apocalypse-landlord-simulator/
 │   └── robots.txt                     # 搜尋引擎爬蟲規則
 │
 ├── src/                               # 📁 原始碼目錄
-│   ├── index.html                     # 原始單一檔案版本（保留參考）
-│   ├── game-refactored.html           # ✅ 重構版本 v1.1（當前主要版本）
+│   ├── index.html                     # ✅ 主要HTML檔案（重構目標）
+│   ├── game-refactored.html           # 📦 當前版本（v1.1，將被取代）
 │   │
 │   ├── js/                           # 🔧 JavaScript模組目錄
-│   │   ├── core/                     # 核心系統模組
-│   │   │   ├── DataManager.js        # ✅ 資料管理核心
-│   │   │   ├── RuleEngine.js         # ✅ 規則執行引擎
-│   │   │   └── GameBridge.js         # ✅ 新舊系統橋接器
+│   │   ├── main.js                    # 🚀 應用程式進入點（對話3A目標）
 │   │   │
-│   │   ├── systems/                  # 🎮 遊戲系統模組
-│   │   │   ├── TenantSystem.js       # ✅ 租客系統管理（內嵌於主檔案）
-│   │   │   ├── SkillSystem.js        # ✅ 技能系統執行（內嵌於主檔案）
-│   │   │   ├── EventSystem.js        # 📋 事件系統觸發（對話2B目標）
-│   │   │   ├── ResourceSystem.js     # 📋 資源流轉控制（對話2B目標）
-│   │   │   └── BuildingSystem.js     # 🚀 建築系統管理（對話3目標）
+│   │   ├── core/                     # 核心系統模組
+│   │   │   ├── DataManager.js        # 🚀 資料管理核心（對話3A目標）
+│   │   │   ├── RuleEngine.js         # 🚀 規則執行引擎（對話3A目標）
+│   │   │   └── GameBridge.js         # 🚀 系統整合協調（對話3A目標）
+│   │   │
+│   │   ├── systems/                  # 🎮 業務系統模組
+│   │   │   ├── TenantSystem.js       # 🚀 租客生命週期管理（對話3B目標）
+│   │   │   ├── SkillSystem.js        # 🚀 技能執行管理（對話3B目標）
+│   │   │   ├── EventSystem.js        # 🚀 事件觸發處理（對話3B目標）
+│   │   │   └── ResourceSystem.js     # 🚀 資源流轉控制（對話3B目標）
 │   │   │
 │   │   ├── ui/                       # 🖥️ 使用者介面模組
-│   │   │   ├── UIManager.js          # 📋 介面狀態管理（對話2B目標）
-│   │   │   ├── ModalManager.js       # 📋 彈窗系統管理（對話2B目標）
-│   │   │   ├── DisplayUpdater.js     # 📋 畫面更新邏輯（對話2B目標）
-│   │   │   └── InteractionHandler.js # 🚀 使用者互動處理（對話3目標）
+│   │   │   ├── UIManager.js          # 🚀 介面狀態管理（對話3C目標）
+│   │   │   ├── ModalManager.js       # 🚀 彈窗系統管理（對話3C目標）
+│   │   │   ├── DisplayUpdater.js     # 🚀 畫面更新邏輯（對話3C目標）
+│   │   │   └── InteractionHandler.js # 🚀 使用者互動處理（對話3C目標）
 │   │   │
-│   │   ├── utils/                    # 🛠️ 工具函數模組
-│   │   │   ├── helpers.js            # ✅ 通用輔助函數
-│   │   │   ├── validators.js         # 📋 資料驗證工具（對話2B目標）
-│   │   │   ├── constants.js          # 📋 常數定義（對話2B目標）
-│   │   │   └── formatters.js         # 🚀 格式化工具（對話3目標）
-│   │   │
-│   │   └── main.js                   # 🚀 主程式進入點（對話3目標）
+│   │   └── utils/                    # 🛠️ 工具函數模組
+│   │       ├── helpers.js            # 🚀 通用輔助函數（對話3A目標）
+│   │       ├── validators.js         # 🚀 資料驗證工具（對話3A目標）
+│   │       └── constants.js          # 🚀 常數定義（對話3A目標）
 │   │
 │   ├── data/                         # 📊 遊戲資料配置目錄
 │   │   ├── tenants.json              # ✅ 租客資料配置
 │   │   ├── skills.json               # ✅ 技能系統配置
 │   │   ├── events.json               # ✅ 事件系統配置
-│   │   ├── rules.json                # ✅ 遊戲規則配置
-│   │   └── localization/             # 🌍 本地化資料（未來擴展）
-│   │       ├── zh-TW.json            # 繁體中文
-│   │       └── en-US.json            # 英文
+│   │   └── rules.json                # ✅ 遊戲規則配置
 │   │
-│   └── css/                          # 🎨 樣式檔案目錄（對話3目標）
-│       ├── main.css                  # 主要樣式
-│       ├── components.css            # 元件樣式
-│       ├── themes.css                # 主題樣式
-│       └── responsive.css            # 響應式設計
+│   └── css/                          # 🎨 樣式檔案目錄
+│       ├── main.css                  # 🚀 主要樣式（對話3C目標）
+│       ├── components.css            # 🚀 元件樣式（對話3C目標）
+│       └── responsive.css            # 🚀 響應式設計（對話3C目標）
 │
-├── dist/                             # 📦 建構輸出目錄（對話3使用）
-│   ├── index.html                    # 建構後的HTML
-│   ├── assets/                       # 建構後的資源
-│   └── ...                           # 其他建構產物
+├── dist/                             # 📦 建構輸出目錄（未來使用）
+│   └── (建構後檔案)
 │
 ├── docs/                             # 📚 專案文件目錄
 │   ├── architecture.md              # ✅ 架構設計文件
-│   ├── api.md                        # 📋 API文件（對話2B目標）
-│   ├── development.md                # 🔧 開發環境指南
-│   ├── deployment.md                 # 🚀 部署說明文件
-│   └── changelog.md                  # 📈 版本更新記錄
+│   ├── api.md                        # 🚀 API文件（對話3完成後）
+│   ├── development.md                # 📋 開發環境指南
+│   ├── deployment.md                 # 📋 部署說明文件
+│   └── changelog.md                  # 📋 版本更新記錄
 │
-├── tests/                           # 🧪 測試檔案目錄（對話2B重點）
+├── tests/                           # 🧪 測試檔案目錄（未來實作）
 │   ├── unit/                        # 單元測試
-│   │   ├── core/                    # 核心系統測試
-│   │   ├── systems/                 # 遊戲系統測試
-│   │   └── utils/                   # 工具函數測試
 │   ├── integration/                 # 整合測試
-│   │   ├── system-bridge.test.js   # 系統橋接測試
-│   │   ├── business-systems.test.js # 業務系統測試（新增）
-│   │   └── data-consistency.test.js # 資料一致性測試
 │   └── fixtures/                    # 測試資料夾具
-│       ├── game-states/             # 遊戲狀態測試資料
-│       └── config-samples/          # 配置檔案範例
 │
-└── tools/                           # 🔨 開發工具目錄
+└── tools/                           # 🔨 開發工具目錄（未來實作）
     ├── build.js                     # 建構腳本
     ├── deploy.js                    # 部署腳本
-    ├── validate-config.js           # 配置檔案驗證工具
-    └── generate-docs.js             # 自動文件生成工具
+    └── validate-config.js           # 配置檔案驗證工具
 ```
 
 ## 📋 檔案狀態說明
 
 ### 狀態圖例
 - ✅ **已完成**：檔案已實作並經過驗證
-- 📋 **對話2B目標**：下階段主要實作目標
-- 🚀 **對話3目標**：後續階段實作目標
-- 🌍 **未來擴展**：長期規劃功能
+- 🚀 **對話3目標**：直接分離重構的目標檔案
+- 📋 **未來計劃**：後續階段的開發目標
+- 📦 **將被取代**：重構完成後將被新架構取代
 
-### 當前進度分佈
+### 重構進度規劃
 
-**對話2A已完成（✅）**：
-- 核心架構系統：`DataManager.js`、`RuleEngine.js`、`GameBridge.js`
-- 業務系統核心：`TenantSystem`（內嵌）、`SkillSystem`（內嵌）
-- 資料配置體系：`tenants.json`、`skills.json`、`events.json`、`rules.json`
-- 整合實作：`game-refactored.html` v1.1版本
-- 工具模組：`helpers.js`
-- 架構文件：`architecture.md`
+**對話3A：核心架構分離**
+- 🚀 建立基礎檔案結構
+- 🚀 抽取核心系統模組（DataManager, RuleEngine, GameBridge）
+- 🚀 建立主程式進入點（main.js）
+- 🚀 簡化HTML結構（index.html）
+- 🚀 整合工具函數（helpers.js, validators.js, constants.js）
 
-**對話2B目標（📋）**：
-- 業務系統擴展：`EventSystem.js`、`ResourceSystem.js`
-- UI架構初期：`UIManager.js`、`ModalManager.js`、`DisplayUpdater.js`
-- 測試框架：完整的業務系統測試機制
-- 工具擴展：`validators.js`、`constants.js`
-- API文件：`api.md`
+**對話3B：業務系統分離**
+- 🚀 抽取並優化租客系統（TenantSystem.js）
+- 🚀 抽取並優化技能系統（SkillSystem.js）
+- 🚀 全新實作事件系統（EventSystem.js）
+- 🚀 全新實作資源系統（ResourceSystem.js）
 
-**對話3目標（🚀）**：
-- 完整模組分離：`main.js`、獨立CSS檔案
-- 進階UI模組：`InteractionHandler.js`
-- 建構系統：完整的Vite工作流程
-- 工具完善：`formatters.js`
+**對話3C：UI系統完善**
+- 🚀 實作介面管理系統（UIManager.js）
+- 🚀 實作彈窗管理系統（ModalManager.js）
+- 🚀 分離畫面更新邏輯（DisplayUpdater.js）
+- 🚀 分離互動處理邏輯（InteractionHandler.js）
+- 🚀 抽取並模組化CSS樣式
+
+## 🔄 技術遷移策略
+
+### 從混合架構到模組架構
+
+**當前狀態（v1.1）**：
+```
+src/game-refactored.html (4000+ 行)
+├── 內嵌核心系統
+├── 內嵌業務系統  
+├── 內嵌UI邏輯
+└── 內嵌樣式
+```
+
+**目標狀態（v2.0）**：
+```
+src/index.html (簡化HTML)
+└── js/main.js (應用進入點)
+    ├── core/ (3個模組)
+    ├── systems/ (4個模組)
+    ├── ui/ (4個模組)
+    └── utils/ (3個模組)
+```
+
+### 重構原則
+
+1. **功能完整性優先**：確保每個階段功能不丟失
+2. **模組邊界清晰**：每個模組職責單一，介面明確
+3. **依賴關係透明**：明確宣告模組間依賴關係
+4. **向後相容保證**：舊版本功能完全保留
 
 ## 📊 開發進度追蹤
 
-### 系統完成度
-- **核心基礎設施**：100% ✅
-- **業務邏輯系統**：60% 🟡（TenantSystem✅、SkillSystem✅、EventSystem📋、ResourceSystem📋）
-- **使用者介面層**：10% 🔴（基礎監控✅、管理模組📋）
-- **工具與輔助**：30% 🟡（helpers✅、其他📋）
-
 ### 版本歷程
-- **v1.0**：基礎架構版本（對話1成果）
-- **v1.1**：業務系統核心版本（對話2A成果）✅ 當前版本
-- **v1.2**：系統深化版本（對話2B目標）📋
+- **v1.0**：基礎架構版本（對話1成果）✅
+- **v1.1**：業務系統核心版本（對話2A成果）✅
 - **v2.0**：完整模組化版本（對話3目標）🚀
 
-### 檔案規模變化
-- **原始版本**：單一HTML檔案，約3000+行程式碼
-- **v1.1版本**：單一HTML檔案 + 內嵌模組化，約4000+行（含業務系統）
-- **預期v2.0**：多檔案模組架構，預估15+個獨立檔案
+### 當前完成度
+- **核心基礎設施**：100% ✅（DataManager、RuleEngine、GameBridge概念驗證）
+- **資料配置體系**：100% ✅（JSON配置檔案完整）
+- **業務邏輯系統**：85% ✅（TenantSystem、SkillSystem核心完成）
+- **檔案架構分離**：0% 🚀（對話3主要目標）
+- **UI模組化系統**：0% 🚀（對話3次要目標）
 
-## 🎯 下階段準備狀態
+### 檔案規模預期變化
+- **當前版本**：1個HTML檔案（4000+行）
+- **目標版本**：15+個獨立模組檔案（平均200-300行/檔案）
+- **維護性提升**：模組獨立開發、測試、維護
 
-### 對話2B技術基礎
-- ✅ TenantSystem 和 SkillSystem 完整實作
-- ✅ 系統代理機制建立
-- ✅ JSON配置體系穩定
-- ✅ 狀態監控介面就緒
+## 🎯 對話3階段準備
 
-### 待解決的技術債務
-- EventSystem 和 ResourceSystem 模組化
-- 完整功能等價性測試框架
-- UI更新機制的效能優化
-- 系統間協作的錯誤處理強化
+### 技術基礎確認
+- ✅ ES6模組載入機制理解
+- ✅ 模組間依賴關係設計
+- ✅ 核心系統介面定義完成
+- ✅ 業務邏輯邊界清晰劃分
 
-### 檔案變更預期
-**對話2B預期新增/修改**：
-- 新增：EventSystem、ResourceSystem 類別（內嵌方式）
-- 新增：UIManager 等UI管理模組（內嵌方式）
-- 修改：game-refactored.html 升級至 v1.2
-- 新增：測試相關檔案
+### 重構風險控制
+- **功能驗證**：每個模組完成後進行功能對比測試
+- **效能監控**：確保模組化後載入速度不明顯下降
+- **相容性測試**：確保GitHub Pages部署正常
+- **回滾機制**：保留v1.1版本作為備份
+
+### 成功評估標準
+- [ ] 所有原功能正常運作
+- [ ] 模組化架構清晰可維護
+- [ ] 開發效率顯著提升
+- [ ] 支援並行模組開發
+- [ ] GitHub Pages部署成功
+
+## 🗑️ 檔案清理計劃
+
+### 將被取代的檔案
+```
+📦 src/game-refactored.html  # v1.1版本，重構完成後歸檔
+```
+
+### 文件結構精簡
+基於單人開發實際需求，採用**最小必要文件集**：
+```
+docs/
+├── architecture.md           # ✅ 更新完成 - 核心架構設計
+└── api.md                   # 🚀 對話3後建立 - 模組介面文件
+```
+## 📅 下階段行動計劃
+
+### 對話3A：核心架構分離（預估1個對話）
+**主要目標**：建立基礎檔案結構和核心系統模組
+**交付成果**：可運行的模組化基礎架構
+**驗證標準**：基本遊戲功能正常，模組載入成功
+
+### 對話3B：業務系統分離（預估1個對話）  
+**主要目標**：抽取並優化所有業務邏輯系統
+**交付成果**：完整的遊戲邏輯模組
+**驗證標準**：所有遊戲功能與v1.1完全等價
+
+### 對話3C：UI系統完善（預估1個對話）
+**主要目標**：建立現代化的UI管理架構
+**交付成果**：v2.0正式版本
+**驗證標準**：使用者體驗優於v1.1，架構支援未來擴展
 
 ---
 
-**專案目前狀態**：混合架構 v1.1，核心業務系統85%完成，準備進入系統深化階段。詳細的架構設計原理請參考 `docs/architecture.md`。
+**當前狀態**：混合架構 v1.1 → **目標狀態**：模組化架構 v2.0  
+**預估時程**：3個對話完成完整重構  
+**技術風險**：低（基於充分的技術驗證）  
+**商業價值**：高（現代化架構支援商業化發展）
