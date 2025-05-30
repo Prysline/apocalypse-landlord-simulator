@@ -1,368 +1,553 @@
 /**
- * GameBridge - 新舊系統整合橋接器
+ * GameBridge - 系統整合協調器
+ * 職責：
+ * 1. 協調各核心系統模組的交互作用
+ * 2. 提供統一的服務介面給業務系統
+ * 3. 管理系統生命週期和錯誤處理
+ * 4. 實現事件驅動的模組間通信
  *
- * 架構設計原理：
- * 1. 適配器模式：包裝原始 gameState，提供統一介面
- * 2. 外觀模式：隱藏複雜的新舊系統交互邏輯
- * 3. 代理模式：攔截關鍵操作，選擇性啟用新功能
- * 4. 策略模式：根據配置動態選擇執行路徑
+ * 設計模式：外觀模式 + 中介者模式 + 觀察者模式
+ * 核心特性：服務註冊、事件協調、錯誤隔離、性能監控
  */
-class GameBridge {
-  constructor(originalGameState) {
-    this.originalGameState = originalGameState;
-    this.newSystemEnabled = new Map();
-    this.migrationStatus = new Map();
 
-    // 系統模組對應表
-    this.systemModules = {
-      tenants: { enabled: false, migrated: false },
-      skills: { enabled: false, migrated: false },
-      events: { enabled: false, migrated: false },
-      rules: { enabled: false, migrated: false },
+export class GameBridge extends EventTarget {
+  constructor(gameStateRef, dataManager, ruleEngine) {
+    super(); // 繼承 EventTarget 以支援事件機制
+
+    this.gameState = gameStateRef;
+    this.dataManager = dataManager;
+    this.ruleEngine = ruleEngine;
+
+    // 系統狀態管理
+    this.systemStatus = {
+      initialized: false,
+      version: "2.0.0",
+      architecture: "ES6 Modules",
+      startTime: Date.now(),
+      lastHealthCheck: 0,
     };
 
-    // 初始化橋接器
-    this.initializeBridge();
+    // 服務註冊表（外觀模式）
+    this.services = new Map();
+
+    // 事件監聽器管理（觀察者模式）
+    this.eventListeners = new Map();
+
+    // 性能監控
+    this.performanceMetrics = {
+      eventCount: 0,
+      serviceCallCount: 0,
+      averageResponseTime: 0,
+      errorCount: 0,
+      lastError: null,
+    };
+
+    // 錯誤處理系統
+    this.errorHandlers = new Map();
+
+    // 初始化核心服務
+    this.initializeCoreServices();
   }
 
   /**
-   * 初始化橋接系統
+   * 初始化核心服務
    */
-  async initializeBridge() {
-    console.log("🌉 正在初始化遊戲橋接系統...");
+  initializeCoreServices() {
+    // 註冊核心服務
+    this.registerService("dataManager", this.dataManager);
+    this.registerService("ruleEngine", this.ruleEngine);
+    this.registerService("gameState", this.gameState);
 
-    try {
-      // 檢查新系統可用性
-      await this.checkNewSystemAvailability();
+    // 註冊內建錯誤處理器
+    this.registerErrorHandlers();
 
-      // 建立資料映射
-      this.createDataMappings();
+    // 建立核心事件監聽
+    this.setupCoreEventListeners();
 
-      // 建立功能代理
-      this.createFunctionProxies();
-
-      console.log("✅ 橋接系統初始化完成");
-    } catch (error) {
-      console.error("❌ 橋接系統初始化失敗:", error);
-      console.log("🔄 回退到原始系統");
-      this.fallbackToOriginalSystem();
-    }
+    console.log("🔗 GameBridge 核心服務初始化完成");
   }
 
   /**
-   * 檢查新系統可用性
+   * 註冊錯誤處理器
    */
-  async checkNewSystemAvailability() {
-    // 檢查 DataManager
-    if (window.dataManager) {
-      console.log("📊 DataManager 可用");
+  registerErrorHandlers() {
+    // 資料載入錯誤處理器
+    this.errorHandlers.set("data_load_error", (error, context) => {
+      console.error("❌ 資料載入錯誤:", error);
+      this.emit("system:data_load_failed", { error, context });
 
-      // 嘗試載入各種資料
-      const dataTypes = ["tenants", "skills", "events", "rules"];
-      for (const dataType of dataTypes) {
-        try {
-          await window.dataManager.loadData(dataType);
-          this.systemModules[dataType].enabled = true;
-          console.log(`✅ ${dataType} 資料載入成功`);
-        } catch (error) {
-          console.warn(
-            `⚠️ ${dataType} 資料載入失敗，使用原始資料:`,
-            error.message
-          );
+      // 嘗試使用預設資料
+      if (context.dataType && this.dataManager) {
+        const defaultData = this.dataManager.getDefaultData(context.dataType);
+        if (defaultData) {
+          console.log(`🔄 使用 ${context.dataType} 預設資料`);
+          return defaultData;
         }
       }
+
+      throw error;
+    });
+
+    // 規則執行錯誤處理器
+    this.errorHandlers.set("rule_execution_error", (error, context) => {
+      console.error("❌ 規則執行錯誤:", error);
+      this.emit("system:rule_execution_failed", { error, context });
+
+      // 記錄錯誤但不中斷遊戲
+      this.performanceMetrics.errorCount++;
+      this.performanceMetrics.lastError = {
+        timestamp: Date.now(),
+        type: "rule_execution",
+        message: error.message,
+        context,
+      };
+    });
+
+    // 系統通信錯誤處理器
+    this.errorHandlers.set("communication_error", (error, context) => {
+      console.error("❌ 系統通信錯誤:", error);
+      this.emit("system:communication_failed", { error, context });
+
+      // 嘗試重建通信連線
+      setTimeout(() => {
+        this.attemptReconnection(context);
+      }, 1000);
+    });
+  }
+
+  /**
+   * 建立核心事件監聽
+   */
+  setupCoreEventListeners() {
+    // 監聽系統健康檢查
+    this.addEventListener(
+      "system:health_check",
+      this.handleHealthCheck.bind(this)
+    );
+
+    // 監聽資料更新事件
+    this.addEventListener("data:updated", this.handleDataUpdate.bind(this));
+
+    // 監聽規則執行事件
+    this.addEventListener("rule:executed", this.handleRuleExecution.bind(this));
+
+    // 設定定期健康檢查
+    setInterval(() => {
+      this.performHealthCheck();
+    }, 30000); // 每30秒檢查一次
+  }
+
+  /**
+   * 服務註冊與管理
+   */
+
+  /**
+   * 註冊服務
+   * @param {string} serviceName - 服務名稱
+   * @param {any} serviceInstance - 服務實例
+   * @param {Object} options - 服務選項
+   */
+  registerService(serviceName, serviceInstance, options = {}) {
+    const service = {
+      name: serviceName,
+      instance: serviceInstance,
+      registeredAt: Date.now(),
+      callCount: 0,
+      lastCall: 0,
+      enabled: options.enabled !== false,
+      metadata: options.metadata || {},
+    };
+
+    this.services.set(serviceName, service);
+
+    console.log(`📋 註冊服務: ${serviceName}`);
+    this.emit("service:registered", { serviceName, service });
+
+    return service;
+  }
+
+  /**
+   * 取得服務
+   * @param {string} serviceName - 服務名稱
+   * @returns {any} 服務實例
+   */
+  getService(serviceName) {
+    const service = this.services.get(serviceName);
+
+    if (!service) {
+      throw new Error(`服務不存在: ${serviceName}`);
     }
 
-    // 檢查 RuleEngine
-    if (window.ruleEngine || window.createRuleEngine) {
-      console.log("⚙️ RuleEngine 可用");
+    if (!service.enabled) {
+      throw new Error(`服務已停用: ${serviceName}`);
+    }
 
-      if (!window.ruleEngine) {
-        window.ruleEngine = window.createRuleEngine(this.originalGameState);
+    // 更新調用統計
+    service.callCount++;
+    service.lastCall = Date.now();
+    this.performanceMetrics.serviceCallCount++;
+
+    return service.instance;
+  }
+
+  /**
+   * 檢查服務是否可用
+   * @param {string} serviceName - 服務名稱
+   * @returns {boolean} 服務是否可用
+   */
+  hasService(serviceName) {
+    const service = this.services.get(serviceName);
+    return service && service.enabled;
+  }
+
+  /**
+   * 停用服務
+   * @param {string} serviceName - 服務名稱
+   */
+  disableService(serviceName) {
+    const service = this.services.get(serviceName);
+    if (service) {
+      service.enabled = false;
+      console.log(`❌ 停用服務: ${serviceName}`);
+      this.emit("service:disabled", { serviceName });
+    }
+  }
+
+  /**
+   * 啟用服務
+   * @param {string} serviceName - 服務名稱
+   */
+  enableService(serviceName) {
+    const service = this.services.get(serviceName);
+    if (service) {
+      service.enabled = true;
+      console.log(`✅ 啟用服務: ${serviceName}`);
+      this.emit("service:enabled", { serviceName });
+    }
+  }
+
+  /**
+   * 事件管理與通信
+   */
+
+  /**
+   * 發送事件（覆寫 EventTarget 的方法以增加統計）
+   * @param {string} eventType - 事件類型
+   * @param {any} data - 事件資料
+   */
+  emit(eventType, data = {}) {
+    const event = new CustomEvent(eventType, {
+      detail: {
+        ...data,
+        timestamp: Date.now(),
+        source: "GameBridge",
+      },
+    });
+
+    this.performanceMetrics.eventCount++;
+    this.dispatchEvent(event);
+
+    // 記錄重要事件
+    if (eventType.startsWith("system:") || eventType.startsWith("error:")) {
+      console.log(`📡 事件發送: ${eventType}`, data);
+    }
+  }
+
+  /**
+   * 監聽事件（增強版本）
+   * @param {string} eventType - 事件類型
+   * @param {Function} handler - 事件處理器
+   * @param {Object} options - 監聽選項
+   */
+  on(eventType, handler, options = {}) {
+    const wrappedHandler = (event) => {
+      const startTime = Date.now();
+
+      try {
+        handler(event);
+
+        // 更新性能統計
+        const responseTime = Date.now() - startTime;
+        this.updateResponseTimeMetrics(responseTime);
+      } catch (error) {
+        console.error(`❌ 事件處理器錯誤 (${eventType}):`, error);
+        this.handleError("event_handler_error", error, {
+          eventType,
+          handler: handler.name,
+        });
+      }
+    };
+
+    this.addEventListener(eventType, wrappedHandler, options);
+
+    // 記錄監聽器
+    if (!this.eventListeners.has(eventType)) {
+      this.eventListeners.set(eventType, []);
+    }
+    this.eventListeners
+      .get(eventType)
+      .push({ handler, wrappedHandler, options });
+
+    return wrappedHandler;
+  }
+
+  /**
+   * 移除事件監聽器
+   * @param {string} eventType - 事件類型
+   * @param {Function} handler - 原始處理器
+   */
+  off(eventType, handler) {
+    const listeners = this.eventListeners.get(eventType);
+    if (listeners) {
+      const listenerInfo = listeners.find((l) => l.handler === handler);
+      if (listenerInfo) {
+        this.removeEventListener(eventType, listenerInfo.wrappedHandler);
+        const index = listeners.indexOf(listenerInfo);
+        listeners.splice(index, 1);
       }
     }
   }
 
   /**
-   * 建立資料映射
+   * 高級功能介面
    */
-  createDataMappings() {
-    this.dataMappings = {
-      // 租客資料映射
-      tenants: {
-        original: () => window.tenantTypes || [],
-        new: () => window.dataManager?.getCachedData("tenants") || [],
-        merger: (original, newData) => this.mergeTenantData(original, newData),
-      },
 
-      // 技能資料映射
-      skills: {
-        original: () => this.extractOriginalSkills(),
-        new: () => window.dataManager?.getCachedData("skills") || {},
-        merger: (original, newData) => this.mergeSkillData(original, newData),
-      },
+  /**
+   * 執行資料載入操作
+   * @param {string} dataType - 資料類型
+   * @param {boolean} forceReload - 是否強制重新載入
+   * @returns {Promise<any>} 載入的資料
+   */
+  async loadData(dataType, forceReload = false) {
+    try {
+      const dataManager = this.getService("dataManager");
+      const data = await dataManager.loadData(dataType, forceReload);
 
-      // 事件資料映射
-      events: {
-        original: () => window.events || [],
-        new: () => window.dataManager?.getCachedData("events") || {},
-        merger: (original, newData) => this.mergeEventData(original, newData),
-      },
-    };
+      this.emit("data:loaded", { dataType, data });
+      return data;
+    } catch (error) {
+      return this.handleError("data_load_error", error, { dataType });
+    }
   }
 
   /**
-   * 建立功能代理
+   * 執行規則
+   * @param {string} ruleId - 規則 ID
+   * @param {Object} context - 執行上下文
+   * @returns {Object} 執行結果
    */
-  createFunctionProxies() {
-    // 代理租客生成函數
-    this.proxyTenantGeneration();
+  executeRule(ruleId, context = {}) {
+    try {
+      const ruleEngine = this.getService("ruleEngine");
+      const result = ruleEngine.executeRule(ruleId, context);
 
-    // 代理技能執行函數
-    this.proxySkillExecution();
-
-    // 代理事件系統
-    this.proxyEventSystem();
-
-    // 代理遊戲規則
-    this.proxyGameRules();
+      this.emit("rule:executed", { ruleId, result, context });
+      return result;
+    } catch (error) {
+      this.handleError("rule_execution_error", error, { ruleId, context });
+      return { executed: false, error: error.message };
+    }
   }
 
   /**
-   * 代理租客生成函數
+   * 取得遊戲狀態
+   * @param {string} path - 狀態路徑（可選）
+   * @returns {any} 遊戲狀態或指定路徑的值
    */
-  proxyTenantGeneration() {
-    // 保存原始函數
-    window.originalGenerateApplicants = window.generateApplicants;
+  getGameState(path = null) {
+    const gameState = this.getService("gameState");
 
-    // 建立新的代理函數
-    window.generateApplicants = () => {
-      if (this.systemModules.tenants.enabled) {
-        return this.generateApplicantsFromConfig();
-      } else {
-        return window.originalGenerateApplicants();
-      }
-    };
-  }
-
-  /**
-   * 從配置生成申請者
-   */
-  generateApplicantsFromConfig() {
-    const tenantConfigs = window.dataManager.getCachedData("tenants");
-    if (!tenantConfigs) {
-      console.warn("⚠️ 租客配置不可用，使用原始方法");
-      return window.originalGenerateApplicants();
+    if (path) {
+      return this.getNestedValue(gameState, path);
     }
 
-    this.originalGameState.applicants = [];
-    const count = Math.floor(Math.random() * 3) + 1;
+    return gameState;
+  }
 
-    for (let i = 0; i < count; i++) {
-      // 根據解鎖條件過濾可用租客
-      const availableTenants = this.filterAvailableTenants(tenantConfigs);
-      const config =
-        availableTenants[Math.floor(Math.random() * availableTenants.length)];
+  /**
+   * 更新遊戲狀態
+   * @param {string} path - 狀態路徑
+   * @param {any} value - 新值
+   * @param {string} operation - 操作類型（set, add, multiply）
+   */
+  updateGameState(path, value, operation = "set") {
+    try {
+      const gameState = this.getService("gameState");
+      const oldValue = this.getNestedValue(gameState, path);
 
-      const applicant = {
-        ...config,
-        name: this.generateName(),
-        infected: Math.random() < config.infectionRisk,
-        id: Date.now() + i,
-        personalResources: { ...config.personalResources },
+      let newValue;
+      switch (operation) {
+        case "set":
+          newValue = value;
+          break;
+        case "add":
+          newValue = (oldValue || 0) + value;
+          break;
+        case "multiply":
+          newValue = (oldValue || 0) * value;
+          break;
+        default:
+          throw new Error(`未知的操作類型: ${operation}`);
+      }
+
+      this.setNestedValue(gameState, path, newValue);
+
+      this.emit("gameState:updated", { path, oldValue, newValue, operation });
+    } catch (error) {
+      this.handleError("game_state_error", error, { path, value, operation });
+    }
+  }
+
+  /**
+   * 系統監控與維護
+   */
+
+  /**
+   * 執行健康檢查
+   */
+  performHealthCheck() {
+    const healthStatus = {
+      timestamp: Date.now(),
+      overallHealth: "healthy",
+      services: {},
+      performance: { ...this.performanceMetrics },
+      memory: this.getMemoryUsage(),
+      uptime: Date.now() - this.systemStatus.startTime,
+    };
+
+    // 檢查每個服務的健康狀態
+    for (const [serviceName, service] of this.services) {
+      healthStatus.services[serviceName] = {
+        enabled: service.enabled,
+        callCount: service.callCount,
+        lastCall: service.lastCall,
+        timeSinceLastCall: Date.now() - service.lastCall,
+        healthy:
+          service.enabled &&
+          (service.lastCall > 0 || serviceName === "gameState"),
       };
 
-      if (applicant.infected) {
-        applicant.appearance = this.getInfectedAppearance();
-      } else {
-        applicant.appearance = this.getNormalAppearance();
+      if (!healthStatus.services[serviceName].healthy) {
+        healthStatus.overallHealth = "degraded";
       }
-
-      this.originalGameState.applicants.push(applicant);
     }
 
-    console.log(`📋 使用新配置生成了 ${count} 個申請者`);
+    // 檢查錯誤率
+    if (this.performanceMetrics.errorCount > 10) {
+      healthStatus.overallHealth = "unhealthy";
+    }
+
+    this.systemStatus.lastHealthCheck = Date.now();
+    this.emit("system:health_check_completed", healthStatus);
+
+    return healthStatus;
   }
 
   /**
-   * 根據解鎖條件過濾租客
+   * 取得記憶體使用狀況
    */
-  filterAvailableTenants(tenantConfigs) {
-    return tenantConfigs.filter((config) => {
-      const unlockConditions = config.unlockConditions;
-      if (!unlockConditions) return true;
-
-      // 檢查日期條件
-      if (
-        unlockConditions.day &&
-        this.originalGameState.day < unlockConditions.day
-      ) {
-        return false;
-      }
-
-      // 檢查建築防禦條件
-      if (
-        unlockConditions.buildingDefense &&
-        this.originalGameState.buildingDefense <
-          unlockConditions.buildingDefense
-      ) {
-        return false;
-      }
-
-      // 檢查租客總數條件
-      if (unlockConditions.totalTenants) {
-        const currentTenants = this.originalGameState.rooms.filter(
-          (room) => room.tenant
-        ).length;
-        if (currentTenants < unlockConditions.totalTenants) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }
-
-  /**
-   * 代理技能執行系統
-   */
-  proxySkillExecution() {
-    // 保存原始函數
-    window.originalUseSkill = window.useSkill;
-
-    // 建立新的代理函數
-    window.useSkill = (tenantName, skillAction) => {
-      if (this.systemModules.skills.enabled) {
-        return this.executeSkillFromConfig(tenantName, skillAction);
-      } else {
-        return window.originalUseSkill(tenantName, skillAction);
-      }
-    };
-  }
-
-  /**
-   * 從配置執行技能
-   */
-  executeSkillFromConfig(tenantName, skillAction) {
-    const skillConfigs = window.dataManager.getCachedData("skills");
-    if (!skillConfigs) {
-      console.warn("⚠️ 技能配置不可用，使用原始方法");
-      return window.originalUseSkill(tenantName, skillAction);
-    }
-
-    const tenant = this.findTenantByName(tenantName);
-    if (!tenant) {
-      console.error(`❌ 找不到租客: ${tenantName}`);
-      return;
-    }
-
-    const tenantSkills = skillConfigs[tenant.type];
-    const skillConfig = tenantSkills?.find((skill) => skill.id === skillAction);
-
-    if (!skillConfig) {
-      console.warn(`⚠️ 找不到技能配置: ${skillAction}，使用原始方法`);
-      return window.originalUseSkill(tenantName, skillAction);
-    }
-
-    // 使用 RuleEngine 執行技能
-    if (window.ruleEngine) {
-      return this.executeSkillWithRuleEngine(tenant, skillConfig);
-    } else {
-      // 後備方案：直接執行效果
-      return this.executeSkillDirectly(tenant, skillConfig);
-    }
-  }
-
-  /**
-   * 使用規則引擎執行技能
-   */
-  executeSkillWithRuleEngine(tenant, skillConfig) {
-    // 建立臨時規則
-    const tempRuleId = `skill_${skillConfig.id}_${Date.now()}`;
-
-    const ruleConfig = {
-      name: skillConfig.name,
-      description: skillConfig.description,
-      conditions: skillConfig.requirements?.conditions || [],
-      effects: skillConfig.effects || [],
-      priority: skillConfig.priority || 1,
-    };
-
-    // 註冊並執行規則
-    window.ruleEngine.registerRule(tempRuleId, ruleConfig);
-    const result = window.ruleEngine.executeRule(tempRuleId, { tenant });
-
-    console.log(`🎯 使用規則引擎執行技能: ${skillConfig.name}`, result);
-    return result;
-  }
-
-  /**
-   * 直接執行技能效果
-   */
-  executeSkillDirectly(tenant, skillConfig) {
-    console.log(`⚡ 直接執行技能: ${skillConfig.name}`);
-
-    // 檢查成本
-    const cost = skillConfig.cost || {};
-    if (!this.canAffordCost(cost)) {
-      console.warn("❌ 資源不足，無法執行技能");
-      return { executed: false, reason: "insufficient_resources" };
-    }
-
-    // 支付成本
-    this.payCost(cost, tenant);
-
-    // 執行效果
-    const results = [];
-    (skillConfig.effects || []).forEach((effect) => {
-      const result = this.executeEffect(effect);
-      results.push(result);
-    });
-
-    // 更新顯示
-    if (typeof window.updateDisplay === "function") {
-      window.updateDisplay();
-    }
-
-    return { executed: true, results };
-  }
-
-  /**
-   * 執行效果
-   */
-  executeEffect(effect) {
-    switch (effect.type) {
-      case "modifyResource":
-        this.originalGameState.resources[effect.resource] = Math.max(
-          0,
-          (this.originalGameState.resources[effect.resource] || 0) +
-            effect.amount
-        );
+  getMemoryUsage() {
+    try {
+      if (performance && performance.memory) {
         return {
-          type: "resource",
-          resource: effect.resource,
-          amount: effect.amount,
+          used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
+          total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024),
+          limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024),
         };
+      }
+    } catch (error) {
+      // 某些瀏覽器可能不支援 performance.memory
+    }
 
-      case "modifyState":
-        this.setNestedValue(this.originalGameState, effect.path, effect.value);
-        return { type: "state", path: effect.path, value: effect.value };
+    return { used: "unknown", total: "unknown", limit: "unknown" };
+  }
 
-      case "logMessage":
-        if (typeof window.addLog === "function") {
-          window.addLog(effect.message, effect.logType || "event");
-        }
-        return { type: "log", message: effect.message };
+  /**
+   * 更新響應時間統計
+   */
+  updateResponseTimeMetrics(responseTime) {
+    const currentAvg = this.performanceMetrics.averageResponseTime;
+    const count = this.performanceMetrics.eventCount;
 
-      default:
-        console.warn(`⚠️ 未知的效果類型: ${effect.type}`);
-        return { type: "unknown", effect };
+    // 計算新的平均響應時間
+    this.performanceMetrics.averageResponseTime =
+      (currentAvg * (count - 1) + responseTime) / count;
+  }
+
+  /**
+   * 事件處理器
+   */
+
+  handleHealthCheck(event) {
+    console.log("🔍 執行系統健康檢查");
+    return this.performHealthCheck();
+  }
+
+  handleDataUpdate(event) {
+    const { dataType, data } = event.detail;
+    console.log(`📊 資料更新: ${dataType}`);
+
+    // 通知相關系統資料已更新
+    this.emit(`data:${dataType}_updated`, { data });
+  }
+
+  handleRuleExecution(event) {
+    const { ruleId, result } = event.detail;
+
+    if (result.executed) {
+      console.log(`⚙️ 規則執行成功: ${ruleId}`);
+    } else {
+      console.warn(`⚠️ 規則執行失敗: ${ruleId} - ${result.reason}`);
     }
   }
 
   /**
-   * 工具函數：設定嵌套物件值
+   * 錯誤處理
    */
+  handleError(errorType, error, context = {}) {
+    const handler = this.errorHandlers.get(errorType);
+
+    if (handler) {
+      try {
+        return handler(error, context);
+      } catch (handlerError) {
+        console.error("❌ 錯誤處理器執行失敗:", handlerError);
+      }
+    }
+
+    // 預設錯誤處理
+    console.error(`❌ 未處理的錯誤 (${errorType}):`, error);
+    this.emit("error:unhandled", { errorType, error, context });
+
+    throw error;
+  }
+
+  /**
+   * 嘗試重建連線
+   */
+  attemptReconnection(context) {
+    console.log("🔄 嘗試重建系統連線...");
+
+    // 這裡可以實作具體的重連邏輯
+    // 例如重新初始化服務、重新載入資料等
+
+    this.emit("system:reconnection_attempted", { context });
+  }
+
+  /**
+   * 工具方法
+   */
+
+  getNestedValue(obj, path) {
+    return path
+      .split(".")
+      .reduce(
+        (current, key) =>
+          current && current[key] !== undefined ? current[key] : undefined,
+        obj
+      );
+  }
+
   setNestedValue(obj, path, value) {
     const keys = path.split(".");
     const lastKey = keys.pop();
@@ -374,157 +559,80 @@ class GameBridge {
   }
 
   /**
-   * 檢查是否能負擔成本
+   * 取得系統資訊
    */
-  canAffordCost(cost) {
-    return Object.keys(cost).every((resource) => {
-      if (resource === "cash") {
-        return this.originalGameState.resources.cash >= cost[resource];
-      } else {
-        return (
-          (this.originalGameState.resources[resource] || 0) >= cost[resource]
-        );
-      }
-    });
-  }
-
-  /**
-   * 支付成本
-   */
-  payCost(cost, tenant) {
-    let totalPayment = 0;
-
-    Object.keys(cost).forEach((resource) => {
-      if (resource === "cash") {
-        this.originalGameState.resources.cash -= cost[resource];
-        totalPayment += cost[resource];
-      } else {
-        this.originalGameState.resources[resource] -= cost[resource];
-      }
-    });
-
-    // 支付給租客
-    if (totalPayment > 0 && tenant && tenant.personalResources) {
-      tenant.personalResources.cash =
-        (tenant.personalResources.cash || 0) + totalPayment;
-      if (typeof window.addLog === "function") {
-        window.addLog(`💰 支付 ${tenant.name} 工資 $${totalPayment}`, "rent");
-      }
-    }
-  }
-
-  /**
-   * 尋找租客
-   */
-  findTenantByName(name) {
-    return this.originalGameState.rooms
-      .filter((room) => room.tenant && room.tenant.name === name)
-      .map((room) => room.tenant)[0];
-  }
-
-  /**
-   * 系統遷移管理
-   */
-  migrateSystem(systemName) {
-    if (!this.systemModules[systemName]) {
-      console.error(`❌ 未知的系統: ${systemName}`);
-      return false;
-    }
-
-    if (this.systemModules[systemName].migrated) {
-      console.log(`ℹ️ 系統 ${systemName} 已經遷移`);
-      return true;
-    }
-
-    console.log(`🔄 開始遷移系統: ${systemName}`);
-
-    try {
-      switch (systemName) {
-        case "tenants":
-          this.migrateTenantSystem();
-          break;
-        case "skills":
-          this.migrateSkillSystem();
-          break;
-        case "events":
-          this.migrateEventSystem();
-          break;
-        case "rules":
-          this.migrateRuleSystem();
-          break;
-      }
-
-      this.systemModules[systemName].migrated = true;
-      console.log(`✅ 系統 ${systemName} 遷移完成`);
-      return true;
-    } catch (error) {
-      console.error(`❌ 系統 ${systemName} 遷移失敗:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * 回退到原始系統
-   */
-  fallbackToOriginalSystem() {
-    // 恢復原始函數
-    if (window.originalGenerateApplicants) {
-      window.generateApplicants = window.originalGenerateApplicants;
-    }
-
-    if (window.originalUseSkill) {
-      window.useSkill = window.originalUseSkill;
-    }
-
-    // 清除新系統標記
-    Object.keys(this.systemModules).forEach((key) => {
-      this.systemModules[key].enabled = false;
-    });
-
-    console.log("🔄 已回退到原始系統");
-  }
-
-  /**
-   * 獲取系統狀態
-   */
-  getSystemStatus() {
+  getSystemInfo() {
     return {
-      bridge: {
-        initialized: true,
-        version: "1.0.0",
-      },
-      modules: { ...this.systemModules },
-      compatibility: {
-        dataManager: !!window.dataManager,
-        ruleEngine: !!window.ruleEngine,
-        originalGameState: !!this.originalGameState,
-      },
+      status: this.systemStatus,
+      services: Array.from(this.services.entries()).map(([name, service]) => ({
+        name,
+        enabled: service.enabled,
+        callCount: service.callCount,
+        lastCall: service.lastCall,
+      })),
+      performance: this.performanceMetrics,
+      eventListeners: Array.from(this.eventListeners.keys()),
+      errorHandlers: Array.from(this.errorHandlers.keys()),
+      health: this.performHealthCheck(),
     };
   }
 
   /**
-   * 除錯資訊
+   * 取得詳細統計資訊
    */
-  debugInfo() {
-    console.group("🌉 GameBridge 除錯資訊");
-    console.log("系統狀態:", this.getSystemStatus());
-    console.log("原始遊戲狀態:", this.originalGameState);
-    console.log("資料映射:", Object.keys(this.dataMappings));
+  getDetailedStats() {
+    const systemInfo = this.getSystemInfo();
+
+    return {
+      ...systemInfo,
+      memory: this.getMemoryUsage(),
+      uptime: Date.now() - this.systemStatus.startTime,
+      detailedPerformance: {
+        ...this.performanceMetrics,
+        eventsPerMinute: this.calculateEventsPerMinute(),
+        serviceCallsPerMinute: this.calculateServiceCallsPerMinute(),
+        errorRate: this.calculateErrorRate(),
+      },
+    };
+  }
+
+  calculateEventsPerMinute() {
+    const uptimeMinutes =
+      (Date.now() - this.systemStatus.startTime) / 1000 / 60;
+    return uptimeMinutes > 0
+      ? (this.performanceMetrics.eventCount / uptimeMinutes).toFixed(2)
+      : 0;
+  }
+
+  calculateServiceCallsPerMinute() {
+    const uptimeMinutes =
+      (Date.now() - this.systemStatus.startTime) / 1000 / 60;
+    return uptimeMinutes > 0
+      ? (this.performanceMetrics.serviceCallCount / uptimeMinutes).toFixed(2)
+      : 0;
+  }
+
+  calculateErrorRate() {
+    const totalOperations =
+      this.performanceMetrics.eventCount +
+      this.performanceMetrics.serviceCallCount;
+    return totalOperations > 0
+      ? ((this.performanceMetrics.errorCount / totalOperations) * 100).toFixed(
+          2
+        ) + "%"
+      : "0%";
+  }
+
+  /**
+   * 除錯方法
+   */
+  debugPrint() {
+    console.group("🌉 GameBridge 系統狀態");
+    console.log("系統狀態:", this.systemStatus);
+    console.log("註冊服務:", Array.from(this.services.keys()));
+    console.log("事件監聽器:", Array.from(this.eventListeners.keys()));
+    console.log("性能統計:", this.performanceMetrics);
+    console.log("詳細統計:", this.getDetailedStats());
     console.groupEnd();
   }
 }
-
-// 初始化橋接系統
-window.initializeGameBridge = async (gameState) => {
-  if (!window.gameBridge) {
-    window.gameBridge = new GameBridge(gameState);
-    await window.gameBridge.initializeBridge();
-
-    console.log("🎮 遊戲橋接系統已就緒");
-    return window.gameBridge;
-  }
-
-  return window.gameBridge;
-};
-
-export default GameBridge;

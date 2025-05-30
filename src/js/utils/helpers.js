@@ -1,12 +1,21 @@
 /**
  * Game Utilities - 配置驅動的遊戲輔助函數模組
  * 重構原則：所有資料來源於 rules.json，helpers.js 只負責邏輯轉換
+ *
+ * 設計模式：策略模式 + 工廠模式
+ * 核心特性：配置驅動、格式化工具、隨機生成、狀態計算
  */
 
-class ConfigurableGameHelpers {
+export class GameHelpers {
   constructor(rulesConfig = null) {
     this.config = rulesConfig;
     this.initialized = false;
+
+    // 快取常用的配置區塊
+    this.colorSchemes = {};
+    this.contentConfig = {};
+    this.balanceConfig = {};
+    this.mechanicsConfig = {};
 
     // 如果有配置就立即初始化，否則等待注入
     if (rulesConfig) {
@@ -237,6 +246,27 @@ class ConfigurableGameHelpers {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  /**
+   * 加權隨機選擇
+   */
+  weightedRandomSelect(items, weights) {
+    if (items.length !== weights.length) {
+      throw new Error("物品數量與權重數量不匹配");
+    }
+
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    let random = Math.random() * totalWeight;
+
+    for (let i = 0; i < items.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        return items[i];
+      }
+    }
+
+    return items[items.length - 1];
+  }
+
   // ==================== 遊戲時間處理 ====================
 
   /**
@@ -252,6 +282,153 @@ class ConfigurableGameHelpers {
    */
   getGameWeek(day) {
     return Math.ceil(day / 7);
+  }
+
+  /**
+   * 檢查是否為遊戲週末
+   */
+  isGameWeekend(day) {
+    const dayOfWeek = ((day - 1) % 7) + 1;
+    return dayOfWeek === 6 || dayOfWeek === 7; // 週六或週日
+  }
+
+  // ==================== 遊戲平衡計算 ====================
+
+  /**
+   * 計算租客滿意度
+   */
+  calculateTenantSatisfaction(tenant, room, gameState, globalEffects = {}) {
+    if (!this.initialized || !this.balanceConfig.tenants?.satisfactionSystem) {
+      return 50; // 預設值
+    }
+
+    const system = this.balanceConfig.tenants.satisfactionSystem;
+    const factors = system.factors || {};
+
+    let satisfaction = system.baseValue || 50;
+
+    // 房間條件影響
+    if (room.reinforced) satisfaction += factors.reinforcedRoom || 0;
+    if (room.needsRepair) satisfaction += factors.needsRepair || 0;
+
+    // 個人資源狀況
+    if (tenant.personalResources) {
+      if (tenant.personalResources.food < 2)
+        satisfaction += factors.lowPersonalFood || 0;
+      if (tenant.personalResources.cash > 25)
+        satisfaction += factors.highPersonalCash || 0;
+    }
+
+    // 建築安全
+    if (gameState.buildingDefense >= 8)
+      satisfaction += factors.highBuildingDefense || 0;
+    if (gameState.buildingDefense <= 2)
+      satisfaction += factors.lowBuildingDefense || 0;
+
+    // 全局效果
+    Object.keys(globalEffects).forEach((effect) => {
+      if (globalEffects[effect] && factors[effect]) {
+        satisfaction += factors[effect];
+      }
+    });
+
+    // 限制範圍
+    const range = system.range || { min: 0, max: 100 };
+    return this.clamp(satisfaction, range.min, range.max);
+  }
+
+  /**
+   * 計算資源稀缺性
+   */
+  calculateResourceScarcity(resources, tenantCount = 1) {
+    if (!this.initialized || !this.balanceConfig.resources) {
+      return { overall: "normal", details: {} };
+    }
+
+    const scarcityLevels = {
+      abundant: { min: 1.5, label: "充足", color: "#66ff66" },
+      normal: { min: 1.0, label: "正常", color: "#ffcc66" },
+      low: { min: 0.5, label: "不足", color: "#ff9966" },
+      critical: { min: 0, label: "危急", color: "#ff6666" },
+    };
+
+    const details = {};
+    let overallScore = 1.0;
+
+    Object.keys(resources).forEach((resourceType) => {
+      const current = resources[resourceType] || 0;
+      const dailyConsumption = this.getDailyConsumption(
+        resourceType,
+        tenantCount
+      );
+
+      if (dailyConsumption > 0) {
+        const daysRemaining = current / dailyConsumption;
+        const ratio = daysRemaining / 7; // 以一週為基準
+
+        let level = "critical";
+        for (const [levelName, config] of Object.entries(scarcityLevels)) {
+          if (ratio >= config.min) {
+            level = levelName;
+            break;
+          }
+        }
+
+        details[resourceType] = {
+          level,
+          ratio,
+          daysRemaining: Math.floor(daysRemaining),
+          ...scarcityLevels[level],
+        };
+
+        overallScore = Math.min(overallScore, ratio);
+      }
+    });
+
+    // 確定整體稀缺等級
+    let overallLevel = "critical";
+    for (const [levelName, config] of Object.entries(scarcityLevels)) {
+      if (overallScore >= config.min) {
+        overallLevel = levelName;
+        break;
+      }
+    }
+
+    return {
+      overall: overallLevel,
+      score: overallScore,
+      details,
+      ...scarcityLevels[overallLevel],
+    };
+  }
+
+  /**
+   * 取得每日消耗量
+   */
+  getDailyConsumption(resourceType, tenantCount = 1) {
+    if (!this.initialized || !this.balanceConfig) {
+      const defaults = { food: 2, fuel: 1, medical: 0.1, materials: 0.1 };
+      return (defaults[resourceType] || 0) * Math.max(1, tenantCount);
+    }
+
+    const consumption = this.balanceConfig.resources?.dailyConsumption || {};
+    const landlordConsumption =
+      this.balanceConfig.landlord?.dailyFoodConsumption || 2;
+    const tenantConsumption =
+      this.balanceConfig.tenants?.dailyFoodConsumption || 2;
+
+    switch (resourceType) {
+      case "food":
+        return landlordConsumption + tenantConsumption * tenantCount;
+      case "fuel":
+        return consumption.fuel || 1;
+      case "medical":
+        return (consumption.medical || 0.1) * tenantCount;
+      case "materials":
+        return consumption.materials || 0.1;
+      default:
+        return 0;
+    }
   }
 
   // ==================== 私有輔助方法 ====================
@@ -295,6 +472,102 @@ class ConfigurableGameHelpers {
     return type === "infected" ? "狀態可疑" : "看起來還算正常";
   }
 
+  // ==================== 物件工具方法 ====================
+
+  /**
+   * 深度複製物件
+   */
+  deepClone(obj) {
+    if (obj === null || typeof obj !== "object") {
+      return obj;
+    }
+
+    if (obj instanceof Date) {
+      return new Date(obj.getTime());
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.deepClone(item));
+    }
+
+    const clonedObj = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        clonedObj[key] = this.deepClone(obj[key]);
+      }
+    }
+
+    return clonedObj;
+  }
+
+  /**
+   * 安全取得嵌套物件值
+   */
+  safeGet(obj, path, defaultValue = undefined) {
+    const keys = path.split(".");
+    let current = obj;
+
+    for (const key of keys) {
+      if (current === null || current === undefined || !(key in current)) {
+        return defaultValue;
+      }
+      current = current[key];
+    }
+
+    return current;
+  }
+
+  /**
+   * 合併物件（深度合併）
+   */
+  deepMerge(target, source) {
+    const result = this.deepClone(target);
+
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        if (
+          source[key] &&
+          typeof source[key] === "object" &&
+          !Array.isArray(source[key])
+        ) {
+          result[key] = this.deepMerge(result[key] || {}, source[key]);
+        } else {
+          result[key] = source[key];
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // ==================== 字串工具方法 ====================
+
+  /**
+   * 首字母大寫
+   */
+  capitalize(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  }
+
+  /**
+   * 格式化數字（添加千分位逗號）
+   */
+  formatNumber(num, precision = 0) {
+    if (typeof num !== "number") return "0";
+
+    const fixed = num.toFixed(precision);
+    return fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  /**
+   * 截斷文字
+   */
+  truncateText(text, maxLength, suffix = "...") {
+    if (!text || text.length <= maxLength) return text;
+    return text.substring(0, maxLength - suffix.length) + suffix;
+  }
+
   // ==================== 除錯與狀態檢查 ====================
 
   /**
@@ -306,58 +579,72 @@ class ConfigurableGameHelpers {
       configLoaded: !!this.config,
       availableSections: this.config ? Object.keys(this.config) : [],
       colorSchemesCount: Object.keys(this.colorSchemes).length,
+      hasContentConfig: !!this.contentConfig?.nameGeneration,
+      hasBalanceConfig: !!this.balanceConfig?.landlord,
+      hasMechanicsConfig: !!this.mechanicsConfig?.building,
     };
   }
-}
 
-// ==================== 全域實例管理 ====================
+  /**
+   * 驗證配置完整性
+   */
+  validateConfig() {
+    const issues = [];
 
-// 建立全域實例（向後相容）
-window.GameHelpers = new ConfigurableGameHelpers();
+    if (!this.config) {
+      issues.push("配置未載入");
+      return issues;
+    }
 
-// 提供配置注入介面
-window.initializeGameHelpers = (rulesConfig) => {
-  return window.GameHelpers.injectConfig(rulesConfig);
-};
+    // 檢查必要區塊
+    const requiredSections = ["gameBalance", "mechanics", "content", "ui"];
+    requiredSections.forEach((section) => {
+      if (!this.config[section]) {
+        issues.push(`缺少 ${section} 配置區塊`);
+      }
+    });
 
-// 保持向後相容的函數介面
-function generateName(type = "nickname") {
-  return window.GameHelpers.generateName(type);
-}
+    // 檢查色彩配置
+    if (!this.colorSchemes || Object.keys(this.colorSchemes).length === 0) {
+      issues.push("缺少色彩配置");
+    }
 
-function generateUniqueName(
-  existingNames = [],
-  type = "nickname",
-  maxAttempts = 50
-) {
-  return window.GameHelpers.generateUniqueName(
-    existingNames,
-    type,
-    maxAttempts
-  );
-}
+    // 檢查名稱生成配置
+    if (!this.contentConfig?.nameGeneration?.nicknames) {
+      issues.push("缺少名稱生成配置");
+    }
 
-function getNormalAppearance() {
-  return window.GameHelpers.getNormalAppearance();
-}
+    // 檢查平衡配置
+    if (!this.balanceConfig?.landlord?.hungerSystem) {
+      issues.push("缺少房東飢餓系統配置");
+    }
 
-function getInfectedAppearance() {
-  return window.GameHelpers.getInfectedAppearance();
-}
+    return issues;
+  }
 
-function getDefenseStatus(defense) {
-  return window.GameHelpers.getDefenseStatus(defense);
-}
+  /**
+   * 除錯印出
+   */
+  debugPrint() {
+    console.group("🛠️ GameHelpers 狀態");
+    console.log("狀態:", this.getStatus());
 
-function getHungerStatus(hunger) {
-  return window.GameHelpers.getHungerStatus(hunger);
-}
+    const issues = this.validateConfig();
+    if (issues.length > 0) {
+      console.warn("配置問題:", issues);
+    } else {
+      console.log("✅ 配置驗證通過");
+    }
 
-function getSatisfactionStatus(satisfaction) {
-  return window.GameHelpers.getSatisfactionStatus(satisfaction);
-}
-
-// 匯出模組（如果在模組環境中）
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = ConfigurableGameHelpers;
+    console.log("可用方法:", [
+      "generateName",
+      "getDefenseStatus",
+      "getHungerStatus",
+      "getSatisfactionStatus",
+      "calculateTenantSatisfaction",
+      "calculateResourceScarcity",
+      "formatGameTime",
+    ]);
+    console.groupEnd();
+  }
 }

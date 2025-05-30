@@ -1,3394 +1,454 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>末日房東模擬器 - 原型</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>末日房東模擬器 v2.0</title>
     <style>
-body {
-  font-family: "Courier New", monospace;
-  background-color: #2a2a2a;
-  color: #e0e0e0;
-  margin: 0;
-  padding: 20px;
-  line-height: 1.4;
-}
+      /* === 核心樣式系統 === */
+      body {
+        font-family: "Courier New", monospace;
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+        margin: 0;
+        padding: 20px;
+        line-height: 1.2;
+      }
 
-.game-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 20px;
-}
+      .game-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 20px;
+      }
 
-.main-area {
-  background: #1a1a1a;
-  border: 2px solid #555;
-  border-radius: 8px;
-  padding: 20px;
-}
+      .main-area {
+        background: #1a1a1a;
+        border: 2px solid #555;
+        border-radius: 8px;
+        padding: 20px;
+      }
 
-.sidebar {
-  background: #1a1a1a;
-  border: 2px solid #555;
-  border-radius: 8px;
-  padding: 15px;
-}
+      .sidebar {
+        background: #1a1a1a;
+        border: 2px solid #555;
+        border-radius: 8px;
+        padding: 15px;
+      }
 
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  font-size: 14px;
-  flex-wrap: wrap;
-}
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        font-size: 14px;
+        flex-wrap: wrap;
+      }
 
-.status-bar > div {
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  border: 1px solid #555;
-}
+      .status-bar > div {
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        border: 1px solid #555;
+      }
 
-/* 根據狀態變化顏色 */
-#buildingDefenseText {
-  color: #66ccff;
-}
+      .house-layout {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
 
-#landlordHungerText {
-  color: #ffcc66;
-}
+      .room {
+        aspect-ratio: 1;
+        border: 2px solid #666;
+        background: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+      }
 
-/* 危險狀態的紅色警告 */
-.danger-status {
-  color: #ff6666 !important;
-  animation: pulse 2s infinite;
-}
+      .room:hover {
+        border-color: #888;
+        background: #444;
+      }
 
-.good-status {
-  color: #66ff66 !important;
-}
+      .room.occupied {
+        background: #2d4a2d;
+        border-color: #4a7c59;
+      }
 
-.house-layout {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
+      .room.needs-repair {
+        background: #4a2d2d;
+        border-color: #7c4a4a;
+      }
 
-.room {
-  aspect-ratio: 1;
-  border: 2px solid #666;
-  background: #333;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  position: relative;
-}
+      .room.infected {
+        background: #4a2d2d;
+        border-color: #cc4444;
+        animation: pulse 2s infinite;
+      }
 
-.room:hover {
-  border-color: #888;
-  background: #444;
-}
+      .room.reinforced {
+        border-color: #4a7c9a;
+        box-shadow: inset 0 0 10px rgba(74, 124, 154, 0.3);
+      }
 
-.room.occupied {
-  background: #2d4a2d;
-  border-color: #4a7c59;
-}
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
 
-.room.needs-repair {
-  background: #4a2d2d;
-  border-color: #7c4a4a;
-}
+      .tenant-info {
+        font-size: 12px;
+        text-align: center;
+      }
 
-.room.infected {
-  background: #4a2d2d;
-  border-color: #cc4444;
-  animation: pulse 2s infinite;
-}
+      .resources {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
 
-.room.reinforced {
-  border-color: #4a7c9a;
-  box-shadow: inset 0 0 10px rgba(74, 124, 154, 0.3);
-}
+      .resource {
+        background: #333;
+        padding: 10px;
+        border-radius: 4px;
+        text-align: center;
+      }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
 
-.tenant-info {
-  font-size: 12px;
-  text-align: center;
-}
+      .btn {
+        background: #4a4a4a;
+        border: 1px solid #666;
+        color: #e0e0e0;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
 
-.resources {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
+      .btn:hover {
+        background: #555;
+      }
 
-.resource {
-  background: #333;
-  padding: 10px;
-  border-radius: 4px;
-  text-align: center;
-}
+      .btn:disabled {
+        background: #333;
+        color: #666;
+        cursor: not-allowed;
+      }
 
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+      .btn.danger {
+        background: #664444;
+        border-color: #aa6666;
+      }
 
-.btn {
-  background: #4a4a4a;
-  border: 1px solid #666;
-  color: #e0e0e0;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
+      .btn.success {
+        background: #446644;
+        border-color: #66aa66;
+      }
 
-.btn:hover {
-  background: #555;
-}
+      .btn.special {
+        background: #666644;
+        border-color: #aaaa66;
+      }
 
-.btn:disabled {
-  background: #333;
-  color: #666;
-  cursor: not-allowed;
-}
+      .log {
+        background: #222;
+        border: 1px solid #444;
+        height: 150px;
+        overflow-y: auto;
+        padding: 10px;
+        font-size: 12px;
+      }
 
-.btn.danger {
-  background: #664444;
-  border-color: #aa6666;
-}
+      .log-entry {
+        margin-bottom: 5px;
+        padding: 2px 0;
+      }
 
-.btn.success {
-  background: #446644;
-  border-color: #66aa66;
-}
+      .log-entry.event {
+        color: #ffcc66;
+      }
+      .log-entry.rent {
+        color: #66ff66;
+      }
+      .log-entry.danger {
+        color: #ff6666;
+      }
+      .log-entry.skill {
+        color: #66ccff;
+      }
 
-.btn.special {
-  background: #666644;
-  border-color: #aaaa66;
-}
+      .tenant-list {
+        margin-bottom: 15px;
+      }
 
-.log {
-  background: #222;
-  border: 1px solid #444;
-  height: 150px;
-  overflow-y: auto;
-  padding: 10px;
-  font-size: 12px;
-}
+      .tenant-item {
+        background: #333;
+        margin: 5px 0;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
 
-.log-entry {
-  margin-bottom: 5px;
-  padding: 2px 0;
-}
+      .tenant-item.infected {
+        background: #663333;
+        border-left: 3px solid #cc4444;
+      }
 
-.log-entry.event {
-  color: #ffcc66;
-}
+      .tenant-item.doctor {
+        border-left: 3px solid #66cc66;
+      }
+      .tenant-item.worker {
+        border-left: 3px solid #cc8866;
+      }
+      .tenant-item.soldier {
+        border-left: 3px solid #cc6666;
+      }
+      .tenant-item.farmer {
+        border-left: 3px solid #66aa44;
+      }
+      .tenant-item.elder {
+        border-left: 3px solid #cc66cc;
+      }
 
-.log-entry.rent {
-  color: #66ff66;
-}
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+      }
 
-.log-entry.danger {
-  color: #ff6666;
-}
+      .modal-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #2a2a2a;
+        border: 2px solid #666;
+        border-radius: 8px;
+        padding: 20px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
 
-.log-entry.skill {
-  color: #66ccff;
-}
+      .applicant {
+        background: #333;
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 4px;
+      }
 
-.tenant-list {
-  margin-bottom: 15px;
-}
+      .applicant.infected {
+        background: #663333;
+        border: 2px solid #cc4444;
+      }
 
-.tenant-item {
-  background: #333;
-  margin: 5px 0;
-  padding: 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
+      .modal-content .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 15px;
+        justify-content: flex-end;
+      }
 
-.tenant-item.infected {
-  background: #663333;
-  border-left: 3px solid #cc4444;
-}
+      .tenant-skill-group {
+        background: #2d3d2d;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #66ccff;
+      }
 
-.tenant-item.doctor {
-  border-left: 3px solid #66cc66;
-}
+      .skill-actions {
+        background: #1e2e1e;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 8px 0;
+        border-left: 3px solid #ffcc66;
+      }
 
-.tenant-item.worker {
-  border-left: 3px solid #cc8866;
-}
+      .skill-actions h5 {
+        margin: 0 0 5px 0;
+        color: #ffcc66;
+      }
 
-.tenant-item.soldier {
-  border-left: 3px solid #cc6666;
-}
+      .skill-actions p {
+        margin: 5px 0;
+        font-size: 12px;
+        color: #ccc;
+      }
 
-.tenant-item.farmer {
-  border-left: 3px solid #66aa44;
-}
+      /* 系統狀態指示器 */
+      .system-status {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        z-index: 2000;
+      }
 
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 1000;
-}
+      .system-status.modular {
+        color: #66ff66;
+      }
 
-.modal-content {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #2a2a2a;
-  border: 2px solid #666;
-  border-radius: 8px;
-  padding: 20px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-}
+      #buildingDefenseText {
+        color: #66ccff;
+      }
+      #landlordHungerText {
+        color: #ffcc66;
+      }
 
-.applicant {
-  background: #333;
-  margin: 10px 0;
-  padding: 10px;
-  border-radius: 4px;
-}
+      .danger-status {
+        color: #ff6666 !important;
+        animation: pulse 2s infinite;
+      }
 
-.applicant.infected {
-  background: #663333;
-  border: 2px solid #cc4444;
-}
-
-.applicant.trader {
-  background: #334466;
-  border: 2px solid #6688aa;
-}
-
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  font-size: 14px;
-}
-
-.modal-content p {
-  margin: 6px 0;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.modal-content strong {
-  color: #ffcc66;
-}
-
-.modal-content .status-good {
-  color: #66ff66;
-  font-weight: bold;
-}
-
-.modal-content .status-bad {
-  color: #ff6666;
-  font-weight: bold;
-}
-
-.modal-content .status-neutral {
-  color: #ccc;
-  font-weight: bold;
-}
-
-.modal-content .tenant-detail-block {
-  background: #1e1e1e;
-  padding: 10px 15px;
-  border-left: 4px solid #666;
-  border-radius: 6px;
-  margin-bottom: 10px;
-}
-
-.modal-content .action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 15px;
-  justify-content: flex-end;
-}
-
-.tenant-skill-group {
-  background: #2d3d2d;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 15px;
-  border-left: 4px solid #66ccff;
-}
-
-.skill-actions {
-  background: #1e2e1e;
-  padding: 10px;
-  border-radius: 4px;
-  margin: 8px 0;
-  border-left: 3px solid #ffcc66;
-}
-
-.skill-actions h5 {
-  margin: 0 0 5px 0;
-  color: #ffcc66;
-}
-
-.skill-actions p {
-  margin: 5px 0;
-  font-size: 12px;
-  color: #ccc;
-}
-
-.skill-actions .btn {
-  margin-top: 8px;
-}
-.skill-actions h4 {
-  margin: 0 0 10px 0;
-  color: #66ccff;
-}
-
-.skill-cooldown {
-  color: #ff9966;
-  font-size: 11px;
-}
-
+      .good-status {
+        color: #66ff66 !important;
+      }
     </style>
-</head>
-<body>
-<div class="game-container">
-  <div class="main-area">
-    <div class="status-bar">
-      <div>第 <span id="day">1</span> 天</div>
-      <div>時間: <span id="time">白天</span></div>
-      <div>💰 現金: $<span id="cash">50</span></div>
-      <div>🛡️ 防禦: <span id="buildingDefenseText">脆弱(0)</span></div>
-      <div>🍽️ 飢餓: <span id="landlordHungerText">飽足(0)</span></div>
+  </head>
+  <body>
+    <!-- 系統狀態指示器 -->
+    <div id="systemStatus" class="system-status modular">
+      🟢 模組化系統 v2.0
     </div>
 
-    <div class="house-layout">
-      <div class="room" id="room1" onclick="selectRoom(1)">
-        <div class="tenant-info" id="room1-info">空房</div>
+    <div class="game-container">
+      <div class="main-area">
+        <div class="status-bar">
+          <div>第 <span id="day">1</span> 天</div>
+          <div>時間: <span id="time">白天</span></div>
+          <div>💰 現金: $<span id="cash">50</span></div>
+          <div>🛡️ 防禦: <span id="buildingDefenseText">脆弱(0)</span></div>
+          <div>🍽️ 飢餓: <span id="landlordHungerText">飽足(0)</span></div>
+        </div>
+
+        <div class="house-layout">
+          <div class="room" id="room1">
+            <div class="tenant-info" id="room1-info">空房</div>
+          </div>
+          <div class="room" id="room2">
+            <div class="tenant-info" id="room2-info">空房</div>
+          </div>
+        </div>
+
+        <div class="resources">
+          <div class="resource">🍖 食物: <span id="food">20</span></div>
+          <div class="resource">🔧 建材: <span id="materials">15</span></div>
+          <div class="resource">💊 醫療: <span id="medical">10</span></div>
+          <div class="resource">⛽ 燃料: <span id="fuel">8</span></div>
+        </div>
+
+        <div class="controls">
+          <button class="btn success" id="collectRentBtn">收租</button>
+          <button class="btn" id="showVisitorsBtn">查看訪客</button>
+          <button class="btn" id="showScavengeBtn">
+            派遣搜刮 (<span id="scavengeCount">0</span>/2)
+          </button>
+          <button class="btn" id="harvestYardBtn">院子採集</button>
+          <button class="btn special" id="showSkillBtn">使用技能</button>
+          <button class="btn danger" id="nextDayBtn">下一天</button>
+        </div>
+
+        <div class="log" id="gameLog"></div>
       </div>
-      <div class="room" id="room2" onclick="selectRoom(2)">
-        <div class="tenant-info" id="room2-info">空房</div>
+
+      <div class="sidebar">
+        <h3>租客列表</h3>
+        <div class="tenant-list" id="tenantList">
+          <div class="tenant-item">暫無租客</div>
+        </div>
+
+        <h3>系統狀態</h3>
+        <div class="system-status-details">
+          <div>📊 架構版本: <span id="archVersion">ES6模組 v2.0</span></div>
+          <div>🔧 資料系統: <span id="dataSystem">載入中...</span></div>
+          <div>⚙️ 規則引擎: <span id="ruleEngine">載入中...</span></div>
+          <div>🌉 系統橋接: <span id="gameBridge">載入中...</span></div>
+        </div>
+
+        <h3>遊戲說明</h3>
+        <div style="font-size: 11px">
+          <p>• 點擊房間查看詳情</p>
+          <p>• 邀請訪客租房或交易</p>
+          <p>• 商人訪客提供各種交易</p>
+          <p>• 租客可用資源抵付房租</p>
+          <p>• 善用租客技能求生</p>
+          <p>• 房東也需要食物維生</p>
+        </div>
       </div>
     </div>
 
-    <div class="resources">
-      <div class="resource">
-        🍖 食物: <span id="food">20</span>
-      </div>
-      <div class="resource">
-        🔧 建材: <span id="materials">15</span>
-      </div>
-      <div class="resource">
-        💊 醫療: <span id="medical">10</span>
-      </div>
-      <div class="resource">
-        ⛽ 燃料: <span id="fuel">8</span>
+    <!-- 模態框群組 -->
+    <div class="modal" id="visitorModal">
+      <div class="modal-content">
+        <h3>今日訪客</h3>
+        <div id="visitorList"></div>
+        <button class="btn" id="closeVisitorModal">關閉</button>
       </div>
     </div>
 
-    <div class="controls">
-      <button class="btn success" onclick="collectRent()">收租</button>
-      <button class="btn" onclick="showVisitors()">查看訪客</button>
-      <button class="btn" onclick="showScavengeMenu()">派遣搜刮 (<span id="scavengeCount">0</span>/2)</button>
-      <button class="btn" onclick="harvestYard()">院子採集</button>
-      <button class="btn special" onclick="showSkillMenu()">使用技能</button>
-      <button class="btn danger" onclick="nextDay()">下一天</button>
+    <div class="modal" id="tenantModal">
+      <div class="modal-content">
+        <h3 id="tenantModalTitle">租客管理</h3>
+        <div id="tenantModalContent"></div>
+        <div id="tenantModalActions" class="action-buttons"></div>
+      </div>
     </div>
 
-    <div class="log" id="gameLog">
-      <div class="log-entry">遊戲開始！你繼承了這棟老房子，末日中的倖存者們正在尋找住所...</div>
-    </div>
-  </div>
-
-  <div class="sidebar">
-    <h3>租客列表</h3>
-    <div class="tenant-list" id="tenantList">
-      <div class="tenant-item">暫無租客</div>
+    <div class="modal" id="skillModal">
+      <div class="modal-content">
+        <h3>租客技能</h3>
+        <div id="skillList"></div>
+        <button class="btn" id="closeSkillModal">關閉</button>
+      </div>
     </div>
 
-    <h3>遊戲說明</h3>
-    <div style="font-size: 11px;">
-      <p>• 點擊房間查看詳情</p>
-      <p>• 邀請訪客租房或交易</p>
-      <p>• 商人訪客提供各種交易</p>
-      <p>• 租客可用資源抵付房租</p>
-      <p>• 善用租客技能求生</p>
-      <p>• 房東也需要食物維生</p>
-      <p>• 留意商隊和流浪商人</p>
+    <div class="modal" id="eventModal">
+      <div class="modal-content">
+        <h3 id="eventTitle">事件</h3>
+        <p id="eventDescription"></p>
+        <div id="eventChoices"></div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- 訪客模態框 -->
-<div class="modal" id="visitorModal">
-  <div class="modal-content">
-    <h3>今日訪客</h3>
-    <div id="visitorList"></div>
-    <button class="btn" onclick="closeModal()">關閉</button>
-  </div>
-</div>
+    <!-- ES6 模組載入進入點 -->
+    <script type="module" src="js/main.js"></script>
 
-<!-- 租客管理模態框 -->
-<div class="modal" id="tenantModal">
-  <div class="modal-content">
-    <h3 id="tenantModalTitle">租客管理</h3>
-    <div id="tenantModalContent"></div>
-    <div id="tenantModalActions" class="action-buttons"></div>
-  </div>
-</div>
-
-<!-- 派遣搜刮模態框 -->
-<div class="modal" id="scavengeModal">
-  <div class="modal-content">
-    <h3>選擇派遣人員</h3>
-    <p>剩余派遣次數: <span id="remainingScavenges">2</span></p>
-    <div id="availableTenants"></div>
-    <button class="btn" onclick="closeModal()">取消</button>
-  </div>
-</div>
-
-<!-- 技能選單模態框 -->
-<div class="modal" id="skillModal">
-  <div class="modal-content">
-    <h3>租客技能</h3>
-    <div id="skillList"></div>
-    <button class="btn" onclick="closeModal()">關閉</button>
-  </div>
-</div>
-
-<!-- 事件模態框 -->
-<div class="modal" id="eventModal">
-  <div class="modal-content">
-    <h3 id="eventTitle">事件</h3>
-    <p id="eventDescription"></p>
-    <div id="eventChoices"></div>
-  </div>
-</div>
-
-    <script>
-// 遊戲狀態 - 增強版
-let gameState = {
-  day: 1,
-  time: "day",
-  resources: { food: 20, materials: 15, medical: 10, fuel: 8, cash: 50 },
-  totalIncome: 0,
-  rooms: [
-    { id: 1, tenant: null, needsRepair: false, reinforced: false },
-    { id: 2, tenant: null, needsRepair: false, reinforced: false }
-  ],
-  applicants: [],
-  visitors: [],
-  gameLog: [],
-  landlordHunger: 0,
-  harvestUsed: false,
-  harvestCooldown: 0,
-  scavengeUsed: 0,
-  maxScavengePerDay: 2,
-  rentCollected: false,
-  buildingDefense: 0,
-  buildingQuality: 0,
-
-  // 新增：租客滿意度和關係系統
-  tenantSatisfaction: {},
-  tenantRelationships: [],
-  conflictHistory: [],
-  harmoniumBonus: 0,
-
-  // 新增：全局效果追蹤
-  emergencyTraining: false,
-  foodPreservation: false,
-  patrolSystem: false,
-  socialNetwork: false,
-  nightWatchActive: false,
-
-  // 新增：加成效果
-  harvestBonus: false,
-  scavengeBonus: false,
-
-  conflictCooldown: 0,
-  lastConflictDay: 0
-};
-
-// 租客類型（增強版）
-const tenantTypes = [
-  {
-    name: "醫生",
-    type: "doctor",
-    rent: 15,
-    skill: "醫療",
-    infectionRisk: 0.1,
-    description: "可以治療感染，檢測可疑租客，提供醫療服務",
-    personalResources: { food: 3, medical: 5, cash: 20 },
-    skills: {
-      healInfection: { cooldown: 0, cost: { medical: 3, cash: 12 } },
-      healthCheck: { cooldown: 0, cost: { medical: 1, cash: 8 } },
-      medicalProduction: { passive: true },
-      emergencyTraining: { special: true, cost: { cash: 15 } }
-    }
-  },
-  {
-    name: "工人",
-    type: "worker",
-    rent: 12,
-    skill: "維修",
-    infectionRisk: 0.2,
-    description: "擅長維修建築，房間升級，建築改良",
-    personalResources: { food: 4, materials: 8, cash: 15 },
-    skills: {
-      efficientRepair: { cooldown: 0, cost: { cash: 10 } },
-      reinforceRoom: { cooldown: 0, cost: { materials: 4, cash: 18 } },
-      dailyMaintenance: { passive: true },
-      buildingUpgrade: { special: true, cost: { materials: 8, cash: 25 } }
-    }
-  },
-  {
-    name: "農夫",
-    type: "farmer",
-    rent: 10,
-    skill: "種植",
-    infectionRisk: 0.15,
-    description: "提升院子採集效率，種植作物，野外採集",
-    personalResources: { food: 8, materials: 2, cash: 12 },
-    skills: {
-      harvestBonus: { passive: true },
-      plantCrops: { cooldown: 3, cost: { food: 3, cash: 8 } },
-      wildForaging: { cooldown: 2, cost: { cash: 6 } },
-      foodPreservation: { special: true, cost: { cash: 20 } }
-    }
-  },
-  {
-    name: "軍人",
-    type: "soldier",
-    rent: 18,
-    skill: "戰鬥",
-    infectionRisk: 0.25,
-    description: "戰鬥力強，提升房屋防禦，安全管理",
-    personalResources: { food: 5, materials: 3, cash: 25 },
-    skills: {
-      combatBonus: { passive: true },
-      nightWatch: { cooldown: 0, cost: { cash: 15 } },
-      defensiveConstruction: { cooldown: 0, cost: { materials: 5, cash: 22 } },
-      patrolSystem: { special: true, cost: { cash: 30 } }
-    }
-  },
-  {
-    name: "老人",
-    type: "elder",
-    rent: 8,
-    skill: "經驗",
-    infectionRisk: 0.3,
-    description: "經驗豐富，調解糾紛，社交管理，人際網絡",
-    personalResources: { food: 2, medical: 3, cash: 30 },
-    skills: {
-      peacemaker: { passive: true },
-      conflictMediation: { cooldown: 0, cost: { cash: 12 } },
-      lifeGuidance: { cooldown: 2, cost: { cash: 10 } },
-      establishNetwork: { special: true, cost: { cash: 25 } }
-    }
-  }
-];
-
-// 增強的糾紛事件系統
-const conflictEvents = [
-  {
-    title: "資源分配糾紛",
-    description: "租客們對共用資源的使用產生分歧，氣氛緊張",
-    trigger: () => {
-      const occupiedCount = getOccupiedRooms().length;
-      return (
-        occupiedCount >= 2 &&
-        (gameState.resources.food < occupiedCount * 4 ||
-          gameState.resources.fuel < 5)
+    <!-- 舊版瀏覽器提示 -->
+    <script nomodule>
+      alert(
+        "請使用現代瀏覽器（Chrome 61+, Firefox 60+, Safari 10.1+）以獲得最佳遊戲體驗。"
       );
-    },
-    getChoices: () => {
-      const elders = getElderTenants();
-      const choices = [];
-
-      choices.push({
-        text: "增加共用資源 (-6食物, -3燃料)",
-        condition: () =>
-          gameState.resources.food >= 6 && gameState.resources.fuel >= 3,
-        effect: () => {
-          gameState.resources.food -= 6;
-          gameState.resources.fuel -= 3;
-          addLog("增加共用資源，平息了分配糾紛", "event");
-
-          Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-            gameState.tenantSatisfaction[name] += 3;
-          });
-        }
-      });
-
-      choices.push({
-        text: "制定使用規則 (-$8制作規章)",
-        condition: () => gameState.resources.cash >= 8,
-        effect: () => {
-          gameState.resources.cash -= 8;
-          addLog("制定了資源使用規章，勉強解決糾紛", "event");
-
-          Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-            gameState.tenantSatisfaction[name] -= 2;
-          });
-        }
-      });
-
-      if (elders.length > 0) {
-        choices.push({
-          text: `請 ${elders[0].name} 進行資源調解`,
-          effect: () => {
-            const elder = elders[0];
-            const tenants = gameState.rooms
-              .filter((r) => r.tenant)
-              .map((r) => r.tenant);
-            let totalThanksFee = 0;
-
-            tenants.forEach((tenant) => {
-              if (tenant !== elder && tenant.personalResources.cash >= 4) {
-                const thanksFee = Math.floor(Math.random() * 3) + 3;
-                tenant.personalResources.cash -= thanksFee;
-                totalThanksFee += thanksFee;
-              }
-            });
-
-            elder.personalResources.cash += totalThanksFee;
-
-            let sharedFood = 0;
-            tenants.forEach((tenant) => {
-              if (tenant !== elder && tenant.personalResources.food >= 3) {
-                tenant.personalResources.food -= 1;
-                sharedFood += 1;
-              }
-            });
-            gameState.resources.food += sharedFood;
-
-            addLog(`長者 ${elder.name} 成功調解資源糾紛`, "skill");
-            addLog(`租客們共享了 ${sharedFood} 食物到公用區域`, "event");
-            addLog(`${elder.name} 獲得 $${totalThanksFee} 調解感謝費`, "rent");
-
-            Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-              gameState.tenantSatisfaction[name] += 8;
-            });
-            gameState.harmoniumBonus += 1;
-          }
-        });
-      }
-
-      choices.push({
-        text: "任由糾紛發展",
-        effect: () => {
-          if (Math.random() < 0.4) {
-            const occupiedRooms = getOccupiedRooms();
-            const leavingRoom =
-              occupiedRooms[Math.floor(Math.random() * occupiedRooms.length)];
-            addLog(`${leavingRoom.tenant.name} 因為資源糾紛而搬走了`, "danger");
-            leavingRoom.tenant = null;
-          } else {
-            addLog("糾紛持續，租客們心情低落", "danger");
-            Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-              gameState.tenantSatisfaction[name] -= 12;
-            });
-          }
-        }
-      });
-
-      return choices;
-    }
-  },
-
-  {
-    title: "噪音投訴",
-    description: "有租客因為鄰居的噪音而無法休息，雙方發生爭執",
-    trigger: () => getOccupiedRooms().length >= 2,
-    getChoices: () => {
-      const elders = getElderTenants();
-      const workers = getWorkerTenants();
-      const choices = [];
-
-      if (workers.length > 0) {
-        choices.push({
-          text: `請 ${workers[0].name} 安裝隔音設施 (-2建材)`,
-          condition: () => gameState.resources.materials >= 2,
-          effect: () => {
-            const worker = workers[0];
-            gameState.resources.materials -= 2;
-
-            const tenants = gameState.rooms
-              .filter((r) => r.tenant)
-              .map((r) => r.tenant);
-            let totalWage = 0;
-
-            tenants.forEach((tenant) => {
-              if (tenant !== worker && tenant.personalResources.cash >= 3) {
-                const wage = 3;
-                tenant.personalResources.cash -= wage;
-                totalWage += wage;
-              }
-            });
-
-            worker.personalResources.cash += totalWage;
-
-            addLog(`工人 ${worker.name} 安裝了隔音設施`, "skill");
-            addLog(`${worker.name} 獲得 $${totalWage} 工資`, "rent");
-            addLog("噪音問題徹底解決", "event");
-          }
-        });
-      }
-
-      if (elders.length > 0) {
-        choices.push({
-          text: `請 ${elders[0].name} 調解噪音糾紛`,
-          effect: () => {
-            const elder = elders[0];
-            const tenants = gameState.rooms
-              .filter((r) => r.tenant)
-              .map((r) => r.tenant);
-            let totalThanksFee = 0;
-
-            tenants.forEach((tenant) => {
-              if (tenant !== elder && tenant.personalResources.cash >= 2) {
-                const thanksFee = Math.floor(Math.random() * 2) + 2;
-                tenant.personalResources.cash -= thanksFee;
-                totalThanksFee += thanksFee;
-              }
-            });
-
-            elder.personalResources.cash += totalThanksFee;
-
-            addLog(`長者 ${elder.name} 耐心調解，雙方達成作息共識`, "skill");
-            addLog(`${elder.name} 獲得 $${totalThanksFee} 調解感謝費`, "rent");
-
-            gameState.tenantRelationships.forEach((rel) => {
-              rel.relationship = Math.min(100, rel.relationship + 12);
-            });
-            gameState.harmoniumBonus += 1;
-          }
-        });
-      }
-
-      choices.push({
-        text: "支持投訴方 (-2食物安撫)",
-        condition: () => gameState.resources.food >= 2,
-        effect: () => {
-          gameState.resources.food -= 2;
-          addLog("支付食物安撫投訴方，暫時平息糾紛", "event");
-        }
-      });
-
-      return choices;
-    }
-  },
-
-  {
-    title: "工作分配爭議",
-    description: "租客們對誰應該負責哪些日常工作產生分歧",
-    trigger: () => {
-      const occupiedCount = getOccupiedRooms().length;
-      return occupiedCount >= 3;
-    },
-    getChoices: () => {
-      const elders = getElderTenants();
-      const workers = getWorkerTenants();
-      const choices = [];
-
-      if (workers.length > 0) {
-        choices.push({
-          text: `委託 ${workers[0].name} 統一安排工作`,
-          effect: () => {
-            const worker = workers[0];
-            const tenants = gameState.rooms
-              .filter((r) => r.tenant)
-              .map((r) => r.tenant);
-            let totalManagementFee = 0;
-
-            tenants.forEach((tenant) => {
-              if (tenant !== worker && tenant.personalResources.cash >= 4) {
-                const managementFee = 4;
-                tenant.personalResources.cash -= managementFee;
-                totalManagementFee += managementFee;
-              }
-            });
-
-            worker.personalResources.cash += totalManagementFee;
-
-            addLog(`工人 ${worker.name} 合理安排了工作分配`, "skill");
-            addLog(`${worker.name} 獲得 $${totalManagementFee} 管理費`, "rent");
-          }
-        });
-      }
-
-      if (elders.length > 0) {
-        choices.push({
-          text: `請 ${elders[0].name} 協調工作安排`,
-          effect: () => {
-            const elder = elders[0];
-            const tenants = gameState.rooms
-              .filter((r) => r.tenant)
-              .map((r) => r.tenant);
-            let totalCoordinationFee = 0;
-
-            tenants.forEach((tenant) => {
-              if (tenant !== elder && tenant.personalResources.cash >= 5) {
-                const coordinationFee = Math.floor(Math.random() * 3) + 4;
-                tenant.personalResources.cash -= coordinationFee;
-                totalCoordinationFee += coordinationFee;
-              }
-            });
-
-            elder.personalResources.cash += totalCoordinationFee;
-
-            addLog(`長者 ${elder.name} 根據各自能力公平分配了工作`, "skill");
-            addLog(
-              `${elder.name} 獲得 $${totalCoordinationFee} 協調費`,
-              "rent"
-            );
-
-            Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-              gameState.tenantSatisfaction[name] += 10;
-            });
-            gameState.harmoniumBonus += 2;
-          }
-        });
-      }
-
-      choices.push({
-        text: "房東直接分配 (-$10制作工作表)",
-        condition: () => gameState.resources.cash >= 10,
-        effect: () => {
-          gameState.resources.cash -= 10;
-          addLog("制作詳細工作分配表，強制執行", "event");
-
-          Object.keys(gameState.tenantSatisfaction).forEach((name) => {
-            gameState.tenantSatisfaction[name] -= 5;
-          });
-        }
-      });
-
-      return choices;
-    }
-  }
-];
-
-// 原有事件系統（略微調整）
-const events = [
-  {
-    title: "殭屍襲擊",
-    description: "一群殭屍正在靠近房屋！",
-    trigger: () => true,
-    choices: [
-      {
-        text: "加固防禦 (-5建材)",
-        condition: () => gameState.resources.materials >= 5,
-        effect: () => {
-          gameState.resources.materials -= 5;
-          const soldiers = getSoldierTenants();
-          if (soldiers.length > 0) {
-            addLog("軍人租客協助防禦，效果更佳！", "skill");
-            gameState.buildingDefense += 2;
-          }
-          addLog("成功抵禦襲擊", "event");
-        }
-      },
-      {
-        text: "冒險反擊",
-        effect: () => {
-          const soldiers = getSoldierTenants();
-          const successRate = soldiers.length > 0 ? 0.8 : 0.6;
-
-          if (Math.random() < successRate) {
-            addLog(
-              soldiers.length > 0
-                ? "軍人租客帶領成功擊退殭屍！"
-                : "成功擊退殭屍！",
-              "event"
-            );
-          } else {
-            addLog("反擊失敗，房屋受損", "danger");
-            gameState.rooms[Math.floor(Math.random() * 2)].needsRepair = true;
-          }
-        }
-      }
-    ]
-  },
-  {
-    title: "商隊過路",
-    description: "一個商隊經過附近，他們願意進行物資交易",
-    trigger: () =>
-      gameState.resources.fuel >= 2 || gameState.resources.cash >= 20,
-    choices: [
-      {
-        text: "用燃料換食物 (-3燃料, +10食物)",
-        condition: () => gameState.resources.fuel >= 3,
-        effect: () => {
-          gameState.resources.fuel -= 3;
-          gameState.resources.food += 10;
-          addLog("與商隊交易：燃料換食物", "rent");
-        }
-      },
-      {
-        text: "用現金買醫療用品 (-$15, +4醫療)",
-        condition: () => gameState.resources.cash >= 15,
-        effect: () => {
-          gameState.resources.cash -= 15;
-          gameState.resources.medical += 4;
-          addLog("與商隊交易：現金換醫療用品", "rent");
-        }
-      },
-      {
-        text: "出售建材換現金 (-6建材, +$20)",
-        condition: () => gameState.resources.materials >= 6,
-        effect: () => {
-          gameState.resources.materials -= 6;
-          gameState.resources.cash += 20;
-          addLog("與商隊交易：建材換現金", "rent");
-        }
-      },
-      {
-        text: "拒絕交易",
-        effect: () => {
-          addLog("拒絕了商隊的交易提議", "event");
-        }
-      }
-    ]
-  }
-];
-
-// 工具函數
-function getDefenseStatusText(defense) {
-  if (defense <= 0) return `脆弱(${defense})`;
-  if (defense <= 2) return `基本(${defense})`;
-  if (defense <= 5) return `穩固(${defense})`;
-  if (defense <= 8) return `堅固(${defense})`;
-  if (defense <= 12) return `要塞(${defense})`;
-  return `銅牆鐵壁(${defense})`;
-}
-
-function getHungerStatusText(hunger) {
-  if (hunger <= 0) return `飽足(${hunger})`;
-  if (hunger <= 1) return `微餓(${hunger})`;
-  if (hunger <= 2) return `有點餓(${hunger})`;
-  if (hunger <= 3) return `飢餓(${hunger})`;
-  if (hunger <= 4) return `很餓(${hunger})`;
-  if (hunger <= 6) return `極度飢餓(${hunger})`;
-  return `瀕臨餓死(${hunger})`;
-}
-
-function getDoctorTenants() {
-  return gameState.rooms
-    .filter(
-      (room) =>
-        room.tenant && room.tenant.type === "doctor" && !room.tenant.infected
-    )
-    .map((room) => room.tenant);
-}
-
-function getWorkerTenants() {
-  return gameState.rooms
-    .filter(
-      (room) =>
-        room.tenant && room.tenant.type === "worker" && !room.tenant.infected
-    )
-    .map((room) => room.tenant);
-}
-
-function getSoldierTenants() {
-  return gameState.rooms
-    .filter(
-      (room) =>
-        room.tenant && room.tenant.type === "soldier" && !room.tenant.infected
-    )
-    .map((room) => room.tenant);
-}
-
-function getFarmerTenants() {
-  return gameState.rooms
-    .filter(
-      (room) =>
-        room.tenant && room.tenant.type === "farmer" && !room.tenant.infected
-    )
-    .map((room) => room.tenant);
-}
-
-function getElderTenants() {
-  return gameState.rooms
-    .filter(
-      (room) =>
-        room.tenant && room.tenant.type === "elder" && !room.tenant.infected
-    )
-    .map((room) => room.tenant);
-}
-
-function getHealthyTenants() {
-  return gameState.rooms
-    .filter((room) => room.tenant && !room.tenant.infected)
-    .map((room) => room.tenant);
-}
-
-function getInfectedTenants() {
-  return gameState.rooms
-    .filter((room) => room.tenant && room.tenant.infected)
-    .map((room) => room.tenant);
-}
-
-function getOccupiedRooms() {
-  return gameState.rooms.filter((room) => room.tenant);
-}
-
-// 新增：租客滿意度更新
-function updateTenantSatisfaction() {
-  gameState.rooms.forEach((room) => {
-    if (room.tenant) {
-      const tenant = room.tenant;
-      let satisfaction = gameState.tenantSatisfaction[tenant.name] || 50;
-
-      // 基礎生活條件影響
-      if (room.reinforced) satisfaction += 3;
-      if (room.needsRepair) satisfaction -= 8;
-      if (tenant.personalResources.food < 2) satisfaction -= 10;
-      if (tenant.personalResources.cash > 25) satisfaction += 5;
-      if (gameState.buildingDefense >= 8) satisfaction += 4;
-      if (gameState.buildingDefense <= 2) satisfaction -= 6;
-
-      // 全局效果影響
-      if (gameState.emergencyTraining) satisfaction += 2;
-      if (gameState.buildingQuality >= 1) satisfaction += 3;
-      if (gameState.patrolSystem) satisfaction += 4;
-      if (gameState.socialNetwork) satisfaction += 3;
-
-      // 老人和諧氛圍加成
-      const elderCount = getElderTenants().length;
-      satisfaction += elderCount * 2;
-
-      satisfaction = Math.max(0, Math.min(100, satisfaction));
-      gameState.tenantSatisfaction[tenant.name] = satisfaction;
-    }
-  });
-}
-
-// 新增：糾紛機率計算
-function calculateConflictChance() {
-  const occupiedCount = getOccupiedRooms().length;
-  if (occupiedCount < 2) return 0;
-
-  let baseChance = 0.25;
-
-  const avgSatisfaction =
-    Object.values(gameState.tenantSatisfaction).reduce((a, b) => a + b, 0) /
-    occupiedCount;
-  baseChance -= (avgSatisfaction - 50) * 0.003;
-
-  baseChance += (occupiedCount - 2) * 0.08;
-
-  if (gameState.resources.food < occupiedCount * 3) baseChance += 0.1;
-  if (gameState.resources.fuel < 3) baseChance += 0.05;
-
-  const elderCount = getElderTenants().length;
-  baseChance -= elderCount * 0.12;
-
-  baseChance -= gameState.harmoniumBonus * 0.02;
-
-  return Math.max(0.02, Math.min(0.6, baseChance));
-}
-
-function addLog(message, type = "") {
-  const log = document.getElementById("gameLog");
-  const entry = document.createElement("div");
-  entry.className = `log-entry ${type}`;
-  entry.textContent = `第${gameState.day}天: ${message}`;
-  log.appendChild(entry);
-  log.scrollTop = log.scrollHeight;
-}
-
-function updateDisplay() {
-  document.getElementById("day").textContent = gameState.day;
-  document.getElementById("time").textContent =
-    gameState.time === "day" ? "白天" : "夜晚";
-  document.getElementById("cash").textContent = gameState.resources.cash;
-  document.getElementById(
-    "buildingDefenseText"
-  ).textContent = getDefenseStatusText(gameState.buildingDefense);
-  document.getElementById(
-    "landlordHungerText"
-  ).textContent = getHungerStatusText(gameState.landlordHunger);
-  document.getElementById("scavengeCount").textContent = gameState.scavengeUsed;
-
-  Object.keys(gameState.resources).forEach((resource) => {
-    document.getElementById(resource).textContent =
-      gameState.resources[resource];
-  });
-
-  gameState.rooms.forEach((room) => {
-    const roomElement = document.getElementById(`room${room.id}`);
-    const infoElement = document.getElementById(`room${room.id}-info`);
-
-    roomElement.className = "room";
-
-    if (room.tenant) {
-      roomElement.classList.add("occupied");
-      if (room.tenant.infected) {
-        roomElement.classList.add("infected");
-      }
-
-      // 顯示滿意度
-      const satisfaction = gameState.tenantSatisfaction[room.tenant.name] || 50;
-      const satisfactionText =
-        satisfaction >= 70 ? "😊" : satisfaction >= 40 ? "😐" : "😞";
-
-      infoElement.innerHTML = `${room.tenant.name}<br><small>${room.tenant.skill}</small><br><small>滿意度: ${satisfaction} ${satisfactionText}</small>`;
-    } else {
-      infoElement.textContent = "空房";
-    }
-
-    if (room.needsRepair) {
-      roomElement.classList.add("needs-repair");
-      infoElement.innerHTML +=
-        '<br><small style="color:#ff6666">需要維修</small>';
-    }
-
-    if (room.reinforced) {
-      roomElement.classList.add("reinforced");
-      infoElement.innerHTML +=
-        '<br><small style="color:#66ccff">已加固</small>';
-    }
-  });
-
-  updateStatusColors();
-  updateTenantList();
-  updateScavengeButton();
-  updateRentButton();
-  updateSkillButton();
-  updateTenantSatisfaction();
-}
-
-function updateStatusColors() {
-  const defenseElement = document.getElementById("buildingDefenseText");
-  const hungerElement = document.getElementById("landlordHungerText");
-
-  defenseElement.className = "";
-  if (gameState.buildingDefense <= 0) {
-    defenseElement.classList.add("danger-status");
-  } else if (gameState.buildingDefense >= 8) {
-    defenseElement.classList.add("good-status");
-  }
-
-  hungerElement.className = "";
-  if (gameState.landlordHunger >= 5) {
-    hungerElement.classList.add("danger-status");
-  } else if (gameState.landlordHunger <= 0) {
-    hungerElement.classList.add("good-status");
-  }
-}
-
-function updateTenantList() {
-  const tenantList = document.getElementById("tenantList");
-  const tenants = gameState.rooms
-    .filter((room) => room.tenant)
-    .map((room) => room.tenant);
-
-  if (tenants.length === 0) {
-    tenantList.innerHTML = '<div class="tenant-item">暫無租客</div>';
-  } else {
-    tenantList.innerHTML = tenants
-      .map((tenant) => {
-        let statusText = "";
-        if (tenant.infected) {
-          statusText = '<br><small style="color:#ff6666">已感染！</small>';
-        } else if (tenant.onMission) {
-          statusText = '<br><small style="color:#ffaa66">執行任務中</small>';
-        }
-
-        const resourceStatus = tenant.personalResources
-          ? `<br><small style="color:#cccccc">個人: $${
-              tenant.personalResources.cash || 0
-            } 食物${tenant.personalResources.food || 0}</small>`
-          : "";
-
-        const satisfaction = gameState.tenantSatisfaction[tenant.name] || 50;
-        const satisfactionBar = `<div class="satisfaction-bar"><div class="satisfaction-fill" style="width: ${satisfaction}%"></div></div>`;
-
-        return `<div class="tenant-item ${tenant.infected ? "infected" : ""} ${
-          tenant.type
-        }">
-                                    ${tenant.name} (${tenant.type})<br>
-                                    <small>房租: ${tenant.rent} | ${
-          tenant.skill
-        }</small>
-                                    ${resourceStatus}
-                                    <small>滿意度: ${satisfaction}%</small>
-                                    ${satisfactionBar}
-                                    ${statusText}
-                                </div>`;
-      })
-      .join("");
-  }
-}
-
-// 增強的技能系統
-function getSkillsForTenant(tenant) {
-  const skills = [];
-
-  switch (tenant.type) {
-    case "doctor":
-      // 主動技能1：治療感染
-      const infectedCount = getInfectedTenants().length;
-      if (
-        infectedCount > 0 &&
-        gameState.resources.medical >= 3 &&
-        gameState.resources.cash >= 12
-      ) {
-        skills.push({
-          name: "治療感染",
-          description: `治療感染的租客（消耗：3醫療用品 + $12酬勞）`,
-          action: "healInfection",
-          cost: { medical: 3, cash: 12 }
-        });
-      }
-
-      // 主動技能2：健康檢查
-      if (gameState.resources.medical >= 1 && gameState.resources.cash >= 8) {
-        skills.push({
-          name: "全面健康檢查",
-          description: `檢查所有人的健康狀況（消耗：1醫療用品 + $8酬勞）`,
-          action: "healthCheck",
-          cost: { medical: 1, cash: 8 }
-        });
-      }
-
-      // 特殊技能：急救培訓
-      if (!tenant.emergencyTrainingUsed && gameState.resources.cash >= 15) {
-        skills.push({
-          name: "急救培訓",
-          description: `培訓所有租客急救知識，永久降低受傷風險（$15，限用1次）`,
-          action: "emergencyTraining",
-          cost: { cash: 15 }
-        });
-      }
-      break;
-
-    case "worker":
-      // 主動技能1：高效維修
-      const repairRooms = gameState.rooms.filter((r) => r.needsRepair);
-      if (repairRooms.length > 0 && gameState.resources.cash >= 10) {
-        skills.push({
-          name: "專業維修",
-          description: `以更少建材維修房間（只需1建材 + $10工資）`,
-          action: "efficientRepair",
-          cost: { cash: 10 }
-        });
-      }
-
-      // 主動技能2：房間升級
-      const unReinforcedRooms = gameState.rooms.filter(
-        (r) => r.tenant && !r.reinforced
-      );
-      if (
-        unReinforcedRooms.length > 0 &&
-        gameState.resources.materials >= 4 &&
-        gameState.resources.cash >= 18
-      ) {
-        skills.push({
-          name: "房間加固",
-          description: `加固指定房間，提升租金和安全性（4建材 + $18工資）`,
-          action: "reinforceRoom",
-          cost: { materials: 4, cash: 18 }
-        });
-      }
-
-      // 特殊技能：建築升級
-      if (
-        !tenant.buildingUpgradeUsed &&
-        gameState.resources.materials >= 8 &&
-        gameState.resources.cash >= 25
-      ) {
-        skills.push({
-          name: "房屋升級",
-          description: `永久提升房屋品質和防禦（8建材 + $25，限用1次）`,
-          action: "buildingUpgrade",
-          cost: { materials: 8, cash: 25 }
-        });
-      }
-      break;
-
-    case "farmer":
-      // 主動技能1：種植作物
-      if (
-        !tenant.cropPlanted &&
-        gameState.resources.food >= 3 &&
-        gameState.resources.cash >= 8
-      ) {
-        skills.push({
-          name: "種植作物",
-          description: `種植作物，3天後大量收穫（消耗：3食物 + $8工資）`,
-          action: "plantCrops",
-          cost: { food: 3, cash: 8 }
-        });
-      }
-
-      // 主動技能2：野外採集
-      if (!tenant.foragingUsed && gameState.resources.cash >= 6) {
-        skills.push({
-          name: "野外採集",
-          description: `外出尋找野生食物（每2天1次，$6工資）`,
-          action: "wildForaging",
-          cost: { cash: 6 }
-        });
-      }
-
-      // 特殊技能：食物保存技術
-      if (!tenant.preservationTechUsed && gameState.resources.cash >= 20) {
-        skills.push({
-          name: "食物保存技術",
-          description: `傳授保存技術，永久減少食物腐敗（$20，限用1次）`,
-          action: "foodPreservation",
-          cost: { cash: 20 }
-        });
-      }
-      break;
-
-    case "soldier":
-      // 主動技能1：夜間警戒
-      if (gameState.resources.cash >= 15) {
-        skills.push({
-          name: "夜間警戒",
-          description: `加強今晚防禦，降低突襲風險（$15工資）`,
-          action: "nightWatch",
-          cost: { cash: 15 }
-        });
-      }
-
-      // 主動技能2：防禦工事
-      if (
-        gameState.resources.materials >= 5 &&
-        gameState.resources.cash >= 22
-      ) {
-        skills.push({
-          name: "建造防禦工事",
-          description: `永久提升建築防禦力（5建材 + $22工資）`,
-          action: "defensiveConstruction",
-          cost: { materials: 5, cash: 22 }
-        });
-      }
-
-      // 特殊技能：安全巡邏系統
-      if (!tenant.patrolSystemUsed && gameState.resources.cash >= 30) {
-        skills.push({
-          name: "建立巡邏系統",
-          description: `建立安全巡邏制度，永久降低威脅（$30，限用1次）`,
-          action: "patrolSystem",
-          cost: { cash: 30 }
-        });
-      }
-      break;
-
-    case "elder":
-      // 主動技能1：糾紛調解
-      const hasConflictPotential = getOccupiedRooms().length >= 2;
-      if (hasConflictPotential && gameState.resources.cash >= 12) {
-        skills.push({
-          name: "糾紛調解",
-          description: `主動解決租客間的矛盾，獲得感謝費（$12服務費）`,
-          action: "conflictMediation",
-          cost: { cash: 12 }
-        });
-      }
-
-      // 主動技能2：生活指導
-      if (!tenant.lifeGuidanceUsed && gameState.resources.cash >= 10) {
-        skills.push({
-          name: "生活指導",
-          description: `傳授生活智慧，提升所有租客滿意度（每2天1次，$10諮詢費）`,
-          action: "lifeGuidance",
-          cost: { cash: 10 }
-        });
-      }
-
-      // 特殊技能：人際網絡
-      if (!tenant.networkEstablished && gameState.resources.cash >= 25) {
-        skills.push({
-          name: "建立人際網絡",
-          description: `建立外部聯繫，增加商人和訪客品質（$25，限用1次）`,
-          action: "establishNetwork",
-          cost: { cash: 25 }
-        });
-      }
-      break;
-  }
-
-  return skills;
-}
-
-function canAffordSkill(cost) {
-  return Object.keys(cost).every((resource) => {
-    if (resource === "cash") {
-      return gameState.resources.cash >= cost[resource];
-    } else {
-      return (gameState.resources[resource] || 0) >= cost[resource];
-    }
-  });
-}
-
-function paySkillCost(cost) {
-  let totalPayment = 0;
-  Object.keys(cost).forEach((resource) => {
-    if (resource === "cash") {
-      gameState.resources.cash -= cost[resource];
-      totalPayment += cost[resource];
-    } else {
-      gameState.resources[resource] -= cost[resource];
-    }
-  });
-  return totalPayment;
-}
-
-function ensurePersonalResources(tenant) {
-  if (!tenant.personalResources) {
-    tenant.personalResources = {
-      food: 0,
-      materials: 0,
-      medical: 0,
-      fuel: 0,
-      cash: 0
-    };
-  }
-}
-
-function useSkill(tenantName, skillAction) {
-  const tenant = gameState.rooms
-    .filter((room) => room.tenant && room.tenant.name === tenantName)
-    .map((room) => room.tenant)[0];
-
-  if (!tenant) return;
-
-  const skill = getSkillsForTenant(tenant).find(
-    (s) => s.action === skillAction
-  );
-  if (!skill || !canAffordSkill(skill.cost)) {
-    addLog(`資源不足，無法請 ${tenant.name} 執行技能`, "danger");
-    return;
-  }
-
-  const payment = paySkillCost(skill.cost);
-  if (payment > 0) {
-    ensurePersonalResources(tenant);
-    tenant.personalResources.cash += payment;
-    addLog(`💰 支付 ${tenant.name} 工資 $${payment}`, "rent");
-  }
-
-  // 執行技能效果
-  switch (skillAction) {
-    // 醫生技能
-    case "healInfection":
-      const infected = getInfectedTenants();
-      if (infected.length > 0) {
-        const patient = infected[Math.floor(Math.random() * infected.length)];
-        patient.infected = false;
-        addLog(`醫生 ${tenant.name} 成功治癒了 ${patient.name}！`, "skill");
-      }
-      break;
-
-    case "healthCheck":
-      let foundIssues = false;
-      if (gameState.visitors.length > 0) {
-        gameState.visitors.forEach((visitor) => {
-          if (visitor.infected && !visitor.revealedInfection) {
-            visitor.revealedInfection = true;
-            addLog(`醫生檢測發現訪客 ${visitor.name} 已被感染！`, "danger");
-            foundIssues = true;
-          }
-        });
-      }
-      getHealthyTenants().forEach((t) => {
-        if (Math.random() < 0.12) {
-          t.infected = true;
-          addLog(`醫生檢查發現 ${t.name} 出現早期感染症狀！`, "danger");
-          foundIssues = true;
-        }
-      });
-      if (!foundIssues) {
-        addLog(`醫生 ${tenant.name} 完成健康檢查，所有人健康狀況良好`, "skill");
-      }
-      break;
-
-    case "emergencyTraining":
-      tenant.emergencyTrainingUsed = true;
-      gameState.emergencyTraining = true;
-      addLog(`醫生 ${tenant.name} 培訓了所有人的急救知識`, "skill");
-      break;
-
-    // 工人技能
-    case "efficientRepair":
-      const repairRoom = gameState.rooms.find((r) => r.needsRepair);
-      if (repairRoom) {
-        if (gameState.resources.materials >= 1) {
-          gameState.resources.materials -= 1;
-          repairRoom.needsRepair = false;
-          addLog(
-            `工人 ${tenant.name} 專業維修了房間 ${repairRoom.id}`,
-            "skill"
-          );
-        }
-      }
-      break;
-
-    case "reinforceRoom":
-      const targetRoom = gameState.rooms.find((r) => r.tenant === tenant);
-      if (targetRoom) {
-        targetRoom.reinforced = true;
-        gameState.buildingDefense += 1;
-        addLog(`工人 ${tenant.name} 加固了房間 ${targetRoom.id}`, "skill");
-      }
-      break;
-
-    case "buildingUpgrade":
-      tenant.buildingUpgradeUsed = true;
-      gameState.buildingDefense += 3;
-      gameState.buildingQuality = (gameState.buildingQuality || 0) + 1;
-      addLog(`工人 ${tenant.name} 升級了整體房屋品質`, "skill");
-      break;
-
-    // 農夫技能
-    case "plantCrops":
-      tenant.cropPlanted = gameState.day + 3;
-      addLog(`農夫 ${tenant.name} 種植了作物，3天後可收穫`, "skill");
-      break;
-
-    case "wildForaging":
-      const foragingResult = Math.floor(Math.random() * 6) + 4;
-      gameState.resources.food += foragingResult;
-      tenant.foragingUsed = true;
-      tenant.foragingCooldown = gameState.day + 2;
-      addLog(
-        `農夫 ${tenant.name} 野外採集獲得了 ${foragingResult} 食物`,
-        "skill"
-      );
-      break;
-
-    case "foodPreservation":
-      tenant.preservationTechUsed = true;
-      gameState.foodPreservation = true;
-      addLog(`農夫 ${tenant.name} 傳授了食物保存技術`, "skill");
-      break;
-
-    // 軍人技能
-    case "nightWatch":
-      gameState.nightWatchActive = true;
-      gameState.buildingDefense += 4;
-      addLog(`軍人 ${tenant.name} 開始夜間警戒`, "skill");
-      break;
-
-    case "defensiveConstruction":
-      gameState.buildingDefense += 2;
-      addLog(`軍人 ${tenant.name} 建造了防禦工事`, "skill");
-      break;
-
-    case "patrolSystem":
-      tenant.patrolSystemUsed = true;
-      gameState.patrolSystem = true;
-      addLog(`軍人 ${tenant.name} 建立了安全巡邏系統`, "skill");
-      break;
-
-    // 老人技能
-    case "conflictMediation":
-      const elder = tenant;
-      const otherTenants = gameState.rooms
-        .filter((r) => r.tenant && r.tenant !== elder)
-        .map((r) => r.tenant);
-
-      if (otherTenants.length === 0) {
-        addLog(`沒有其他租客需要調解`, "event");
-        break;
-      }
-
-      let totalThanksFee = 0;
-      let participatingTenants = [];
-
-      otherTenants.forEach((t) => {
-        if (t.personalResources.cash >= 6) {
-          const thanksFee = Math.floor(Math.random() * 4) + 4;
-          const actualFee = Math.min(thanksFee, t.personalResources.cash - 3);
-
-          if (actualFee > 0) {
-            t.personalResources.cash -= actualFee;
-            totalThanksFee += actualFee;
-            participatingTenants.push(`${t.name}($${actualFee})`);
-          }
-        }
-      });
-
-      elder.personalResources.cash += totalThanksFee;
-
-      if (gameState.tenantRelationships) {
-        gameState.tenantRelationships.forEach((rel) => {
-          rel.relationship = Math.min(100, rel.relationship + 15);
-        });
-      }
-
-      Object.keys(gameState.tenantSatisfaction || {}).forEach((name) => {
-        gameState.tenantSatisfaction[name] = Math.min(
-          100,
-          (gameState.tenantSatisfaction[name] || 50) + 12
-        );
-      });
-
-      addLog(`長者 ${elder.name} 成功調解了潛在糾紛`, "skill");
-      if (totalThanksFee > 0) {
-        addLog(
-          `感謝的租客 ${participatingTenants.join(
-            ", "
-          )} 共支付了 $${totalThanksFee} 感謝費`,
-          "rent"
-        );
-      }
-      gameState.harmoniumBonus += 1;
-      break;
-
-    case "lifeGuidance":
-      tenant.lifeGuidanceUsed = true;
-      tenant.guidanceCooldown = gameState.day + 2;
-
-      const guidedTenants = gameState.rooms
-        .filter((r) => r.tenant && r.tenant !== tenant)
-        .map((r) => r.tenant);
-
-      if (guidedTenants.length === 0) {
-        addLog(`沒有其他租客需要生活指導`, "event");
-        break;
-      }
-
-      guidedTenants.forEach((t) => {
-        gameState.tenantSatisfaction = gameState.tenantSatisfaction || {};
-        gameState.tenantSatisfaction[t.name] = Math.min(
-          100,
-          (gameState.tenantSatisfaction[t.name] || 50) + 15
-        );
-      });
-
-      let totalTips = 0;
-      let tippingTenants = [];
-
-      guidedTenants.forEach((t) => {
-        if (t.personalResources.cash >= 4 && Math.random() < 0.7) {
-          const tip = Math.floor(Math.random() * 3) + 2;
-          const actualTip = Math.min(tip, t.personalResources.cash - 2);
-
-          if (actualTip > 0) {
-            t.personalResources.cash -= actualTip;
-            totalTips += actualTip;
-            tippingTenants.push(t.name);
-          }
-        }
-      });
-
-      tenant.personalResources.cash += totalTips;
-
-      addLog(`長者 ${tenant.name} 的生活指導讓所有租客更滿意`, "skill");
-      if (totalTips > 0) {
-        addLog(
-          `${tippingTenants.join(", ")} 給了 ${
-            tenant.name
-          } 總計 $${totalTips} 小費`,
-          "rent"
-        );
-      }
-      gameState.harmoniumBonus += 1;
-      break;
-
-    case "establishNetwork":
-      tenant.networkEstablished = true;
-      gameState.socialNetwork = true;
-      addLog(`長者 ${tenant.name} 建立了寶貴的人際網絡`, "skill");
-      break;
-  }
-
-  closeModal();
-  updateDisplay();
-}
-
-function showSkillMenu() {
-  const modal = document.getElementById("skillModal");
-  const skillList = document.getElementById("skillList");
-
-  const skillsByTenant = [];
-
-  gameState.rooms.forEach((room) => {
-    if (room.tenant && !room.tenant.infected) {
-      const tenant = room.tenant;
-      const tenantSkills = getSkillsForTenant(tenant);
-
-      if (tenantSkills.length > 0) {
-        skillsByTenant.push({
-          tenant: tenant,
-          skills: tenantSkills
-        });
-      }
-    }
-  });
-
-  if (skillsByTenant.length === 0) {
-    skillList.innerHTML = "<p>目前沒有可用的技能</p>";
-  } else {
-    skillList.innerHTML = skillsByTenant
-      .map((tenantData) => {
-        const tenant = tenantData.tenant;
-        const skills = tenantData.skills;
-
-        return `
-                        <div class="tenant-skill-group">
-                          <h4 style="color: #66ccff; margin: 15px 0 10px 0;">
-                            ${tenant.name} (${
-          tenant.type
-        }) - 房間${getRoomIdByTenant(tenant)}
-                          </h4>
-                          <div style="font-size: 11px; color: #aaa; margin-bottom: 10px;">
-                            個人現金: $${tenant.personalResources?.cash || 0}
-                          </div>
-                          ${skills
-                            .map(
-                              (skill) => `
-                            <div class="skill-actions">
-                              <h5 style="margin: 5px 0; color: #ffcc66;">${skill.name}</h5>
-                              <p style="margin: 5px 0; font-size: 12px;">${skill.description}</p>
-                              <button class="btn success" onclick="useSkill('${tenant.name}', '${skill.action}')">
-                                使用技能
-                              </button>
-                            </div>
-                          `
-                            )
-                            .join("")}
-                        </div>
-                      `;
-      })
-      .join("");
-  }
-
-  modal.style.display = "block";
-}
-
-function updateSkillButton() {
-  const skillBtn = document.querySelector('button[onclick="showSkillMenu()"]');
-  const availableSkills = getAvailableSkills();
-
-  if (availableSkills.length > 0) {
-    skillBtn.disabled = false;
-    skillBtn.textContent = `使用技能 (${availableSkills.length})`;
-  } else {
-    skillBtn.disabled = true;
-    skillBtn.textContent = "使用技能 (無可用)";
-  }
-}
-
-function getAvailableSkills() {
-  const skills = [];
-  gameState.rooms.forEach((room) => {
-    if (room.tenant && !room.tenant.infected) {
-      const tenant = room.tenant;
-      const skillsForType = getSkillsForTenant(tenant);
-      skillsForType.forEach((skill) => skills.push({ tenant, ...skill }));
-    }
-  });
-  return skills;
-}
-
-function getRoomIdByTenant(tenant) {
-  const room = gameState.rooms.find((r) => r.tenant === tenant);
-  return room ? room.id : "未知";
-}
-
-function selectRoom(roomId) {
-  const room = gameState.rooms.find((r) => r.id === roomId);
-  const modal = document.getElementById("tenantModal");
-  const title = document.getElementById("tenantModalTitle");
-  const content = document.getElementById("tenantModalContent");
-  const actions = document.getElementById("tenantModalActions");
-
-  content.innerHTML = "";
-  actions.innerHTML = "";
-
-  if (room.needsRepair) {
-    const workers = getWorkerTenants();
-    const repairCost = workers.length > 0 ? 2 : 3;
-
-    if (gameState.resources.materials >= repairCost) {
-      title.textContent = `房間 ${roomId} - 需要維修`;
-      content.innerHTML = `
-                        <p>此房間需要維修，花費 ${repairCost} 單位建材。</p>
-                        ${
-                          workers.length > 0
-                            ? '<p style="color:#66ccff">有工人租客可以降低維修成本！</p>'
-                            : ""
-                        }
-                    `;
-      actions.innerHTML = `
-                        <button class="btn" onclick="repairRoom(${roomId})">立即維修 (-${repairCost}建材)</button>
-                        <button class="btn" onclick="closeModal()">取消</button>
-                    `;
-    } else {
-      alert("建材不足，無法維修！");
-      return;
-    }
-  } else if (room.tenant) {
-    const tenant = room.tenant;
-    const satisfaction = gameState.tenantSatisfaction[tenant.name] || 50;
-
-    title.textContent = `房間 ${roomId} - ${tenant.name}`;
-    content.innerHTML = `
-                  <p><strong>姓名：</strong>${tenant.name}</p>
-                  <p><strong>類型：</strong>${tenant.type}</p>
-                  <p><strong>技能：</strong>${tenant.skill}</p>
-                  <p><strong>房租：</strong>${tenant.rent} / 天</p>
-                  <p><strong>滿意度：</strong>${satisfaction}% ${
-      satisfaction >= 70 ? "😊" : satisfaction >= 40 ? "😐" : "😞"
-    }</p>
-                  <p><strong>狀態：</strong>${
-                    tenant.onMission
-                      ? "執行任務中"
-                      : tenant.infected
-                      ? "已感染"
-                      : "健康"
-                  }</p>
-                  ${
-                    tenant.personalResources
-                      ? `
-                    <p><strong>個人資源：</strong></p>
-                    <small>💰 現金: ${
-                      tenant.personalResources.cash || 0
-                    }</small><br>
-                    <small>🍖 食物: ${
-                      tenant.personalResources.food || 0
-                    }</small><br>
-                    <small>🔧 建材: ${
-                      tenant.personalResources.materials || 0
-                    }</small><br>
-                    <small>💊 醫療: ${
-                      tenant.personalResources.medical || 0
-                    }</small><br>
-                    <small>⛽ 燃料: ${
-                      tenant.personalResources.fuel || 0
-                    }</small>
-                  `
-                      : ""
-                  }
-                  ${
-                    room.reinforced
-                      ? `<p style="color:#66ccff;"><strong>房間已加固 (+20%房租)</strong></p>`
-                      : ""
-                  }
-                  ${
-                    tenant.infected
-                      ? `<p style="color:#ff6666;"><strong>⚠ 已感染</strong></p>`
-                      : ""
-                  }
-                `;
-
-    if (tenant.infected) {
-      const doctors = getDoctorTenants();
-      const healButton =
-        doctors.length > 0 && gameState.resources.medical >= 3
-          ? `<button class="btn success" onclick="healTenantInRoom(${roomId})">醫生治療</button>`
-          : "";
-
-      actions.innerHTML = `
-                        ${healButton}
-                        <button class="btn danger" onclick="evictTenant(${roomId}, true)">驅逐（感染）</button>
-                        <button class="btn" onclick="closeModal()">取消</button>
-                    `;
-    } else {
-      actions.innerHTML = `
-                        <button class="btn" onclick="closeModal()">關閉</button>
-                        <button class="btn danger" onclick="evictTenant(${roomId}, false)">要求退租</button>
-                    `;
-    }
-  } else {
-    title.textContent = `房間 ${roomId} - 空置中`;
-    content.innerHTML = `
-                  <p>此房間目前沒有租客。</p>
-                  <p>你可以前往查看申請者，選擇合適的租客入住。</p>
-                  ${
-                    room.reinforced
-                      ? `<p style="color:#66ccff;">此房間已加固，防禦力較高</p>`
-                      : ""
-                  }
-                `;
-    actions.innerHTML = `
-                  <button class="btn" onclick="closeModal()">關閉</button>
-                  <button class="btn success" onclick="openVisitorsFromRoom()">查看訪客</button>
-                `;
-  }
-
-  modal.style.display = "block";
-}
-
-function healTenantInRoom(roomId) {
-  const room = gameState.rooms.find((r) => r.id === roomId);
-  const doctors = getDoctorTenants();
-
-  if (
-    doctors.length > 0 &&
-    gameState.resources.medical >= 3 &&
-    room.tenant.infected
-  ) {
-    gameState.resources.medical -= 3;
-    room.tenant.infected = false;
-    addLog(`醫生治癒了房間 ${roomId} 的 ${room.tenant.name}`, "skill");
-    closeModal();
-    updateDisplay();
-  }
-}
-
-function collectRent() {
-  if (gameState.rentCollected) {
-    alert("今天已經收過房租了！");
-    return;
-  }
-
-  let totalCashRent = 0;
-  let resourcePayments = [];
-
-  gameState.rooms.forEach((room) => {
-    if (room.tenant && !room.tenant.infected) {
-      const tenant = room.tenant;
-      let rentPaid = false;
-      let rentOwed = tenant.rent;
-
-      if (
-        tenant.personalResources &&
-        tenant.personalResources.cash >= tenant.rent
-      ) {
-        tenant.personalResources.cash -= tenant.rent;
-        totalCashRent += tenant.rent;
-        addLog(`${tenant.name} 支付現金房租 $${tenant.rent}`, "rent");
-        rentPaid = true;
-      } else {
-        const resourceValue = {
-          food: 1.5,
-          materials: 3,
-          medical: 4,
-          fuel: 3
-        };
-
-        let paymentDetails = [];
-        let totalPaid = 0;
-
-        if (tenant.personalResources && tenant.personalResources.cash > 0) {
-          const cashPayment = Math.min(rentOwed, tenant.personalResources.cash);
-          rentOwed -= cashPayment;
-          totalPaid += cashPayment;
-          tenant.personalResources.cash -= cashPayment;
-          paymentDetails.push(`現金 $${cashPayment}`);
-        }
-
-        Object.keys(resourceValue).forEach((resource) => {
-          if (
-            rentOwed > 0 &&
-            tenant.personalResources &&
-            tenant.personalResources[resource] > 0
-          ) {
-            const resourceNeeded = Math.ceil(
-              rentOwed / resourceValue[resource]
-            );
-            const resourceAvailable = tenant.personalResources[resource];
-            const resourceUsed = Math.min(resourceNeeded, resourceAvailable);
-            const valueProvided = resourceUsed * resourceValue[resource];
-
-            if (resourceUsed > 0) {
-              tenant.personalResources[resource] -= resourceUsed;
-              gameState.resources[resource] += resourceUsed;
-              rentOwed -= valueProvided;
-              totalPaid += valueProvided;
-
-              const resourceNames = {
-                food: "食物",
-                materials: "建材",
-                medical: "醫療用品",
-                fuel: "燃料"
-              };
-
-              paymentDetails.push(
-                `${resourceUsed}份${resourceNames[resource]} (價值$${Math.floor(
-                  valueProvided
-                )})`
-              );
-            }
-          }
-        });
-
-        if (paymentDetails.length > 0) {
-          const shortfall = Math.max(0, tenant.rent - totalPaid);
-
-          if (shortfall > 0) {
-            addLog(`📋 ${tenant.name} 房租支付明細：`, "rent");
-            addLog(`   • 應付房租：$${tenant.rent}`, "rent");
-            addLog(`   • 實際支付：${paymentDetails.join(" + ")}`, "rent");
-            addLog(`   • 支付總值：$${Math.floor(totalPaid)}`, "rent");
-            addLog(`   • 剩餘欠款：$${Math.floor(shortfall)}`, "danger");
-          } else {
-            addLog(`✅ ${tenant.name} 房租支付明細：`, "rent");
-            addLog(
-              `   • 房租：$${tenant.rent} (${paymentDetails.join(" + ")})`,
-              "rent"
-            );
-          }
-          rentPaid = true;
-        }
-      }
-
-      if (room.reinforced && rentPaid) {
-        const bonus = Math.floor(tenant.rent * 0.2);
-        totalCashRent += bonus;
-        addLog(`🛡️ 加固房間 ${room.id} 額外收取 $${bonus}`, "rent");
-      }
-
-      if (!rentPaid && rentOwed > 0) {
-        addLog(
-          `❌ ${tenant.name} 無法支付房租，總欠款 $${Math.floor(rentOwed)}`,
-          "danger"
-        );
-      }
-    }
-  });
-
-  if (totalCashRent > 0) {
-    gameState.resources.cash += totalCashRent;
-    addLog(`💰 現金房租收入總計：$${totalCashRent}`, "rent");
-  }
-
-  if (totalCashRent === 0 && resourcePayments.length === 0) {
-    addLog("📭 今日沒有租客繳納房租", "event");
-  }
-
-  gameState.rentCollected = true;
-  updateDisplay();
-}
-
-function updateRentButton() {
-  const rentBtn = document.querySelector('button[onclick="collectRent()"]');
-  if (gameState.rentCollected) {
-    rentBtn.disabled = true;
-    rentBtn.textContent = "收租 (已收取)";
-  } else {
-    rentBtn.disabled = false;
-    rentBtn.textContent = "收租";
-  }
-}
-
-function generateApplicants() {
-  gameState.applicants = [];
-  const count = Math.floor(Math.random() * 3) + 1;
-
-  for (let i = 0; i < count; i++) {
-    const type = tenantTypes[Math.floor(Math.random() * tenantTypes.length)];
-    const applicant = {
-      ...type,
-      name: generateName(),
-      infected: Math.random() < type.infectionRisk,
-      id: Date.now() + i
-    };
-
-    if (applicant.infected) {
-      applicant.appearance = getInfectedAppearance();
-    } else {
-      applicant.appearance = getNormalAppearance();
-    }
-
-    gameState.applicants.push(applicant);
-  }
-}
-
-function generateName() {
-  const names = [
-    "小明",
-    "小華",
-    "小李",
-    "老王",
-    "阿強",
-    "小美",
-    "阿珍",
-    "大雄",
-    "靜香",
-    "胖虎",
-    "小張",
-    "阿陳",
-    "小林",
-    "老劉",
-    "阿花",
-    "小玉",
-    "阿寶",
-    "小鳳",
-    "阿義",
-    "小雲"
-  ];
-  return names[Math.floor(Math.random() * names.length)];
-}
-
-function getInfectedAppearance() {
-  const suspiciousTraits = [
-    "眼神有點呆滯，反應遲鈍",
-    "皮膚蒼白，手有輕微顫抖",
-    "說話時偶爾停頓，像在想什麼",
-    "衣服有些血跡，說是意外受傷",
-    "體溫似乎偏低，一直在發抖",
-    "有股奇怪的味道，像是腐肉",
-    "走路姿勢略顯僵硬",
-    "避免眼神接觸，顯得很緊張"
-  ];
-  return suspiciousTraits[Math.floor(Math.random() * suspiciousTraits.length)];
-}
-
-function getNormalAppearance() {
-  const normalTraits = [
-    "看起來精神狀態不錯",
-    "衣著整潔，談吐得體",
-    "眼神清澈，反應靈敏",
-    "握手時手掌溫暖有力",
-    "說話條理清晰，很有條理",
-    "看起來很健康，氣色不錯",
-    "動作自然流暢",
-    "笑容真誠，讓人感到舒適"
-  ];
-  return normalTraits[Math.floor(Math.random() * normalTraits.length)];
-}
-
-function showApplicants() {
-  if (gameState.applicants.length === 0) {
-    generateApplicants();
-  }
-
-  const modal = document.getElementById("applicantModal");
-  const list = document.getElementById("applicantList");
-
-  list.innerHTML = gameState.applicants
-    .map((applicant) => {
-      const infectionStatus = applicant.revealedInfection
-        ? '<br><span style="color:#ff6666; font-weight:bold;">⚠ 已檢測出感染！</span>'
-        : "";
-
-      return `<div class="applicant ${
-        applicant.revealedInfection ? "infected" : ""
-      }">
-                      <strong>${applicant.name}</strong> - ${applicant.type}<br>
-                      <small>${applicant.description}</small><br>
-                      <small style="color: #aaa;">外觀: ${
-                        applicant.appearance
-                      }</small><br>
-                      房租: ${applicant.rent}/天${infectionStatus}<br>
-                      <button class="btn ${
-                        applicant.revealedInfection ? "danger" : ""
-                      }" 
-                              onclick="hireTenant(${applicant.id})" 
-                              ${
-                                applicant.revealedInfection
-                                  ? 'title="雇用感染者風險很高！"'
-                                  : ""
-                              }>
-                        雇用${applicant.revealedInfection ? " (危險)" : ""}
-                      </button>
-                    </div>`;
-    })
-    .join("");
-
-  modal.style.display = "block";
-}
-
-function hireTenant(applicantId) {
-  const applicant = gameState.applicants.find((a) => a.id === applicantId);
-  const emptyRoom = gameState.rooms.find((room) => !room.tenant);
-
-  if (!emptyRoom) {
-    alert("沒有空房間！");
-    return;
-  }
-
-  emptyRoom.tenant = applicant;
-  gameState.applicants = gameState.applicants.filter(
-    (a) => a.id !== applicantId
-  );
-
-  // 初始化租客滿意度
-  gameState.tenantSatisfaction[applicant.name] = 50;
-
-  addLog(`新租客 ${applicant.name} 入住房間 ${emptyRoom.id}`, "rent");
-  closeModal();
-  updateDisplay();
-}
-
-function showScavengeMenu() {
-  if (gameState.scavengeUsed >= gameState.maxScavengePerDay) {
-    alert("今天的派遣次數已用完！");
-    return;
-  }
-
-  const availableTenants = gameState.rooms
-    .filter(
-      (room) => room.tenant && !room.tenant.infected && !room.tenant.onMission
-    )
-    .map((room) => room.tenant);
-
-  if (availableTenants.length === 0) {
-    alert("沒有可派遣的租客！");
-    return;
-  }
-
-  const modal = document.getElementById("scavengeModal");
-  const tenantList = document.getElementById("availableTenants");
-  const remainingSpan = document.getElementById("remainingScavenges");
-
-  remainingSpan.textContent =
-    gameState.maxScavengePerDay - gameState.scavengeUsed;
-
-  tenantList.innerHTML = availableTenants
-    .map((tenant) => {
-      const successRate = getTenantScavengeRate(tenant);
-      return `<div class="applicant">
-                        <strong>${tenant.name}</strong> - ${tenant.type}<br>
-                        <small>技能: ${tenant.skill}</small><br>
-                        <small>成功率: ${successRate}%</small><br>
-                        <button class="btn" onclick="sendSpecificTenant('${tenant.name}')">派遣</button>
-                    </div>`;
-    })
-    .join("");
-
-  modal.style.display = "block";
-}
-
-function getTenantScavengeRate(tenant) {
-  const baseRates = {
-    soldier: 85,
-    worker: 75,
-    farmer: 65,
-    doctor: 50,
-    elder: 40
-  };
-
-  let rate = baseRates[tenant.type] || 60;
-
-  if (gameState.scavengeBonus) {
-    rate += 15;
-  }
-
-  return Math.min(95, rate);
-}
-
-function sendSpecificTenant(tenantName) {
-  const tenant = gameState.rooms
-    .filter((room) => room.tenant && room.tenant.name === tenantName)
-    .map((room) => room.tenant)[0];
-
-  if (!tenant) {
-    alert("找不到指定的租客！");
-    return;
-  }
-
-  const successRate = getTenantScavengeRate(tenant);
-  const success = Math.random() * 100 < successRate;
-
-  gameState.scavengeUsed++;
-  tenant.onMission = true;
-
-  if (success) {
-    let foodGain,
-      materialGain,
-      medicalGain = 0;
-
-    switch (tenant.type) {
-      case "soldier":
-        foodGain = Math.floor(Math.random() * 6) + 5;
-        materialGain = Math.floor(Math.random() * 4) + 3;
-        break;
-      case "worker":
-        foodGain = Math.floor(Math.random() * 5) + 3;
-        materialGain = Math.floor(Math.random() * 6) + 4;
-        break;
-      case "doctor":
-        foodGain = Math.floor(Math.random() * 4) + 2;
-        materialGain = Math.floor(Math.random() * 3) + 1;
-        medicalGain = Math.floor(Math.random() * 4) + 3;
-        break;
-      case "farmer":
-        foodGain = Math.floor(Math.random() * 8) + 4;
-        materialGain = Math.floor(Math.random() * 3) + 2;
-        break;
-      default:
-        foodGain = Math.floor(Math.random() * 5) + 3;
-        materialGain = Math.floor(Math.random() * 4) + 2;
-    }
-
-    gameState.resources.food += foodGain;
-    gameState.resources.materials += materialGain;
-    if (medicalGain > 0) {
-      gameState.resources.medical += medicalGain;
-      addLog(
-        `${tenant.name} 搜刮成功！獲得 ${foodGain} 食物, ${materialGain} 建材, ${medicalGain} 醫療用品`,
-        "rent"
-      );
-    } else {
-      addLog(
-        `${tenant.name} 搜刮成功！獲得 ${foodGain} 食物, ${materialGain} 建材`,
-        "rent"
-      );
-    }
-  } else {
-    if (Math.random() < 0.3) {
-      tenant.infected = true;
-      addLog(`${tenant.name} 搜刮時被感染了！`, "danger");
-    } else {
-      addLog(`${tenant.name} 搜刮失敗，空手而歸`, "event");
-    }
-  }
-
-  gameState.scavengeBonus = false;
-
-  closeModal();
-  updateDisplay();
-}
-
-function updateScavengeButton() {
-  const scavengeBtn = document.querySelector(
-    'button[onclick="showScavengeMenu()"]'
-  );
-  if (gameState.scavengeUsed >= gameState.maxScavengePerDay) {
-    scavengeBtn.disabled = true;
-    scavengeBtn.innerHTML =
-      '派遣搜刮 (<span id="scavengeCount">' +
-      gameState.scavengeUsed +
-      "</span>/2) - 已用完";
-  } else {
-    scavengeBtn.disabled = false;
-    scavengeBtn.innerHTML =
-      '派遣搜刮 (<span id="scavengeCount">' +
-      gameState.scavengeUsed +
-      "</span>/2)";
-  }
-}
-
-function harvestYard() {
-  if (gameState.harvestUsed) {
-    alert("今天已經採集過院子了！");
-    return;
-  }
-
-  if (gameState.harvestCooldown > 0) {
-    alert(`院子需要休息 ${gameState.harvestCooldown} 天才能再次採集！`);
-    return;
-  }
-
-  const farmers = getFarmerTenants().length;
-  let baseHarvest = 2;
-
-  if (gameState.harvestBonus) {
-    baseHarvest += 2;
-    gameState.harvestBonus = false;
-    addLog("長者的建議讓院子採集效果更好！", "skill");
-  }
-
-  const bonus = farmers * 2;
-  const total = baseHarvest + bonus;
-
-  gameState.rooms.forEach((room) => {
-    if (
-      room.tenant &&
-      room.tenant.type === "farmer" &&
-      room.tenant.cropPlanted
-    ) {
-      if (gameState.day >= room.tenant.cropPlanted) {
-        const cropYield = Math.floor(Math.random() * 8) + 5;
-        gameState.resources.food += cropYield;
-        addLog(
-          `農夫 ${room.tenant.name} 的作物收穫了 ${cropYield} 食物！`,
-          "skill"
-        );
-        room.tenant.cropPlanted = null;
-      }
-    }
-  });
-
-  gameState.resources.food += total;
-  gameState.harvestUsed = true;
-  gameState.harvestCooldown = 2;
-  addLog(
-    `院子採集獲得 ${total} 食物${farmers > 0 ? " (農夫加成)" : ""}`,
-    "rent"
-  );
-  addLog(`院子需要休息2天才能再次採集`, "event");
-  updateHarvestButton();
-  updateDisplay();
-}
-
-function updateHarvestButton() {
-  const harvestBtn = document.querySelector('button[onclick="harvestYard()"]');
-  if (gameState.harvestUsed) {
-    harvestBtn.disabled = true;
-    harvestBtn.textContent = "院子採集 (已使用)";
-  } else if (gameState.harvestCooldown > 0) {
-    harvestBtn.disabled = true;
-    harvestBtn.textContent = `院子採集 (冷卻${gameState.harvestCooldown}天)`;
-  } else {
-    harvestBtn.disabled = false;
-    harvestBtn.textContent = "院子採集";
-  }
-}
-
-// 訪客系統
-function generateVisitors() {
-  gameState.visitors = [];
-  const count = Math.floor(Math.random() * 4) + 1;
-
-  for (let i = 0; i < count; i++) {
-    const type = tenantTypes[Math.floor(Math.random() * tenantTypes.length)];
-    const visitor = {
-      ...type,
-      name: generateName(),
-      infected: Math.random() < type.infectionRisk,
-      id: Date.now() + i,
-      personalResources: { ...type.personalResources },
-      rentingInterest: Math.random() < 0.6,
-      isTrader: Math.random() < 0.4,
-      tradeOffers: [],
-      invitationSent: false
-    };
-
-    if (visitor.infected) {
-      visitor.appearance = getInfectedAppearance();
-    } else {
-      visitor.appearance = getNormalAppearance();
-    }
-
-    if (visitor.isTrader) {
-      visitor.tradeOffers = generateTradeOffers(visitor);
-      visitor.rentingInterest = false;
-    }
-
-    gameState.visitors.push(visitor);
-  }
-}
-
-function generateTradeOffers(trader) {
-  const offers = [];
-
-  switch (trader.type) {
-    case "doctor":
-      offers.push(
-        {
-          type: "buy",
-          item: "medical",
-          amount: 3,
-          price: 15,
-          description: "出售3醫療用品 (+$15)"
-        },
-        {
-          type: "sell",
-          item: "medical",
-          amount: 2,
-          price: 12,
-          description: "購買2醫療用品 (-$12)"
-        },
-        {
-          type: "service",
-          service: "healthCheck",
-          price: 8,
-          description: "健康檢查服務 (-$8)"
-        }
-      );
-      break;
-
-    case "worker":
-      offers.push(
-        {
-          type: "buy",
-          item: "materials",
-          amount: 4,
-          price: 18,
-          description: "出售4建材 (+$18)"
-        },
-        {
-          type: "sell",
-          item: "materials",
-          amount: 5,
-          price: 20,
-          description: "購買5建材 (-$20)"
-        },
-        {
-          type: "service",
-          service: "quickRepair",
-          price: 10,
-          description: "快速維修服務 (-$10)"
-        }
-      );
-      break;
-
-    case "farmer":
-      offers.push(
-        {
-          type: "buy",
-          item: "food",
-          amount: 8,
-          price: 12,
-          description: "出售8食物 (+$12)"
-        },
-        {
-          type: "sell",
-          item: "food",
-          amount: 6,
-          price: 15,
-          description: "購買6新鮮食物 (-$15)"
-        },
-        {
-          type: "sell",
-          item: "fuel",
-          amount: 3,
-          price: 12,
-          description: "購買3生物燃料 (-$12)"
-        }
-      );
-      break;
-
-    case "soldier":
-      offers.push(
-        {
-          type: "sell",
-          item: "materials",
-          amount: 6,
-          price: 25,
-          description: "購買6軍用建材 (-$25)"
-        },
-        {
-          type: "service",
-          service: "security",
-          price: 15,
-          description: "安全諮詢服務 (-$15)"
-        }
-      );
-      break;
-
-    case "elder":
-      offers.push(
-        {
-          type: "sell",
-          item: "medical",
-          amount: 2,
-          price: 8,
-          description: "購買2草藥 (-$8)"
-        },
-        {
-          type: "service",
-          service: "information",
-          price: 5,
-          description: "情報服務 (-$5)"
-        }
-      );
-      break;
-  }
-
-  const selectedOffers = [];
-  const numOffers = Math.min(offers.length, Math.floor(Math.random() * 2) + 2);
-
-  for (let i = 0; i < numOffers; i++) {
-    const randomIndex = Math.floor(Math.random() * offers.length);
-    const offer = offers.splice(randomIndex, 1)[0];
-    if (offer) selectedOffers.push(offer);
-  }
-
-  return selectedOffers;
-}
-
-function showVisitors() {
-  if (gameState.visitors.length === 0) {
-    generateVisitors();
-  }
-
-  const modal = document.getElementById("visitorModal");
-  const list = document.getElementById("visitorList");
-
-  list.innerHTML = gameState.visitors
-    .map((visitor) => {
-      const infectionStatus = visitor.revealedInfection
-        ? '<br><span style="color:#ff6666; font-weight:bold;">⚠ 已檢測出感染！</span>'
-        : "";
-
-      let actionButtons = "";
-
-      if (visitor.isTrader) {
-        const tradeCount = visitor.tradeOffers ? visitor.tradeOffers.length : 0;
-        actionButtons = `<button class="btn special" onclick="tradeWithVisitor(${visitor.id})">
-                          交易 (${tradeCount}項選擇)
-                        </button>`;
-      } else if (visitor.invitationSent) {
-        actionButtons = `<span style="color:#888;">已邀請過</span>`;
-      } else if (visitor.rentingInterest) {
-        actionButtons = `
-                          <button class="btn ${
-                            visitor.revealedInfection ? "danger" : ""
-                          }" 
-                                  onclick="inviteToRent(${visitor.id})" 
-                                  ${
-                                    visitor.revealedInfection
-                                      ? 'title="邀請感染者風險很高！"'
-                                      : ""
-                                  }>
-                            邀請租房${
-                              visitor.revealedInfection ? " (危險)" : ""
-                            }
-                          </button>`;
-      } else {
-        actionButtons = `<button class="btn" onclick="inviteToRent(${visitor.id})">邀請租房</button>`;
-      }
-
-      const resourcesText = `擁有: 食物${visitor.personalResources.food} 建材${
-        visitor.personalResources.materials || 0
-      } 醫療${visitor.personalResources.medical || 0} 現金${
-        visitor.personalResources.cash
-      }`;
-
-      return `<div class="applicant ${
-        visitor.revealedInfection ? "infected" : ""
-      } ${visitor.isTrader ? "trader" : ""}">
-                        <strong>${visitor.name}</strong> - ${visitor.type} ${
-        visitor.isTrader ? "(商人)" : ""
-      }${visitor.rentingInterest ? "" : " (只是路過)"}<br>
-                        <small>${visitor.description}</small><br>
-                        <small style="color: #aaa;">外觀: ${
-                          visitor.appearance
-                        }</small><br>
-                        <small style="color: #ccc;">${resourcesText}</small><br>
-                        ${
-                          visitor.rentingInterest
-                            ? `房租: ${visitor.rent}/天`
-                            : ""
-                        }${infectionStatus}<br>
-                        ${actionButtons}
-                    </div>`;
-    })
-    .join("");
-
-  modal.style.display = "block";
-}
-
-function inviteToRent(visitorId) {
-  const visitor = gameState.visitors.find((v) => v.id === visitorId);
-
-  if (visitor.invitationSent) {
-    addLog(`已經邀請過 ${visitor.name} 了`, "event");
-    return;
-  }
-
-  const emptyRoom = gameState.rooms.find((room) => !room.tenant);
-  if (!emptyRoom) {
-    alert("沒有空房間！");
-    return;
-  }
-
-  visitor.invitationSent = true;
-
-  const acceptChance = visitor.rentingInterest ? 0.8 : 0.3;
-  if (Math.random() > acceptChance) {
-    addLog(`${visitor.name} 婉拒了租房邀請`, "event");
-    showVisitors();
-    return;
-  }
-
-  if (!visitor.personalResources) {
-    const type = tenantTypes.find((t) => t.type === visitor.type);
-    visitor.personalResources = { ...type.personalResources };
-  }
-
-  emptyRoom.tenant = visitor;
-  gameState.visitors = gameState.visitors.filter((v) => v.id !== visitorId);
-  gameState.tenantSatisfaction[visitor.name] = 50;
-
-  addLog(`${visitor.name} 接受邀請，入住房間 ${emptyRoom.id}`, "rent");
-  closeModal();
-  updateDisplay();
-}
-
-function tradeWithVisitor(visitorId) {
-  const visitor = gameState.visitors.find((v) => v.id === visitorId);
-
-  if (!visitor || !visitor.isTrader) {
-    alert("這個訪客不是商人！");
-    return;
-  }
-
-  const modal = document.getElementById("eventModal");
-  const title = document.getElementById("eventTitle");
-  const description = document.getElementById("eventDescription");
-  const choices = document.getElementById("eventChoices");
-
-  title.textContent = `商人 ${visitor.name} 的交易`;
-  description.textContent = `${visitor.name} 是一位${visitor.type}商人，提供以下交易選項：`;
-
-  let choicesHTML = "";
-  visitor.tradeOffers.forEach((offer, index) => {
-    let canTrade = true;
-    let buttonClass = "btn";
-
-    if (offer.type === "buy") {
-      canTrade = (gameState.resources[offer.item] || 0) >= offer.amount;
-      buttonClass = canTrade ? "btn success" : "btn";
-    } else if (offer.type === "sell") {
-      canTrade = gameState.resources.cash >= offer.price;
-      buttonClass = canTrade ? "btn special" : "btn";
-    } else if (offer.type === "service") {
-      canTrade = gameState.resources.cash >= offer.price;
-      buttonClass = canTrade ? "btn special" : "btn";
-    }
-
-    choicesHTML += `
-                  <button class="${buttonClass}" 
-                          onclick="executeTradeWithVisitor(${visitorId}, ${index})" 
-                          ${canTrade ? "" : "disabled"} 
-                          style="margin: 5px; width: 100%;">
-                    ${offer.description}
-                  </button>
-                `;
-  });
-
-  choicesHTML +=
-    '<button class="btn" onclick="closeEventModal()" style="margin: 5px;">取消交易</button>';
-  choices.innerHTML = choicesHTML;
-
-  modal.style.display = "block";
-}
-
-function executeTradeWithVisitor(visitorId, offerIndex) {
-  const visitor = gameState.visitors.find((v) => v.id === visitorId);
-  const offer = visitor.tradeOffers[offerIndex];
-
-  if (!offer) return;
-
-  let success = false;
-
-  switch (offer.type) {
-    case "buy":
-      if ((gameState.resources[offer.item] || 0) >= offer.amount) {
-        gameState.resources[offer.item] -= offer.amount;
-        gameState.resources.cash += offer.price;
-        addLog(
-          `向商人 ${visitor.name} 出售 ${offer.amount} ${offer.item}，獲得 ${offer.price}`,
-          "rent"
-        );
-        success = true;
-      }
-      break;
-
-    case "sell":
-      if (gameState.resources.cash >= offer.price) {
-        gameState.resources.cash -= offer.price;
-        gameState.resources[offer.item] =
-          (gameState.resources[offer.item] || 0) + offer.amount;
-        addLog(
-          `從商人 ${visitor.name} 購買 ${offer.amount} ${offer.item}，花費 ${offer.price}`,
-          "rent"
-        );
-        success = true;
-      }
-      break;
-
-    case "service":
-      if (gameState.resources.cash >= offer.price) {
-        gameState.resources.cash -= offer.price;
-        executeTradeService(visitor, offer.service);
-        success = true;
-      }
-      break;
-  }
-
-  if (success) {
-    visitor.tradeOffers.splice(offerIndex, 1);
-
-    if (visitor.tradeOffers.length === 0) {
-      addLog(`商人 ${visitor.name} 完成所有交易後離開了`, "event");
-      gameState.visitors = gameState.visitors.filter((v) => v.id !== visitorId);
-    }
-  } else {
-    addLog(`交易失敗：資源不足`, "danger");
-  }
-
-  closeModal();
-  updateDisplay();
-}
-
-function executeTradeService(visitor, service) {
-  switch (service) {
-    case "healthCheck":
-      if (gameState.visitors.length > 0) {
-        gameState.visitors.forEach((v) => {
-          if (v.infected && !v.revealedInfection) {
-            v.revealedInfection = true;
-            addLog(`商人醫生檢測發現 ${v.name} 已被感染！`, "danger");
-          }
-        });
-      }
-
-      const healthyTenants = getHealthyTenants();
-      if (healthyTenants.length > 0) {
-        healthyTenants.forEach((t) => {
-          if (Math.random() < 0.15) {
-            t.infected = true;
-            addLog(`商人醫生檢查發現 ${t.name} 出現早期感染症狀！`, "danger");
-          }
-        });
-      }
-      addLog(`商人醫生 ${visitor.name} 提供了專業健康檢查服務`, "skill");
-      break;
-
-    case "quickRepair":
-      const repairRooms = gameState.rooms.filter((r) => r.needsRepair);
-      if (repairRooms.length > 0) {
-        repairRooms[0].needsRepair = false;
-        addLog(
-          `商人工人 ${visitor.name} 快速修復了房間 ${repairRooms[0].id}`,
-          "skill"
-        );
-      } else {
-        addLog(
-          `商人工人 ${visitor.name} 檢查了建築，目前沒有需要維修的地方`,
-          "event"
-        );
-      }
-      break;
-
-    case "security":
-      gameState.buildingDefense += 1;
-      addLog(
-        `商人軍人 ${visitor.name} 提供了安全建議，建築防禦提升1點`,
-        "skill"
-      );
-      break;
-
-    case "information":
-      const infoEffects = [
-        () => {
-          addLog(`商人老人 ${visitor.name} 告訴你附近有廢棄的醫院`, "event");
-          gameState.scavengeBonus = true;
-        },
-        () => {
-          addLog(`商人老人 ${visitor.name} 分享了食物保存技巧`, "event");
-          gameState.harvestBonus = true;
-        },
-        () => {
-          if (Math.random() < 0.3) {
-            const bonus = Math.floor(Math.random() * 5) + 3;
-            gameState.resources.food += bonus;
-            addLog(
-              `商人老人 ${visitor.name} 給了你 ${bonus} 份應急食物`,
-              "rent"
-            );
-          }
-        }
-      ];
-      const effect =
-        infoEffects[Math.floor(Math.random() * infoEffects.length)];
-      effect();
-      break;
-  }
-}
-
-// 事件觸發
-function triggerRandomEvent() {
-  const availableEvents = events.filter((event) => event.trigger());
-  if (availableEvents.length === 0 || Math.random() < 0.7) return;
-
-  const event =
-    availableEvents[Math.floor(Math.random() * availableEvents.length)];
-  showEvent(event);
-}
-
-function triggerConflictEvent() {
-  const conflictChance = calculateConflictChance();
-  if (Math.random() < conflictChance) {
-    const availableConflicts = conflictEvents.filter((conflict) =>
-      conflict.trigger()
-    );
-    if (availableConflicts.length > 0) {
-      const conflict =
-        availableConflicts[
-          Math.floor(Math.random() * availableConflicts.length)
-        ];
-      showConflictEvent(conflict);
-    }
-  }
-}
-
-function showEvent(event) {
-  const modal = document.getElementById("eventModal");
-  document.getElementById("eventTitle").textContent = event.title;
-  document.getElementById("eventDescription").textContent = event.description;
-
-  const choices = document.getElementById("eventChoices");
-  choices.innerHTML = event.choices
-    .filter((choice) => !choice.condition || choice.condition())
-    .map(
-      (choice, index) =>
-        `<button class="btn" onclick="handleEventChoice(${index})" style="margin: 5px;">${choice.text}</button>`
-    )
-    .join("");
-
-  window.currentEvent = event;
-  modal.style.display = "block";
-}
-
-function showConflictEvent(conflict) {
-  const modal = document.getElementById("eventModal");
-  document.getElementById("eventTitle").textContent = conflict.title;
-  document.getElementById("eventDescription").textContent =
-    conflict.description;
-
-  const choices = document.getElementById("eventChoices");
-  const conflictChoices = conflict.getChoices();
-
-  choices.innerHTML = conflictChoices
-    .filter((choice) => !choice.condition || choice.condition())
-    .map(
-      (choice, index) =>
-        `<button class="btn" onclick="handleConflictChoice(${index})" style="margin: 5px;">${choice.text}</button>`
-    )
-    .join("");
-
-  window.currentConflict = conflict;
-  modal.style.display = "block";
-}
-
-function handleEventChoice(choiceIndex) {
-  const availableChoices = window.currentEvent.choices.filter(
-    (choice) => !choice.condition || choice.condition()
-  );
-  const choice = availableChoices[choiceIndex];
-  choice.effect();
-  closeModal();
-  updateDisplay();
-}
-
-function handleConflictChoice(choiceIndex) {
-  const conflictChoices = window.currentConflict.getChoices();
-  const availableChoices = conflictChoices.filter(
-    (choice) => !choice.condition || choice.condition()
-  );
-  const choice = availableChoices[choiceIndex];
-  choice.effect();
-  closeModal();
-  updateDisplay();
-}
-
-// 租客互助系統
-function processTenantMutualAid() {
-  if (Math.random() < 0.3 && getOccupiedRooms().length >= 2) {
-    const tenants = gameState.rooms
-      .filter((r) => r.tenant)
-      .map((r) => r.tenant);
-
-    const needyTenant = tenants.find(
-      (t) =>
-        t.personalResources.food <= 1 ||
-        (t.type === "elder" && t.personalResources.medical <= 1) ||
-        t.personalResources.cash <= 5
-    );
-
-    const helpfulTenant = tenants.find(
-      (t) =>
-        t !== needyTenant &&
-        (t.personalResources.food >= 5 ||
-          t.personalResources.cash >= 15 ||
-          t.personalResources.medical >= 3)
-    );
-
-    if (needyTenant && helpfulTenant) {
-      if (
-        needyTenant.personalResources.food <= 1 &&
-        helpfulTenant.personalResources.food >= 3
-      ) {
-        helpfulTenant.personalResources.food -= 2;
-        needyTenant.personalResources.food += 2;
-        addLog(
-          `${helpfulTenant.name} 分享了2食物給 ${needyTenant.name}`,
-          "event"
-        );
-      } else if (
-        needyTenant.personalResources.cash <= 5 &&
-        helpfulTenant.personalResources.cash >= 12
-      ) {
-        const loanAmount = 5;
-        helpfulTenant.personalResources.cash -= loanAmount;
-        needyTenant.personalResources.cash += loanAmount;
-        addLog(
-          `${helpfulTenant.name} 借了 ${loanAmount} 給 ${needyTenant.name}`,
-          "event"
-        );
-      } else if (
-        needyTenant.type === "elder" &&
-        needyTenant.personalResources.medical <= 1 &&
-        helpfulTenant.personalResources.medical >= 2
-      ) {
-        helpfulTenant.personalResources.medical -= 1;
-        needyTenant.personalResources.medical += 1;
-        addLog(
-          `${helpfulTenant.name} 給了1醫療用品給老人 ${needyTenant.name}`,
-          "event"
-        );
-      }
-    }
-  }
-}
-
-function processTenantLandlordTrade() {
-  if (Math.random() < 0.25) {
-    const tenants = gameState.rooms
-      .filter((r) => r.tenant && r.tenant.personalResources)
-      .map((r) => r.tenant);
-    const tradingTenant = tenants.find(
-      (t) =>
-        (t.personalResources.food <= 2 && gameState.resources.food >= 5) ||
-        (t.personalResources.cash >= 18 && gameState.resources.food <= 12)
-    );
-
-    if (tradingTenant) {
-      if (
-        tradingTenant.personalResources.food <= 2 &&
-        tradingTenant.personalResources.cash >= 8 &&
-        gameState.resources.food >= 4
-      ) {
-        const cost = 8;
-        const foodAmount = 4;
-
-        tradingTenant.personalResources.cash -= cost;
-        tradingTenant.personalResources.food += foodAmount;
-        gameState.resources.cash += cost;
-        gameState.resources.food -= foodAmount;
-
-        addLog(
-          `${tradingTenant.name} 用 ${cost} 向房東購買了 ${foodAmount} 食物`,
-          "rent"
-        );
-      } else if (
-        tradingTenant.personalResources.cash >= 18 &&
-        tradingTenant.personalResources.food >= 6 &&
-        gameState.resources.food <= 12
-      ) {
-        const payment = 10;
-        const foodAmount = 5;
-
-        if (gameState.resources.cash >= payment) {
-          tradingTenant.personalResources.cash += payment;
-          tradingTenant.personalResources.food -= foodAmount;
-          gameState.resources.cash -= payment;
-          gameState.resources.food += foodAmount;
-
-          addLog(
-            `房東用 ${payment} 向 ${tradingTenant.name} 購買了 ${foodAmount} 食物`,
-            "rent"
-          );
-        }
-      }
-    }
-  }
-}
-
-function nextDay() {
-  // 重置租客狀態
-  gameState.rooms.forEach((room) => {
-    if (room.tenant) {
-      room.tenant.onMission = false;
-      room.tenant.adviceUsedToday = false;
-      room.tenant.tipUsedToday = false;
-      room.tenant.nightWatchActive = false;
-      room.tenant.identifiedToday = false;
-    }
-  });
-
-  // 減少院子採集冷卻
-  if (gameState.harvestCooldown > 0) {
-    gameState.harvestCooldown--;
-    if (gameState.harvestCooldown === 0) {
-      addLog("院子已經恢復，可以再次採集了", "event");
-    }
-  }
-
-  // 處理被動技能效果
-  gameState.rooms.forEach((room) => {
-    if (room.tenant && !room.tenant.infected) {
-      const tenant = room.tenant;
-
-      switch (tenant.type) {
-        case "doctor":
-          gameState.resources.medical += 1;
-          addLog(`醫生 ${tenant.name} 製作了 1 醫療用品`, "skill");
-          break;
-
-        case "worker":
-          if (Math.random() < 0.3) {
-            const needRepair = gameState.rooms.filter((r) => r.needsRepair);
-            if (needRepair.length > 0) {
-              needRepair[0].needsRepair = false;
-              addLog(
-                `工人 ${tenant.name} 進行日常維護，修復了房間損傷`,
-                "skill"
-              );
-            }
-          }
-          break;
-
-        case "farmer":
-          if (tenant.cropPlanted && gameState.day >= tenant.cropPlanted) {
-            const cropYield = Math.floor(Math.random() * 10) + 8;
-            gameState.resources.food += cropYield;
-            addLog(
-              `農夫 ${tenant.name} 的作物收穫了 ${cropYield} 食物！`,
-              "skill"
-            );
-            tenant.cropPlanted = null;
-          }
-          break;
-      }
-
-      // 重置技能冷卻
-      if (tenant.foragingCooldown && gameState.day >= tenant.foragingCooldown) {
-        tenant.foragingUsed = false;
-      }
-      if (tenant.guidanceCooldown && gameState.day >= tenant.guidanceCooldown) {
-        tenant.lifeGuidanceUsed = false;
-      }
-    }
-  });
-
-  // 房東消費食物
-  if (gameState.resources.food >= 2) {
-    gameState.resources.food -= 2;
-    addLog("房東消耗了 2 食物", "event");
-    gameState.landlordHunger = Math.max(0, gameState.landlordHunger - 1);
-  } else if (gameState.resources.food >= 1) {
-    gameState.resources.food -= 1;
-    addLog("房東只吃了 1 食物，仍感到飢餓", "danger");
-    gameState.landlordHunger += 1;
-  } else {
-    addLog("房東沒有食物可吃！", "danger");
-    gameState.landlordHunger += 2;
-  }
-
-  // 房東飢餓後果
-  if (gameState.landlordHunger >= 5) {
-    addLog("房東過度飢餓，工作效率下降", "danger");
-  }
-
-  // 處理租客間互助
-  processTenantMutualAid();
-
-  // 處理租客與房東交易
-  processTenantLandlordTrade();
-
-  // 租客個人資源消耗
-  gameState.rooms.forEach((room) => {
-    if (room.tenant && room.tenant.personalResources) {
-      const tenant = room.tenant;
-
-      if (tenant.personalResources.food >= 2) {
-        tenant.personalResources.food -= 2;
-      } else if (tenant.personalResources.food >= 1) {
-        tenant.personalResources.food -= 1;
-        addLog(`${tenant.name} 個人食物不足，只吃了1份`, "event");
-      } else {
-        addLog(`${tenant.name} 沒有個人食物可吃，向房東求助`, "danger");
-        if (Math.random() < 0.3) {
-          addLog(`${tenant.name} 因為沒有食物而離開了`, "danger");
-          room.tenant = null;
-          return;
-        }
-      }
-
-      if (tenant.type === "elder") {
-        if (tenant.personalResources.medical >= 1) {
-          tenant.personalResources.medical -= 1;
-        } else if (Math.random() < 0.4) {
-          addLog(
-            `老人 ${tenant.name} 缺乏個人醫療用品，健康狀況惡化`,
-            "danger"
-          );
-          if (Math.random() < 0.3) {
-            tenant.infected = true;
-          }
-        }
-      }
-    }
-  });
-
-  // 燃料消費
-  if (gameState.resources.fuel > 0) {
-    gameState.resources.fuel -= 1;
-    addLog("房屋維持運作消耗了 1 燃料", "event");
-  } else {
-    addLog("燃料不足！房屋設施無法正常運作", "danger");
-  }
-
-  // 重置臨時效果
-  if (gameState.nightWatchActive) {
-    gameState.buildingDefense -= 4;
-    gameState.nightWatchActive = false;
-  }
-
-  gameState.day++;
-  gameState.visitors = [];
-  gameState.harvestUsed = false;
-  gameState.scavengeUsed = 0;
-  gameState.rentCollected = false;
-
-  // 觸發事件
-  triggerRandomEvent();
-  triggerConflictEvent();
-
-  updateHarvestButton();
-  updateDisplay();
-
-  addLog("新的一天開始了，可能會有新的訪客到來", "event");
-}
-
-function closeModal() {
-  document.querySelectorAll(".modal").forEach((modal) => {
-    modal.style.display = "none";
-  });
-}
-
-function closeEventModal() {
-  document.querySelectorAll("#eventModal").forEach((modal) => {
-    modal.style.display = "none";
-  });
-}
-
-function repairRoom(roomId) {
-  const room = gameState.rooms.find((r) => r.id === roomId);
-  const workers = getWorkerTenants();
-  const cost = workers.length > 0 ? 2 : 3;
-
-  if (gameState.resources.materials >= cost) {
-    gameState.resources.materials -= cost;
-    room.needsRepair = false;
-    addLog(
-      `房間 ${roomId} 維修完成${workers.length > 0 ? " (工人協助)" : ""}`,
-      "event"
-    );
-    closeModal();
-    updateDisplay();
-  }
-}
-
-function evictTenant(roomId, isInfected) {
-  const room = gameState.rooms.find((r) => r.id === roomId);
-  if (!room) {
-    alert("找不到指定房間！");
-    return;
-  }
-
-  if (!room.tenant) {
-    alert("房間內沒有租客！");
-    return;
-  }
-
-  const name = room.tenant.name;
-  showEvictionConfirm(roomId, name, isInfected);
-}
-
-function showEvictionConfirm(roomId, tenantName, isInfected) {
-  const modal = document.getElementById("tenantModal");
-  modal.style.display = "none";
-
-  const confirmModal = document.getElementById("eventModal");
-  const title = document.getElementById("eventTitle");
-  const description = document.getElementById("eventDescription");
-  const choices = document.getElementById("eventChoices");
-
-  title.textContent = isInfected ? "驅逐感染租客" : "租客退租確認";
-  description.textContent = isInfected
-    ? `確定要驅逐感染的租客 ${tenantName}？\n感染租客會對其他租客造成危險。`
-    : `確定讓 ${tenantName} 退租嗎？\n退租後需要重新尋找租客。`;
-
-  choices.innerHTML = `
-                <button class="btn danger" onclick="confirmEviction(${roomId}, '${tenantName}', ${isInfected})" style="margin: 5px;">
-                  ${isInfected ? "立即驅逐" : "確認退租"}
-                </button>
-                <button class="btn" onclick="closeModal()" style="margin: 5px;">取消</button>
-            `;
-
-  confirmModal.style.display = "block";
-}
-
-function confirmEviction(roomId, tenantName, isInfected) {
-  const room = gameState.rooms.find((r) => r.id === roomId);
-  if (room && room.tenant) {
-    if (isInfected) {
-      if (gameState.resources.medical >= 2) {
-        gameState.resources.medical -= 2;
-        addLog(`驅逐感染租客花費了 2 醫療用品進行消毒`, "danger");
-      } else {
-        addLog(`缺乏醫療用品，房間可能存在感染風險`, "danger");
-        room.needsRepair = true;
-      }
-    } else {
-      if (Math.random() < 0.3) {
-        const refund = Math.floor(room.tenant.rent * 0.5);
-        addLog(`退還 ${tenantName} 的押金，損失現金 ${refund}`, "event");
-        gameState.resources.cash = Math.max(
-          0,
-          gameState.resources.cash - refund
-        );
-      }
-    }
-
-    // 清理租客滿意度記錄
-    delete gameState.tenantSatisfaction[tenantName];
-
-    addLog(
-      `${tenantName} 離開了房間 ${roomId}`,
-      isInfected ? "danger" : "event"
-    );
-    room.tenant = null;
-    closeModal();
-    updateDisplay();
-  }
-}
-
-function openVisitorsFromRoom() {
-  closeModal();
-  showVisitors();
-}
-
-// 初始化遊戲
-updateDisplay();
-updateHarvestButton();
-updateScavengeButton();
-updateRentButton();
-addLog("歡迎來到末日房東模擬器！在這個危險的世界中經營你的租屋事業！", "event");
-addLog("提示：訪客中有些想租房，有些是商人，還有一些只是路過", "event");
-addLog("提示：沒有常設商店，要靠商人訪客、商隊過路或特殊事件進行交易", "event");
-addLog("提示：租客可以用個人資源抵付房租，加固房間能收更高租金", "event");
-
     </script>
-</body>
+  </body>
 </html>
