@@ -18,7 +18,7 @@
 3. 開始您的末日房東之旅
 
 ### 替代版本
-- `src/index.html`：v2.0-beta 模組化版本（重構進行中）
+- `src/index.html`：v2.0-rc 模組化版本（重構完成95%）
 
 ### 遊戲目標
 - 招募合適的租客並管理其需求
@@ -33,7 +33,7 @@
 ├── PROJECT_STRUCTURE.md           # 📋 完整專案結構說明
 └── src/
     ├── game-refactored.html       # 🎮 穩定版本 v1.1（推薦使用）
-    ├── index.html                 # 🚀 重構版本 v2.0-beta（開發中）
+    ├── index.html                 # 🚀 重構版本 v2.0-rc（95%完成）
     ├── js/                        # 🔧 JavaScript模組目錄（重構完成）
     ├── data/                      # 📊 遊戲配置檔案
     │   ├── tenants.json           # 租客資料配置
@@ -94,26 +94,31 @@
 - **燃料**：維持房屋基本運作的能源
 - **現金**：支付租客服務和應急開支
 
+### 事件系統
+- **隨機事件**：殭屍襲擊、商隊過路等意外狀況
+- **衝突事件**：租客糾紛、資源分配問題
+- **特殊事件**：醫療緊急狀況、建築危機
+- **動態選擇**：基於租客類型和遊戲狀態生成選項
+
 ## 🔄 重構進展
 
-### 當前狀態：業務系統模組化 v2.0-beta ✅
+### 當前狀態：業務系統模組化 v2.0-rc ✅
 - ✅ **核心架構系統**（DataManager、RuleEngine、GameBridge）已分離為模組
 - ✅ **配置驅動體系**（rules.json 集中配置，helpers.js v2.0 配置驅動）
 - ✅ **統一驗證機制**（validators.js 統一驗證邏輯）
 - ✅ **系統級常數**（constants.js 純技術常數管理）
-- ✅ **業務邏輯模組**（TenantSystem、SkillSystem、ResourceSystem 完整分離）
+- ✅ **業務邏輯模組**（TRES四大模組：TenantSystem、ResourceSystem、EventSystem、SkillSystem）
 - ✅ **主程式整合**（main.js 完整系統協調）
-- 🚀 **事件系統分離**（EventSystem 最後業務模組）
-- 🚀 **UI系統模組**（UIManager、DisplayUpdater 等待實作）
+- 🚀 **UI系統模組**（UIManager、ModalManager 等待實作）
 
-### 下一階段：事件系統完成 v2.0-rc 🚀
-**重構策略**：基於已完成的業務模組基礎，完成最後的事件處理系統。
+### 下一階段：UI系統完善 v2.0 🚀
+**重構策略**：基於已完成的業務模組基礎，完成最後的使用者介面系統。
 
 **重構目標**：
 - ✅ **對話3A**：配置驅動核心架構（DataManager, RuleEngine, GameBridge, helpers, validators, constants）
-- ✅ **對話3B-1-3**：業務系統分離（TenantSystem, SkillSystem, ResourceSystem, main.js 整合）
-- 🚀 **對話3B-4**：事件系統完成（EventSystem）
-- 🚀 **對話3C**：UI系統完善（UIManager, ModalManager, DisplayUpdater）
+- ✅ **對話3B**：業務系統分離（TenantSystem, SkillSystem, ResourceSystem, EventSystem, main.js 整合）
+- 🚀 **對話3C**：UI系統完善（UIManager, ModalManager, DisplayUpdater, InteractionHandler）
+
 
 **技術優勢**：
 - **配置驅動**：所有遊戲參數可透過 rules.json 調整
@@ -152,22 +157,21 @@
 
 ## 🚧 開發狀態
 
-### 已完成功能 v2.0-beta ✅
+### 已完成功能 v2.0-rc ✅
 - ✅ **配置驅動核心架構**（DataManager v2.0、RuleEngine、GameBridge）
 - ✅ **統一驗證機制**（validators.js 完整驗證邏輯）
 - ✅ **系統級常數管理**（constants.js 純技術常數）
 - ✅ **配置驅動輔助函數**（helpers.js v2.0）
 - ✅ **集中配置體系**（rules.json 擴展版）
-- ✅ **業務邏輯模組化**（TenantSystem、SkillSystem、ResourceSystem）
+- ✅ **業務邏輯模組化**（TRES四大模組完整實作）
 - ✅ **主程式系統整合**（main.js 完整協調）
 
 ### 進行中功能 🚀
-- 🚀 **事件系統分離**（對話3B-4目標）
-- 🚀 EventSystem 完整實作與整合
-- 🚀 系統間事件通信機制完善
+- 🚀 **UI系統分離**（對話3C目標）
+- 🚀 UIManager、ModalManager、DisplayUpdater、InteractionHandler 實作
+- 🚀 現代化使用者介面管理架構
 
 ### 計劃功能 📋
-- 📋 UI管理系統模組化（對話3C目標）
 - 📋 建構工具整合（Vite工作流程）
 - 📋 自動化測試框架
 - 📋 效能優化與監控
