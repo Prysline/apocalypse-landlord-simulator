@@ -85,9 +85,7 @@
       "requirements": {
         "conditions": [
           {
-            "type": "gameStateCheck",
-            "path": "time",
-            "operator": "===",
+            "type": "trigger",
             "value": "day_end"
           }
         ]
@@ -289,9 +287,7 @@
       "requirements": {
         "conditions": [
           {
-            "type": "gameStateCheck",
-            "path": "currentAction",
-            "operator": "===",
+            "type": "trigger",
             "value": "harvestYard"
           }
         ]

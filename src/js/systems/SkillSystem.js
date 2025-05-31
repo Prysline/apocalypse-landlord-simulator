@@ -1,18 +1,27 @@
 /**
- * SkillSystem - 技能執行與效果管理系統
+ * SkillSystem - 配置驅動的技能執行與管理系統
  *
- * 架構設計原則：
- * 1. 命令模式：每個技能執行都是一個可撤銷的命令
- * 2. 裝飾器模式：技能效果可以組合和疊加
- * 3. 工廠模式：統一建立不同類型的技能執行器
- * 4. 責任鏈模式：技能執行的驗證鏈和效果鏈
+ * 模組職責：
+ * 1. 技能執行與效果處理
+ * 2. 冷卻時間與使用次數管理
+ * 3. 成本計算與工資支付
+ * 4. 被動技能的事件驅動觸發
+ * 5. 與 TenantSystem 的事件通信
+ *
+ * 架構特點：
+ * - 配置驅動：技能數據來自 skills.json
+ * - 命令模式：每個技能執行都是可追蹤的命令
+ * - 責任鏈模式：驗證器鏈和效果處理鏈
+ * - 事件驅動：與其他系統的鬆耦合通信
  */
 
-class SkillSystem {
-  constructor(gameStateRef, dataManager, ruleEngine) {
+export class SkillSystem extends EventTarget {
+  constructor(gameStateRef, dataManager, gameHelpers = null) {
+    super(); // 支援事件驅動通信
+
     this.gameState = gameStateRef;
     this.dataManager = dataManager;
-    this.ruleEngine = ruleEngine;
+    this.gameHelpers = gameHelpers;
 
     // 技能執行管理
     this.skillExecutors = new Map(); // skillId -> SkillExecutor
@@ -27,28 +36,73 @@ class SkillSystem {
     // 驗證鏈
     this.validationChain = [];
 
-    // 初始化系統
-    this.initializeSystem();
+    // 系統狀態
+    this.initialized = false;
+    this.status = {
+      initialized: false,
+      skillsLoaded: false,
+      executorsReady: false,
+      effectHandlersReady: false,
+      validationReady: false,
+    };
+
+    // 統計資訊
+    this.stats = {
+      totalSkillsExecuted: 0,
+      successfulExecutions: 0,
+      failedExecutions: 0,
+      passiveTriggered: 0,
+    };
   }
 
   /**
    * 初始化技能系統
    */
-  async initializeSystem() {
+  async initialize() {
+    console.log("🔧 初始化 SkillSystem...");
+
     try {
-      // 載入技能配置
+      // 階段 1：載入技能配置
       await this.loadSkillConfigurations();
+      this.status.skillsLoaded = true;
 
-      // 註冊內建效果處理器
+      // 階段 2：註冊內建效果處理器
       this.registerBuiltinEffectHandlers();
+      this.status.effectHandlersReady = true;
 
-      // 建立驗證鏈
+      // 階段 3：建立驗證鏈
       this.buildValidationChain();
+      this.status.validationReady = true;
+
+      // 階段 4：建立技能執行器
+      this.createSkillExecutors();
+      this.status.executorsReady = true;
+
+      this.initialized = true;
+      this.status.initialized = true;
 
       console.log("✅ SkillSystem 初始化完成");
+      console.log(`📊 載入了 ${this.skillExecutors.size} 個技能執行器`);
+
+      // 發送初始化完成事件
+      this.dispatchEvent(
+        new CustomEvent("skillSystemReady", {
+          detail: {
+            status: this.status,
+            skillCount: this.skillExecutors.size,
+          },
+        })
+      );
+
+      return true;
     } catch (error) {
       console.error("❌ SkillSystem 初始化失敗:", error);
+      this.initialized = false;
+      this.status.initialized = false;
+
+      // 嘗試初始化後備系統
       this.initializeFallbackSystem();
+      return false;
     }
   }
 
@@ -56,6 +110,8 @@ class SkillSystem {
    * 載入技能配置
    */
   async loadSkillConfigurations() {
+    console.log("📊 載入技能配置資料...");
+
     const skillConfigs = this.dataManager.getCachedData("skills");
     if (!skillConfigs) {
       throw new Error("技能配置不可用");
@@ -64,19 +120,29 @@ class SkillSystem {
     // 建立技能註冊表
     Object.entries(skillConfigs).forEach(([tenantType, skills]) => {
       this.skillRegistry.set(tenantType, skills);
+    });
 
-      // 為每個技能建立執行器
+    console.log(
+      `📋 註冊了 ${Object.keys(skillConfigs).length} 種租客類型的技能`
+    );
+  }
+
+  /**
+   * 建立技能執行器
+   */
+  createSkillExecutors() {
+    console.log("⚙️ 建立技能執行器...");
+
+    this.skillRegistry.forEach((skills, tenantType) => {
       skills.forEach((skillConfig) => {
         const executor = this.createSkillExecutor(skillConfig);
         this.skillExecutors.set(skillConfig.id, executor);
       });
     });
-
-    console.log(`📋 載入了 ${this.skillExecutors.size} 個技能配置`);
   }
 
   /**
-   * 建立技能執行器
+   * 建立技能執行器工廠
    */
   createSkillExecutor(skillConfig) {
     switch (skillConfig.type) {
@@ -105,6 +171,20 @@ class SkillSystem {
     this.effectHandlers.set("logMessage", new LogMessageHandler());
     this.effectHandlers.set("triggerEvent", new EventTriggerHandler());
     this.effectHandlers.set("scheduledEffect", new ScheduledEffectHandler());
+    this.effectHandlers.set("reinforceRoom", new RoomReinforcementHandler());
+    this.effectHandlers.set("autoRepair", new AutoRepairHandler());
+
+    // 租客相關效果（與 TenantSystem 協作）
+    this.effectHandlers.set("removeTenant", new TenantRemovalHandler());
+    this.effectHandlers.set(
+      "improveTenantSatisfaction",
+      new TenantSatisfactionHandler()
+    );
+    this.effectHandlers.set(
+      "detectEarlyInfection",
+      new InfectionDetectionHandler()
+    );
+    this.effectHandlers.set("revealInfection", new InfectionRevealHandler());
   }
 
   /**
@@ -116,8 +196,8 @@ class SkillSystem {
       new TenantHealthValidator(),
       new SkillAvailabilityValidator(),
       new CostAffordabilityValidator(),
-      new CooldownValidator(),
-      new RequirementValidator(),
+      new CooldownValidator(this.cooldownManager),
+      new RequirementValidator(this),
     ];
   }
 
@@ -131,6 +211,8 @@ class SkillSystem {
   async executeSkill(tenantName, skillId, options = {}) {
     console.log(`🎯 嘗試執行技能: ${skillId} (租客: ${tenantName})`);
 
+    this.stats.totalSkillsExecuted++;
+
     try {
       // 階段1: 預處理和驗證
       const context = await this.prepareExecutionContext(
@@ -141,6 +223,7 @@ class SkillSystem {
       const validationResult = this.validateSkillExecution(context);
 
       if (!validationResult.valid) {
+        this.stats.failedExecutions++;
         return {
           success: false,
           reason: validationResult.reason,
@@ -155,6 +238,21 @@ class SkillSystem {
       // 階段3: 後處理
       this.postProcessExecution(context, executionResult);
 
+      this.stats.successfulExecutions++;
+
+      // 發送技能執行事件
+      this.dispatchEvent(
+        new CustomEvent("skillExecuted", {
+          detail: {
+            tenantName,
+            skillId,
+            skillName: context.skill.name,
+            result: executionResult,
+            context,
+          },
+        })
+      );
+
       return {
         success: true,
         result: executionResult,
@@ -162,6 +260,8 @@ class SkillSystem {
       };
     } catch (error) {
       console.error(`❌ 技能執行失敗 (${skillId}):`, error);
+      this.stats.failedExecutions++;
+
       return {
         success: false,
         reason: "execution_error",
@@ -181,7 +281,10 @@ class SkillSystem {
       tenant,
       skill: skillConfig,
       gameState: this.gameState,
+      gameHelpers: this.gameHelpers,
       options,
+      trigger: options.trigger || null,
+      passive: options.passive || false,
       timestamp: Date.now(),
       executionId: `exec_${Date.now()}_${Math.random()
         .toString(36)
@@ -222,13 +325,13 @@ class SkillSystem {
       context.skill.cooldown || 0
     );
 
-    // 觸發執行完成事件
-    this.emitSkillExecutionEvent(context, executionResult);
-
-    // 更新顯示（如果可用）
-    if (typeof window.updateDisplay === "function") {
-      window.updateDisplay();
+    // 如果是永久性技能，標記為已使用
+    if (context.skill.cooldown === -1) {
+      const usageKey = `${context.tenant.name}_${context.skill.id}_used`;
+      context.gameState[usageKey] = (context.gameState[usageKey] || 0) + 1;
     }
+
+    console.log(`✅ 技能執行完成: ${context.skill.name}`);
   }
 
   /**
@@ -243,39 +346,52 @@ class SkillSystem {
       return [];
     }
 
-    const tenantSkills = this.skillRegistry.get(tenant.type) || [];
+    const tenantTypeId = tenant.typeId || tenant.type;
+    const tenantSkills = this.skillRegistry.get(tenantTypeId) || [];
 
     return tenantSkills
       .filter((skill) => {
-        const context = { tenant, skill, gameState: this.gameState };
-        return this.isSkillAvailable(context);
+        // 1. 過濾被動技能 - 被動技能不應在手動技能選單中顯示
+        if (skill.type === "passive") {
+          return false;
+        }
+
+        // 2. 檢查基本可用性
+        if (!this.isSkillAvailable(skill, tenant)) {
+          return false;
+        }
+
+        // 3. 檢查特殊需求條件
+        if (!this.checkSkillRequirements(skill, tenant)) {
+          return false;
+        }
+
+        return true;
       })
       .map((skill) => ({
         ...skill,
         cooldownRemaining: this.cooldownManager.getCooldownRemaining(
-          tenantName,
+          tenant.name,
           skill.id
         ),
         canAfford: this.costCalculator.canAffordCost(
           skill.cost || {},
           this.gameState
         ),
-        usageCount: this.getSkillUsageCount(tenantName, skill.id),
+        usageCount: this.getSkillUsageCount(tenant.name, skill.id),
       }));
   }
 
   /**
    * 檢查技能是否可用
    */
-  isSkillAvailable(context) {
-    const { tenant, skill } = context;
-
-    // 檢查冷卻時間
+  isSkillAvailable(skill, tenant) {
+    // 1. 檢查冷卻時間
     if (this.cooldownManager.isOnCooldown(tenant.name, skill.id)) {
       return false;
     }
 
-    // 檢查使用次數限制
+    // 2. 檢查使用次數限制
     if (
       skill.maxUses &&
       this.getSkillUsageCount(tenant.name, skill.id) >= skill.maxUses
@@ -283,16 +399,13 @@ class SkillSystem {
       return false;
     }
 
-    // 檢查成本
+    // 3. 檢查成本
     if (!this.costCalculator.canAffordCost(skill.cost || {}, this.gameState)) {
       return false;
     }
 
-    // 檢查需求條件
-    if (
-      skill.requirements &&
-      !this.checkSkillRequirements(skill.requirements, context)
-    ) {
+    // 4. 檢查租客健康狀態
+    if (tenant.infected) {
       return false;
     }
 
@@ -302,11 +415,16 @@ class SkillSystem {
   /**
    * 檢查技能需求
    */
-  checkSkillRequirements(requirements, context) {
-    if (!requirements.conditions) return true;
+  checkSkillRequirements(skill, tenant, context = null) {
+    const requirements = skill.requirements;
+    if (!requirements || !requirements.conditions) return true;
 
     return requirements.conditions.every((condition) => {
-      return this.evaluateCondition(condition, context);
+      return this.evaluateCondition(condition, {
+        tenant,
+        gameState: this.gameState,
+        ...context,
+      });
     });
   }
 
@@ -321,6 +439,10 @@ class SkillSystem {
         return this.checkResourceCondition(condition, context);
       case "gameStateCheck":
         return this.checkGameStateCondition(condition, context);
+      case "trigger":
+        return this.checkTriggerCondition(condition, context);
+      case "probability":
+        return Math.random() < condition.chance;
       default:
         console.warn(`⚠️ 未知的條件類型: ${condition.type}`);
         return false;
@@ -329,6 +451,7 @@ class SkillSystem {
 
   checkTenantTypeCondition(condition, context) {
     const { value, count = 1 } = condition;
+
     if (value === "infected") {
       const infectedCount = this.gameState.rooms.filter(
         (room) => room.tenant && room.tenant.infected
@@ -336,8 +459,17 @@ class SkillSystem {
       return infectedCount >= count;
     }
 
+    if (value === "any") {
+      const tenantCount = this.gameState.rooms.filter(
+        (room) => room.tenant
+      ).length;
+      return tenantCount >= count;
+    }
+
     const typeCount = this.gameState.rooms.filter(
-      (room) => room.tenant && room.tenant.type === value
+      (room) =>
+        room.tenant &&
+        (room.tenant.typeId === value || room.tenant.type === value)
     ).length;
     return typeCount >= count;
   }
@@ -349,8 +481,36 @@ class SkillSystem {
 
   checkGameStateCondition(condition, context) {
     const { path, operator, value } = condition;
-    const actualValue = this.getNestedValue(context.gameState, path);
-    return this.compareValues(actualValue, operator, value);
+
+    switch (path) {
+      case "rooms":
+        if (operator === "hasNeedsRepair") {
+          return this.gameState.rooms.some((room) => room.needsRepair);
+        }
+        if (operator === "hasUnReinforced") {
+          return this.gameState.rooms.some(
+            (room) => room.tenant && !room.reinforced
+          );
+        }
+        break;
+
+      default:
+        const actualValue = this.getNestedValue(this.gameState, path);
+        return this.compareValues(actualValue, operator, value);
+    }
+
+    return false;
+  }
+
+  /**
+   * 檢查觸發條件
+   */
+  checkTriggerCondition(condition, context) {
+    const { value } = condition;
+    const { trigger } = context.options || {};
+
+    // 直接匹配觸發器名稱
+    return trigger === value;
   }
 
   /**
@@ -359,12 +519,18 @@ class SkillSystem {
    * @param {Object} context - 上下文
    */
   processPassiveSkills(trigger, context = {}) {
+    if (!this.initialized) {
+      console.warn("⚠️ SkillSystem 未初始化，跳過被動技能處理");
+      return;
+    }
+
     const passiveSkills = [];
 
     // 收集所有租客的被動技能
     this.gameState.rooms.forEach((room) => {
       if (room.tenant && !room.tenant.infected) {
-        const tenantSkills = this.skillRegistry.get(room.tenant.type) || [];
+        const tenantTypeId = room.tenant.typeId || room.tenant.type;
+        const tenantSkills = this.skillRegistry.get(tenantTypeId) || [];
         const passives = tenantSkills.filter(
           (skill) =>
             skill.type === "passive" &&
@@ -379,14 +545,22 @@ class SkillSystem {
     // 執行觸發的被動技能
     passiveSkills.forEach(async ({ tenant, skill }) => {
       try {
+        this.stats.passiveTriggered++;
         await this.executeSkill(tenant.name, skill.id, {
           passive: true,
           trigger,
+          context,
         });
       } catch (error) {
         console.error(`❌ 被動技能執行錯誤:`, error);
       }
     });
+
+    if (passiveSkills.length > 0) {
+      console.log(
+        `🔄 觸發了 ${passiveSkills.length} 個被動技能 (觸發器: ${trigger})`
+      );
+    }
   }
 
   /**
@@ -396,11 +570,22 @@ class SkillSystem {
     if (!skill.requirements || !skill.requirements.conditions) return false;
 
     return skill.requirements.conditions.some((condition) => {
+      if (condition.type === "trigger") {
+        return condition.value === trigger;
+      }
+
+      // 保留原有邏輯（向後相容）
       if (
         condition.type === "gameStateCheck" &&
         condition.path === "currentAction"
       ) {
         return condition.value === trigger;
+      }
+      if (condition.type === "gameStateCheck" && condition.path === "time") {
+        return condition.value === trigger;
+      }
+      if (condition.type === "probability") {
+        return Math.random() < condition.chance;
       }
       return false;
     });
@@ -416,8 +601,11 @@ class SkillSystem {
   }
 
   getSkillConfig(skillId) {
-    const executor = this.skillExecutors.get(skillId);
-    return executor ? executor.skillConfig : null;
+    for (const [tenantType, skills] of this.skillRegistry) {
+      const skill = skills.find((s) => s.id === skillId);
+      if (skill) return skill;
+    }
+    return null;
   }
 
   getSkillUsageCount(tenantName, skillId) {
@@ -440,20 +628,6 @@ class SkillSystem {
     // 限制歷史記錄大小
     if (this.executionHistory.length > 100) {
       this.executionHistory = this.executionHistory.slice(-50);
-    }
-  }
-
-  emitSkillExecutionEvent(context, result) {
-    const eventData = {
-      tenant: context.tenant,
-      skill: context.skill,
-      result,
-      timestamp: context.timestamp,
-    };
-
-    // 這裡可以與EventSystem整合
-    if (typeof window.skillExecutionEvent === "function") {
-      window.skillExecutionEvent(eventData);
     }
   }
 
@@ -489,9 +663,94 @@ class SkillSystem {
     }
   }
 
+  /**
+   * 初始化後備系統
+   */
   initializeFallbackSystem() {
     console.log("🔄 初始化後備技能系統");
-    // 基本的後備實作
+    // 基本的後備實作，使用內建技能資料
+    this.skillRegistry.set("doctor", this.getFallbackSkills("doctor"));
+    this.skillRegistry.set("worker", this.getFallbackSkills("worker"));
+    this.skillRegistry.set("farmer", this.getFallbackSkills("farmer"));
+
+    this.initialized = true;
+    this.status.initialized = true;
+  }
+
+  getFallbackSkills(type) {
+    const fallbackSkills = {
+      doctor: [
+        {
+          id: "heal_infection",
+          name: "治療感染",
+          type: "active",
+          description: "治療感染的租客",
+          cost: { medical: 3, cash: 12 },
+          effects: [{ type: "healTenant" }],
+        },
+      ],
+      worker: [
+        {
+          id: "efficient_repair",
+          name: "專業維修",
+          type: "active",
+          description: "維修房間",
+          cost: { materials: 1, cash: 10 },
+          effects: [{ type: "repairRoom" }],
+        },
+      ],
+      farmer: [
+        {
+          id: "harvest_bonus",
+          name: "採集加成",
+          type: "passive",
+          description: "院子採集 +2 食物",
+          requirements: {
+            conditions: [
+              {
+                type: "gameStateCheck",
+                path: "currentAction",
+                value: "harvestYard",
+              },
+            ],
+          },
+          effects: [{ type: "modifyResource", resource: "food", amount: 2 }],
+        },
+      ],
+    };
+
+    return fallbackSkills[type] || [];
+  }
+
+  /**
+   * 取得系統狀態
+   */
+  getStatus() {
+    return {
+      ...this.status,
+      skillRegistrySize: this.skillRegistry.size,
+      skillExecutorsSize: this.skillExecutors.size,
+      effectHandlersSize: this.effectHandlers.size,
+      stats: { ...this.stats },
+      executionHistorySize: this.executionHistory.length,
+    };
+  }
+
+  /**
+   * 取得系統統計
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      successRate:
+        this.stats.totalSkillsExecuted > 0
+          ? (
+              (this.stats.successfulExecutions /
+                this.stats.totalSkillsExecuted) *
+              100
+            ).toFixed(1) + "%"
+          : "0%",
+    };
   }
 }
 
@@ -559,12 +818,15 @@ class ActiveSkillExecutor extends BaseSkillExecutor {
     const result = await super.execute(context);
 
     // 記錄主動技能的使用
-    if (typeof window.addLog === "function") {
-      window.addLog(
-        `${context.tenant.name} 使用了技能：${this.skillConfig.name}`,
-        "skill"
-      );
-    }
+    this.skillSystem.dispatchEvent(
+      new CustomEvent("activeSkillUsed", {
+        detail: {
+          tenant: context.tenant,
+          skill: this.skillConfig,
+          result,
+        },
+      })
+    );
 
     return result;
   }
@@ -574,6 +836,17 @@ class PassiveSkillExecutor extends BaseSkillExecutor {
   async execute(context) {
     // 被動技能通常不需要成本
     const effects = await this.executeEffects(context);
+
+    this.skillSystem.dispatchEvent(
+      new CustomEvent("passiveSkillTriggered", {
+        detail: {
+          tenant: context.tenant,
+          skill: this.skillConfig,
+          trigger: context.options.trigger,
+          effects,
+        },
+      })
+    );
 
     return {
       success: true,
@@ -594,6 +867,17 @@ class SpecialSkillExecutor extends BaseSkillExecutor {
       const usageKey = `${context.tenant.name}_${this.skillConfig.id}_used`;
       context.gameState[usageKey] = (context.gameState[usageKey] || 0) + 1;
     }
+
+    this.skillSystem.dispatchEvent(
+      new CustomEvent("specialSkillUsed", {
+        detail: {
+          tenant: context.tenant,
+          skill: this.skillConfig,
+          result,
+          permanentEffect: this.skillConfig.cooldown === -1,
+        },
+      })
+    );
 
     return result;
   }
@@ -750,16 +1034,45 @@ class CostAffordabilityValidator extends SkillValidator {
 }
 
 class CooldownValidator extends SkillValidator {
+  constructor(cooldownManager) {
+    super();
+    this.cooldownManager = cooldownManager;
+  }
+
   validate(context) {
-    // 這裡需要存取SkillSystem的cooldownManager
-    // 簡化實作，假設冷卻檢查在別處進行
+    if (
+      this.cooldownManager.isOnCooldown(context.tenant.name, context.skill.id)
+    ) {
+      const remaining = this.cooldownManager.getCooldownRemaining(
+        context.tenant.name,
+        context.skill.id
+      );
+      return {
+        valid: false,
+        reason: "on_cooldown",
+        message: `技能冷卻中，還需 ${remaining} 天`,
+      };
+    }
     return { valid: true };
   }
 }
 
 class RequirementValidator extends SkillValidator {
+  constructor(skillSystem) {
+    super();
+    this.skillSystem = skillSystem;
+  }
+
   validate(context) {
-    // 需求條件的驗證邏輯
+    if (
+      !this.skillSystem.checkSkillRequirements(context.skill, context.tenant, context)
+    ) {
+      return {
+        valid: false,
+        reason: "requirements_not_met",
+        message: "技能使用條件不滿足",
+      };
+    }
     return { valid: true };
   }
 }
@@ -838,9 +1151,12 @@ class TenantHealingHandler extends EffectHandler {
         infectedTenants[Math.floor(Math.random() * infectedTenants.length)];
       patient.infected = false;
 
-      if (typeof window.addLog === "function") {
-        window.addLog(`${context.tenant.name} 治癒了 ${patient.name}`, "skill");
-      }
+      // 發送治療事件
+      context.skillSystem?.dispatchEvent(
+        new CustomEvent("tenantHealed", {
+          detail: { patient: patient.name, healer: context.tenant.name },
+        })
+      );
 
       return {
         type: "tenant_healed",
@@ -863,10 +1179,6 @@ class RoomRepairHandler extends EffectHandler {
       const room = needRepairRooms[0];
       room.needsRepair = false;
 
-      if (typeof window.addLog === "function") {
-        window.addLog(`${context.tenant.name} 維修了房間 ${room.id}`, "skill");
-      }
-
       return {
         type: "room_repaired",
         roomId: room.id,
@@ -875,6 +1187,47 @@ class RoomRepairHandler extends EffectHandler {
     }
 
     return { type: "no_target", message: "沒有需要維修的房間" };
+  }
+}
+
+class RoomReinforcementHandler extends EffectHandler {
+  async handle(effect, context) {
+    const unReinforcedRooms = context.gameState.rooms.filter(
+      (room) => room.tenant && !room.reinforced
+    );
+
+    if (unReinforcedRooms.length > 0) {
+      const room = unReinforcedRooms[0];
+      room.reinforced = true;
+
+      return {
+        type: "room_reinforced",
+        roomId: room.id,
+        worker: context.tenant.name,
+      };
+    }
+
+    return { type: "no_target", message: "沒有可加固的房間" };
+  }
+}
+
+class AutoRepairHandler extends EffectHandler {
+  async handle(effect, context) {
+    const damagedRooms = context.gameState.rooms.filter((r) => r.needsRepair);
+
+    if (damagedRooms.length > 0) {
+      const room =
+        damagedRooms[Math.floor(Math.random() * damagedRooms.length)];
+      room.needsRepair = false;
+
+      return {
+        type: "auto_repair",
+        roomId: room.id,
+        worker: context.tenant.name,
+      };
+    }
+
+    return { type: "no_target" };
   }
 }
 
@@ -923,9 +1276,88 @@ class ScheduledEffectHandler extends EffectHandler {
   }
 }
 
-// 匯出模組
-if (typeof window !== "undefined") {
-  window.SkillSystem = SkillSystem;
+// 租客相關效果處理器（與 TenantSystem 協作）
+
+class TenantRemovalHandler extends EffectHandler {
+  async handle(effect, context) {
+    const { target } = effect;
+
+    // 發送租客移除請求事件
+    context.skillSystem?.dispatchEvent(
+      new CustomEvent("requestTenantRemoval", {
+        detail: {
+          target,
+          reason: "skill_effect",
+          requestedBy: context.tenant.name,
+        },
+      })
+    );
+
+    return {
+      type: "tenant_removal_requested",
+      target,
+      reason: "skill_effect",
+    };
+  }
+}
+
+class TenantSatisfactionHandler extends EffectHandler {
+  async handle(effect, context) {
+    const { target, amount } = effect;
+
+    // 發送滿意度改善事件
+    context.skillSystem?.dispatchEvent(
+      new CustomEvent("improveTenantSatisfaction", {
+        detail: { target, amount, source: context.tenant.name },
+      })
+    );
+
+    return {
+      type: "satisfaction_improved",
+      target,
+      amount,
+      source: context.tenant.name,
+    };
+  }
+}
+
+class InfectionDetectionHandler extends EffectHandler {
+  async handle(effect, context) {
+    const { targets, probability } = effect;
+
+    // 發送感染檢測事件
+    context.skillSystem?.dispatchEvent(
+      new CustomEvent("detectInfection", {
+        detail: { targets, probability, detector: context.tenant.name },
+      })
+    );
+
+    return {
+      type: "infection_detection",
+      targets,
+      probability,
+      detector: context.tenant.name,
+    };
+  }
+}
+
+class InfectionRevealHandler extends EffectHandler {
+  async handle(effect, context) {
+    const { targets } = effect;
+
+    // 發送感染揭露事件
+    context.skillSystem?.dispatchEvent(
+      new CustomEvent("revealInfection", {
+        detail: { targets, revealer: context.tenant.name },
+      })
+    );
+
+    return {
+      type: "infection_revealed",
+      targets,
+      revealer: context.tenant.name,
+    };
+  }
 }
 
 export default SkillSystem;

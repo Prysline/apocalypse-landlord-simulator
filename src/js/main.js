@@ -11,6 +11,7 @@ import { GameBridge } from "./core/GameBridge.js";
 
 // 業務系統模組
 import { TenantSystem } from "./systems/TenantSystem.js";
+import { SkillSystem } from "./systems/SkillSystem.js";
 
 // 工具函數模組
 import { GameHelpers } from "./utils/helpers.js";
@@ -241,18 +242,32 @@ class Game {
         this.dataManager,
         this.gameHelpers
       );
-
       const tenantInitSuccess = await this.tenantSystem.initialize();
       this.initializationStatus.tenantSystem = tenantInitSuccess;
 
-      if (tenantInitSuccess) {
-        console.log("✅ TenantSystem 初始化成功");
-      } else {
-        console.warn("⚠️ TenantSystem 初始化失敗，將使用後備模式");
-      }
+      // 初始化技能系統
+      this.skillSystem = new SkillSystem(
+        this.gameState,
+        this.dataManager,
+        this.gameHelpers
+      );
+      const skillInitSuccess = await this.skillSystem.initialize();
+      this.initializationStatus.skillSystem = skillInitSuccess;
+
+      console.log(
+        tenantInitSuccess
+          ? "✅ TenantSystem 初始化成功"
+          : "⚠️ TenantSystem 初始化失敗"
+      );
+      console.log(
+        skillInitSuccess
+          ? "✅ SkillSystem 初始化成功"
+          : "⚠️ SkillSystem 初始化失敗"
+      );
     } catch (error) {
       console.error("❌ 業務系統初始化失敗:", error);
       this.initializationStatus.tenantSystem = false;
+      this.initializationStatus.skillSystem = false;
     }
   }
 
@@ -270,6 +285,9 @@ class Game {
 
     // 建立租客系統事件監聽
     this.setupTenantSystemEvents();
+
+    // 建立技能系統事件監聽
+    this.setupSkillSystemEvents();
 
     // 建立模組間通信機制
     this.setupInterModuleCommunication();
@@ -312,6 +330,47 @@ class Game {
 
       const message = reasonMessages[data.reason] || data.reason;
       alert(message);
+    });
+  }
+
+  /**
+   * 設定 SkillSystem 事件監聽
+   */
+  setupSkillSystemEvents() {
+    if (!this.skillSystem) return;
+
+    // 監聽技能執行事件
+    this.skillSystem.addEventListener("skillExecuted", (event) => {
+      const { tenantName, skillName, result } = event.detail;
+      this.addLog(`${tenantName} 使用了技能：${skillName}`, "skill");
+      this.updateDisplay();
+    });
+
+    // 監聽被動技能觸發
+    this.skillSystem.addEventListener("passiveSkillTriggered", (event) => {
+      const { tenant, skill } = event.detail;
+      this.addLog(`${tenant.name} 的被動技能 ${skill.name} 被觸發`, "skill");
+    });
+
+    // 監聽租客移除請求
+    this.skillSystem.addEventListener("requestTenantRemoval", (event) => {
+      const { target, reason } = event.detail;
+      if (this.tenantSystem) {
+        this.tenantSystem.evictTenant(target, reason);
+      }
+    });
+
+    // 監聽滿意度改善請求
+    this.skillSystem.addEventListener("improveTenantSatisfaction", (event) => {
+      const { target, amount } = event.detail;
+      if (target === "all") {
+        Object.keys(this.gameState.tenantSatisfaction).forEach((name) => {
+          this.gameState.tenantSatisfaction[name] = Math.min(
+            100,
+            (this.gameState.tenantSatisfaction[name] || 50) + amount
+          );
+        });
+      }
     });
   }
 
@@ -654,16 +713,20 @@ class Game {
     this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] += totalAmount;
     this.gameState.harvestUsed = true;
 
+    // 觸發被動技能（農夫的採集加成被動技能會額外增加食物）
+    this.processPassiveSkills("harvestYard", {
+      baseAmount: baseAmount,
+      farmerCount: farmerCount,
+      totalAmount: totalAmount,
+    });
+
     // 使用配置驅動的冷卻時間
     const timeParams = this.gameHelpers
       ? this.gameHelpers.getTimeParameters()
       : { harvestCooldownDays: 2 };
     this.gameState.harvestCooldown = timeParams.harvestCooldownDays;
 
-    const bonusText =
-      farmerCount > 0
-        ? ` (農夫加成 +${farmerCount * consumption.farmerHarvestBonus})`
-        : "";
+    const bonusText = farmerCount > 0 ? ` (農夫加成)` : "";
 
     const message = MESSAGE_TEMPLATES.GAME?.RESOURCE_GAINED
       ? MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalAmount, `食物${bonusText}`)
@@ -693,6 +756,9 @@ class Game {
     if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
       this.tenantSystem.updateDailyTenantStates();
     }
+
+    // 觸發每日被動技能
+    this.processPassiveSkills("day_end");
 
     // 房東消費食物
     this.processLandlordConsumption();
@@ -760,8 +826,129 @@ class Game {
     alert("派遣搜刮功能將在對話3B中完善實作");
   }
 
+  /**
+   * 技能選單顯示
+   */
   handleShowSkills() {
-    alert("技能系統將在對話3B中完善實作");
+    if (!this.skillSystem?.getStatus().initialized) {
+      alert("技能系統載入中，請稍候...");
+      return;
+    }
+
+    const modal = document.getElementById("skillModal");
+    const skillList = document.getElementById("skillList");
+
+    const skillsByTenant = [];
+
+    this.gameState.rooms.forEach((room) => {
+      if (room.tenant && !room.tenant.infected) {
+        const tenant = room.tenant;
+        const tenantSkills = this.skillSystem.getAvailableSkills(tenant.name);
+
+        if (tenantSkills.length > 0) {
+          skillsByTenant.push({ tenant, skills: tenantSkills });
+        }
+      }
+    });
+
+    if (skillsByTenant.length === 0) {
+      skillList.innerHTML = "<p>目前沒有可用的技能</p>";
+    } else {
+      skillList.innerHTML = skillsByTenant
+        .map((tenantData) => {
+          const { tenant, skills } = tenantData;
+          const roomId =
+            this.gameState.rooms.find((r) => r.tenant === tenant)?.id || "?";
+
+          return `
+        <div class="tenant-skill-group">
+          <h4 style="color: #66ccff; margin: 15px 0 10px 0;">
+            ${tenant.name} (${tenant.typeName || tenant.type}) - 房間${roomId}
+          </h4>
+          <div style="font-size: 11px; color: #aaa; margin-bottom: 10px;">
+            個人現金: $${tenant.personalResources?.cash || 0}
+          </div>
+          ${skills
+            .map(
+              (skill) => `
+            <div class="skill-actions">
+              <h5 style="margin: 5px 0; color: #ffcc66;">${skill.name}</h5>
+              <p style="margin: 5px 0; font-size: 12px;">${
+                skill.description
+              }</p>
+              ${
+                skill.cooldownRemaining > 0
+                  ? `<p style="color: #ff9966;">冷卻中：${skill.cooldownRemaining} 天</p>`
+                  : ""
+              }
+              ${
+                !skill.canAfford
+                  ? `<p style="color: #ff6666;">資源不足</p>`
+                  : ""
+              }
+              <button class="btn ${
+                skill.canAfford && skill.cooldownRemaining === 0
+                  ? "success"
+                  : ""
+              }" 
+                      onclick="window.gameApp.useSkillFromMenu('${
+                        tenant.name
+                      }', '${skill.id}')"
+                      ${
+                        !skill.canAfford || skill.cooldownRemaining > 0
+                          ? "disabled"
+                          : ""
+                      }>
+                使用技能
+              </button>
+            </div>
+          `
+            )
+            .join("")}
+        </div>
+      `;
+        })
+        .join("");
+    }
+
+    modal.style.display = "block";
+  }
+
+  /**
+   * 技能選單執行處理
+   */
+  async useSkillFromMenu(tenantName, skillId) {
+    if (!this.skillSystem?.getStatus().initialized) {
+      this.addLog("技能系統不可用", "danger");
+      return false;
+    }
+
+    const result = await this.skillSystem.executeSkill(tenantName, skillId);
+
+    if (result.success) {
+      this.addLog(`技能執行成功`, "skill");
+    } else {
+      const messages = {
+        tenant_not_found: "找不到指定租客",
+        insufficient_resources: "資源不足",
+        on_cooldown: result.message || "技能冷卻中",
+        requirements_not_met: "技能使用條件不滿足",
+      };
+      this.addLog(messages[result.reason] || "技能執行失敗", "danger");
+    }
+
+    this.closeModal();
+    this.updateDisplay();
+    return result.success;
+  }
+
+  /**
+   * 被動技能處理
+   */
+  processPassiveSkills(trigger, context = {}) {
+    if (this.skillSystem?.getStatus().initialized) {
+      this.skillSystem.processPassiveSkills(trigger, context);
+    }
   }
 
   /**
