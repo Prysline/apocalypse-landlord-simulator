@@ -1312,6 +1312,535 @@ export class TenantInstanceValidator extends InstanceValidator {
 }
 
 /**
+ * 資源實例驗證器
+ * 專門用於驗證運行時的資源物件（主資源池、個人資源、資源操作等）
+ */
+export class ResourceInstanceValidator extends InstanceValidator {
+  constructor() {
+    super("ResourceInstanceValidator");
+  }
+
+  /**
+   * 驗證主資源池物件
+   */
+  validateResources(resources) {
+    const result = new ValidationResult(true);
+    const context = "主資源池";
+
+    // 基本結構檢查
+    if (!resources || typeof resources !== "object") {
+      return result.addError(
+        `${context} 必須是有效的物件`,
+        "resources",
+        "INVALID_RESOURCES_TYPE",
+        context
+      );
+    }
+
+    // 標準資源類型
+    const standardResourceTypes = ["food", "materials", "medical", "fuel", "cash"];
+
+    // 檢查每個標準資源
+    standardResourceTypes.forEach((type) => {
+      if (resources[type] !== undefined) {
+        const typeResult = this.validateSingleResource(resources[type], type, context);
+        result.merge(typeResult);
+      }
+    });
+
+    // 檢查是否有未知的資源類型
+    Object.keys(resources).forEach((type) => {
+      if (!standardResourceTypes.includes(type)) {
+        result.addWarning(
+          `${context}: 發現未知資源類型 '${type}'`,
+          `resources.${type}`,
+          "UNKNOWN_RESOURCE_TYPE",
+          context
+        );
+      }
+    });
+
+    // 檢查資源平衡性
+    const balanceResult = this.validateResourceBalance(resources, context);
+    result.merge(balanceResult);
+
+    return result;
+  }
+
+  /**
+   * 驗證單一資源數值
+   */
+  validateSingleResource(value, type, context) {
+    const result = new ValidationResult(true);
+
+    // 數值類型檢查
+    if (typeof value !== "number") {
+      return result.addError(
+        `${context}: ${type} 必須是數值類型，目前為 ${typeof value}`,
+        `resources.${type}`,
+        "INVALID_RESOURCE_VALUE_TYPE",
+        context
+      );
+    }
+
+    // NaN 檢查
+    if (isNaN(value)) {
+      return result.addError(
+        `${context}: ${type} 為無效數值 (NaN)`,
+        `resources.${type}`,
+        "INVALID_RESOURCE_NAN",
+        context
+      );
+    }
+
+    // 無限值檢查
+    if (!isFinite(value)) {
+      return result.addError(
+        `${context}: ${type} 為無限值`,
+        `resources.${type}`,
+        "INVALID_RESOURCE_INFINITE",
+        context
+      );
+    }
+
+    // 負值檢查
+    if (value < 0) {
+      result.addWarning(
+        `${context}: ${type} 為負值 (${value})，可能影響遊戲邏輯`,
+        `resources.${type}`,
+        "NEGATIVE_RESOURCE_VALUE",
+        context
+      );
+    }
+
+    // 極端值檢查
+    if (value > 999999) {
+      result.addWarning(
+        `${context}: ${type} 數值過大 (${value})，可能影響效能`,
+        `resources.${type}`,
+        "EXTREME_RESOURCE_VALUE",
+        context
+      );
+    }
+
+    // 小數檢查（資源通常應為整數）
+    if (value % 1 !== 0) {
+      result.addWarning(
+        `${context}: ${type} 包含小數部分 (${value})`,
+        `resources.${type}`,
+        "DECIMAL_RESOURCE_VALUE",
+        context
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證資源平衡性
+   */
+  validateResourceBalance(resources, context) {
+    const result = new ValidationResult(true);
+
+    // 檢查是否所有基本資源都為零（可能的遊戲結束狀態）
+    const basicResources = ["food", "materials", "medical", "fuel"];
+    const allBasicEmpty = basicResources.every((type) => (resources[type] || 0) === 0);
+
+    if (allBasicEmpty && (resources.cash || 0) === 0) {
+      result.addWarning(
+        `${context}: 所有資源均為零，可能為遊戲結束狀態`,
+        "resources",
+        "ALL_RESOURCES_EMPTY",
+        context
+      );
+    }
+
+    // 檢查現金與其他資源的比例（防止經濟失衡）
+    const totalResourceValue = basicResources.reduce((sum, type) => {
+      const amount = resources[type] || 0;
+      const rates = { food: 1.5, materials: 3, medical: 4, fuel: 3 };
+      return sum + amount * (rates[type] || 1);
+    }, 0);
+
+    const cashAmount = resources.cash || 0;
+
+    if (cashAmount > totalResourceValue * 10 && totalResourceValue > 0) {
+      result.addWarning(
+        `${context}: 現金與資源比例失衡 (現金: ${cashAmount}, 資源價值: ${totalResourceValue})`,
+        "resources.cash",
+        "RESOURCE_CASH_IMBALANCE",
+        context
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證資源操作
+   */
+  validateResourceOperation(operation) {
+    const result = new ValidationResult(true);
+    const context = "資源操作";
+
+    // 基本結構檢查
+    if (!operation || typeof operation !== "object") {
+      return result.addError(
+        "資源操作必須是物件",
+        "operation",
+        "INVALID_OPERATION_TYPE",
+        context
+      );
+    }
+
+    const { type, amount, reason, currentValue } = operation;
+
+    // 資源類型檢查
+    if (!type || typeof type !== "string") {
+      result.addError(
+        "資源操作必須指定有效的資源類型",
+        "type",
+        "MISSING_RESOURCE_TYPE",
+        context
+      );
+    }
+
+    // 數量檢查
+    if (typeof amount !== "number") {
+      result.addError(
+        "資源操作數量必須是數值",
+        "amount",
+        "INVALID_OPERATION_AMOUNT",
+        context
+      );
+    } else if (isNaN(amount) || !isFinite(amount)) {
+      result.addError(
+        "資源操作數量必須是有效數值",
+        "amount",
+        "INVALID_OPERATION_AMOUNT_VALUE",
+        context
+      );
+    }
+
+    // 原因檢查
+    if (!reason || typeof reason !== "string") {
+      result.addWarning(
+        "建議提供資源操作原因以便追蹤",
+        "reason",
+        "MISSING_OPERATION_REASON",
+        context
+      );
+    }
+
+    // 扣除操作檢查
+    if (amount < 0 && typeof currentValue === "number") {
+      const resultingValue = currentValue + amount;
+      
+      if (resultingValue < 0) {
+        result.addError(
+          `操作會導致資源不足: ${type} 當前 ${currentValue}，嘗試扣除 ${Math.abs(amount)}，結果 ${resultingValue}`,
+          "amount",
+          "INSUFFICIENT_RESOURCES_FOR_OPERATION",
+          context
+        );
+      }
+    }
+
+    // 極端操作檢查
+    if (Math.abs(amount) > 1000) {
+      result.addWarning(
+        `資源操作數量異常: ${amount}`,
+        "amount",
+        "EXTREME_OPERATION_AMOUNT",
+        context
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證個人資源
+   */
+  validatePersonalResources(personalResources, context = "個人資源") {
+    const result = new ValidationResult(true);
+
+    // 基本結構檢查
+    if (!personalResources || typeof personalResources !== "object") {
+      return result.addError(
+        `${context} 必須是有效的物件`,
+        "personalResources",
+        "INVALID_PERSONAL_RESOURCES_TYPE",
+        context
+      );
+    }
+
+    // 標準個人資源類型
+    const standardTypes = ["food", "materials", "medical", "fuel", "cash"];
+
+    // 檢查每個資源
+    Object.keys(personalResources).forEach((type) => {
+      const value = personalResources[type];
+      
+      // 檢查是否為標準類型
+      if (!standardTypes.includes(type)) {
+        result.addWarning(
+          `${context}: 未知個人資源類型 '${type}'`,
+          `personalResources.${type}`,
+          "UNKNOWN_PERSONAL_RESOURCE_TYPE",
+          context
+        );
+      }
+
+      // 數值驗證
+      if (value !== undefined) {
+        const valueResult = this.validateSingleResource(value, type, context);
+        result.merge(valueResult);
+      }
+    });
+
+    // 檢查個人資源完整性
+    const completenessResult = this.validatePersonalResourceCompleteness(personalResources, context);
+    result.merge(completenessResult);
+
+    return result;
+  }
+
+  /**
+   * 驗證個人資源完整性
+   */
+  validatePersonalResourceCompleteness(personalResources, context) {
+    const result = new ValidationResult(true);
+
+    // 檢查是否有基本的生存資源
+    const food = personalResources.food || 0;
+    const cash = personalResources.cash || 0;
+
+    if (food === 0 && cash === 0) {
+      result.addWarning(
+        `${context}: 缺乏基本生存資源（食物和現金均為零）`,
+        "personalResources",
+        "INSUFFICIENT_SURVIVAL_RESOURCES",
+        context
+      );
+    }
+
+    // 檢查資源總價值（防止過度富有的租客）
+    const totalValue = Object.keys(personalResources).reduce((sum, type) => {
+      const amount = personalResources[type] || 0;
+      const rates = { food: 1.5, materials: 3, medical: 4, fuel: 3, cash: 1 };
+      return sum + amount * (rates[type] || 1);
+    }, 0);
+
+    if (totalValue > 500) {
+      result.addWarning(
+        `${context}: 個人資源總價值過高 (${totalValue})`,
+        "personalResources",
+        "EXCESSIVE_PERSONAL_WEALTH",
+        context
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證資源交易
+   */
+  validateResourceTrade(tradeData) {
+    const result = new ValidationResult(true);
+    const context = "資源交易";
+
+    // 基本結構檢查
+    if (!tradeData || typeof tradeData !== "object") {
+      return result.addError(
+        "交易資料必須是物件",
+        "tradeData",
+        "INVALID_TRADE_DATA_TYPE",
+        context
+      );
+    }
+
+    const { give, receive, type } = tradeData;
+
+    // 交易類型檢查
+    const validTradeTypes = ["resource_exchange", "rent_payment", "merchant_trade", "skill_payment"];
+    if (type && !validTradeTypes.includes(type)) {
+      result.addWarning(
+        `未知交易類型: ${type}`,
+        "type",
+        "UNKNOWN_TRADE_TYPE",
+        context
+      );
+    }
+
+    // 付出資源檢查
+    if (give && typeof give === "object") {
+      const giveResult = this.validateTradeResources(give, "付出", context);
+      result.merge(giveResult);
+    }
+
+    // 獲得資源檢查
+    if (receive && typeof receive === "object") {
+      const receiveResult = this.validateTradeResources(receive, "獲得", context);
+      result.merge(receiveResult);
+    }
+
+    // 交易平衡性檢查
+    if (give && receive) {
+      const balanceResult = this.validateTradeBalance(give, receive, context);
+      result.merge(balanceResult);
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證交易中的資源
+   */
+  validateTradeResources(resources, direction, context) {
+    const result = new ValidationResult(true);
+
+    Object.keys(resources).forEach((type) => {
+      const amount = resources[type];
+      
+      if (typeof amount !== "number") {
+        result.addError(
+          `${context}: ${direction}資源 ${type} 必須是數值`,
+          `${direction}.${type}`,
+          "INVALID_TRADE_RESOURCE_TYPE",
+          context
+        );
+      } else if (amount <= 0) {
+        result.addError(
+          `${context}: ${direction}資源 ${type} 必須是正數`,
+          `${direction}.${type}`,
+          "INVALID_TRADE_RESOURCE_AMOUNT",
+          context
+        );
+      } else if (!isFinite(amount)) {
+        result.addError(
+          `${context}: ${direction}資源 ${type} 必須是有限數值`,
+          `${direction}.${type}`,
+          "INFINITE_TRADE_RESOURCE_AMOUNT",
+          context
+        );
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * 驗證交易平衡性
+   */
+  validateTradeBalance(give, receive, context) {
+    const result = new ValidationResult(true);
+
+    // 計算交易價值
+    const rates = { food: 1.5, materials: 3, medical: 4, fuel: 3, cash: 1 };
+    
+    const giveValue = Object.keys(give).reduce((sum, type) => {
+      return sum + (give[type] || 0) * (rates[type] || 1);
+    }, 0);
+
+    const receiveValue = Object.keys(receive).reduce((sum, type) => {
+      return sum + (receive[type] || 0) * (rates[type] || 1);
+    }, 0);
+
+    // 檢查交易比例（允許合理範圍內的不平衡）
+    if (giveValue > 0 && receiveValue > 0) {
+      const ratio = Math.max(giveValue, receiveValue) / Math.min(giveValue, receiveValue);
+      
+      if (ratio > 3) {
+        result.addWarning(
+          `${context}: 交易價值比例失衡 (付出價值: ${giveValue}, 獲得價值: ${receiveValue})`,
+          "tradeBalance",
+          "UNBALANCED_TRADE_RATIO",
+          context
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 驗證資源閾值配置
+   */
+  validateResourceThresholds(thresholds) {
+    const result = new ValidationResult(true);
+    const context = "資源閾值配置";
+
+    if (!thresholds || typeof thresholds !== "object") {
+      return result.addError(
+        "資源閾值配置必須是物件",
+        "thresholds",
+        "INVALID_THRESHOLDS_TYPE",
+        context
+      );
+    }
+
+    const requiredCategories = ["warning", "critical"];
+    const optionalCategories = ["abundant"];
+
+    // 檢查必要類別
+    requiredCategories.forEach((category) => {
+      if (!thresholds[category] || typeof thresholds[category] !== "object") {
+        result.addError(
+          `缺少 ${category} 閾值配置`,
+          `thresholds.${category}`,
+          "MISSING_THRESHOLD_CATEGORY",
+          context
+        );
+      }
+    });
+
+    // 檢查所有類別的數值
+    [...requiredCategories, ...optionalCategories].forEach((category) => {
+      if (thresholds[category]) {
+        const categoryResult = this.validateThresholdCategory(thresholds[category], category, context);
+        result.merge(categoryResult);
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * 驗證閾值類別
+   */
+  validateThresholdCategory(categoryThresholds, categoryName, context) {
+    const result = new ValidationResult(true);
+    const resourceTypes = ["food", "materials", "medical", "fuel", "cash"];
+
+    resourceTypes.forEach((type) => {
+      if (categoryThresholds[type] !== undefined) {
+        const value = categoryThresholds[type];
+        
+        if (typeof value !== "number") {
+          result.addError(
+            `${context}: ${categoryName}.${type} 必須是數值`,
+            `thresholds.${categoryName}.${type}`,
+            "INVALID_THRESHOLD_VALUE_TYPE",
+            context
+          );
+        } else if (value < 0) {
+          result.addError(
+            `${context}: ${categoryName}.${type} 不能為負數`,
+            `thresholds.${categoryName}.${type}`,
+            "NEGATIVE_THRESHOLD_VALUE",
+            context
+          );
+        }
+      }
+    });
+
+    return result;
+  }
+}
+
+/**
  * 遊戲狀態實例驗證器
  */
 export class GameStateInstanceValidator extends InstanceValidator {
@@ -1489,6 +2018,7 @@ export class ValidatorFactory {
 
     // 實例驗證器
     this.instanceValidators.set("tenant", new TenantInstanceValidator());
+    this.instanceValidators.set("resource", new ResourceInstanceValidator());
     this.instanceValidators.set("gameState", new GameStateInstanceValidator());
   }
 
