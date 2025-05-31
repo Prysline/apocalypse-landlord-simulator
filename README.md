@@ -18,7 +18,7 @@
 3. 開始您的末日房東之旅
 
 ### 替代版本
-- `src/index.html`：v2.0-alpha 配置驅動版本（重構進行中）
+- `src/index.html`：v2.0-beta 模組化版本（重構進行中）
 
 ### 遊戲目標
 - 招募合適的租客並管理其需求
@@ -33,7 +33,7 @@
 ├── PROJECT_STRUCTURE.md           # 📋 完整專案結構說明
 └── src/
     ├── game-refactored.html       # 🎮 穩定版本 v1.1（推薦使用）
-    ├── index.html                 # 🚀 重構版本 v2.0-alpha（開發中）
+    ├── index.html                 # 🚀 重構版本 v2.0-beta（開發中）
     ├── js/                        # 🔧 JavaScript模組目錄（重構完成）
     ├── data/                      # 📊 遊戲配置檔案
     │   ├── tenants.json           # 租客資料配置
@@ -44,27 +44,31 @@
         └── architecture.md        # 架構設計文件
 ```
 
-## 🎯 當前版本特色 v2.0-alpha
+## 🎯 當前版本特色 v2.0-beta
 
-### 配置驅動架構系統
-本專案採用**直接模組分離重構策略**，當前版本 v2.0-alpha 實現配置驅動核心架構：
+### 完整業務系統模組化架構
+本專案採用**直接模組分離重構策略**，當前版本 v2.0-beta 實現完整業務邏輯模組化：
 
 - **配置驅動設計**：所有遊戲參數集中於 rules.json 管理
 - **統一驗證機制**：validators.js 模組提供完整資料驗證
 - **系統級常數**：constants.js 管理純技術常數，避免硬編碼
 - **智慧後備機制**：配置載入失敗時自動切換後備模式
+- **完整業務邏輯**：TenantSystem、SkillSystem、ResourceSystem 完整分離
 
 ### 技術亮點
 - **DataManager v2.0**：整合統一驗證系統，強化錯誤處理
 - **RuleEngine**：聲明式規則執行框架，支援複雜遊戲邏輯  
 - **GameBridge**：系統整合協調，支援事件驅動架構
+- **TenantSystem**：完整租客生命週期管理，支援事件通信
+- **SkillSystem**：純配置驅動技能系統，被動觸發與主動執行
+- **ResourceSystem**：資源流轉控制，統一閾值管理
 - **GameHelpers v2.0**：配置驅動輔助函數，提供統一存取介面
 
 ## 📊 系統狀態監控
 
 遊戲右上角顯示當前系統狀態：
-- 🟢 配置驅動系統 v2.0 - 運行中：完整配置驅動模式
-- 🟡 配置驅動系統 v2.0 - 後備模式：部分功能使用預設配置
+- 🟢 模組化系統 v2.0 - 運行中：完整模組化業務邏輯
+- 🟡 模組化系統 v2.0 - 後備模式：部分功能使用預設配置
 - 🔴 系統啟動失敗：需要檢查瀏覽器支援度
 
 ## 🎲 遊戲機制
@@ -92,21 +96,23 @@
 
 ## 🔄 重構進展
 
-### 當前狀態：配置驅動核心架構完成 ✅
+### 當前狀態：業務系統模組化 v2.0-beta ✅
 - ✅ **核心架構系統**（DataManager、RuleEngine、GameBridge）已分離為模組
 - ✅ **配置驅動體系**（rules.json 集中配置，helpers.js v2.0 配置驅動）
 - ✅ **統一驗證機制**（validators.js 統一驗證邏輯）
 - ✅ **系統級常數**（constants.js 純技術常數管理）
-- ✅ **主程式重構**（main.js 配置驅動初始化）
-- 🚀 **業務邏輯模組化**（TenantSystem、SkillSystem 等待分離）
+- ✅ **業務邏輯模組**（TenantSystem、SkillSystem、ResourceSystem 完整分離）
+- ✅ **主程式整合**（main.js 完整系統協調）
+- 🚀 **事件系統分離**（EventSystem 最後業務模組）
 - 🚀 **UI系統模組**（UIManager、DisplayUpdater 等待實作）
 
-### 下一階段：業務系統分離 v2.0-beta 🚀
-**重構策略**：基於配置驅動核心架構，進行業務邏輯模組分離。
+### 下一階段：事件系統完成 v2.0-rc 🚀
+**重構策略**：基於已完成的業務模組基礎，完成最後的事件處理系統。
 
 **重構目標**：
 - ✅ **對話3A**：配置驅動核心架構（DataManager, RuleEngine, GameBridge, helpers, validators, constants）
-- 🚀 **對話3B**：業務系統分離（TenantSystem, SkillSystem, EventSystem, ResourceSystem）
+- ✅ **對話3B-1-3**：業務系統分離（TenantSystem, SkillSystem, ResourceSystem, main.js 整合）
+- 🚀 **對話3B-4**：事件系統完成（EventSystem）
 - 🚀 **對話3C**：UI系統完善（UIManager, ModalManager, DisplayUpdater）
 
 **技術優勢**：
@@ -121,6 +127,7 @@
 
 ### 技術實作（AI輔助）
 - **核心程式碼**：DataManager、RuleEngine、GameBridge 等系統模組
+- **業務邏輯模組**：TenantSystem、SkillSystem、ResourceSystem 完整實作
 - **配置驅動架構**：rules.json、validators.js、constants.js 設計與實作
 - **遊戲配置**：JSON配置檔案的結構設計與內容
 - **架構設計**：模組化架構規劃與技術決策
@@ -145,19 +152,19 @@
 
 ## 🚧 開發狀態
 
-### 已完成功能 v2.0-alpha ✅
+### 已完成功能 v2.0-beta ✅
 - ✅ **配置驅動核心架構**（DataManager v2.0、RuleEngine、GameBridge）
 - ✅ **統一驗證機制**（validators.js 完整驗證邏輯）
 - ✅ **系統級常數管理**（constants.js 純技術常數）
 - ✅ **配置驅動輔助函數**（helpers.js v2.0）
 - ✅ **集中配置體系**（rules.json 擴展版）
-- ✅ **主程式重構**（main.js 配置驅動初始化）
+- ✅ **業務邏輯模組化**（TenantSystem、SkillSystem、ResourceSystem）
+- ✅ **主程式系統整合**（main.js 完整協調）
 
 ### 進行中功能 🚀
-- 🚀 **業務系統模組分離**（對話3B主要目標）
-- 🚀 TenantSystem 與 SkillSystem 完整實作
-- 🚀 EventSystem 與 ResourceSystem 全新設計
-- 🚀 系統間通信機制優化
+- 🚀 **事件系統分離**（對話3B-4目標）
+- 🚀 EventSystem 完整實作與整合
+- 🚀 系統間事件通信機制完善
 
 ### 計劃功能 📋
 - 📋 UI管理系統模組化（對話3C目標）
@@ -168,11 +175,12 @@
 
 ## 🎯 技術特點
 
-### 配置驅動開發架構
+### 完整模組化開發架構
 - **ES6 模組系統**：真正的模組化開發體驗
 - **配置驅動設計**：rules.json 集中管理所有參數
 - **統一驗證機制**：validators.js 提供完整資料驗證
 - **智慧後備系統**：配置載入失敗時自動降級
+- **事件驅動通信**：模組間透過事件進行協作
 
 ### 部署與相容性
 - **零依賴**：不需要外部函式庫或框架
@@ -222,7 +230,7 @@
 
 ---
 
-**專案狀態**：配置驅動核心架構 v2.0-alpha（已完成）→ 業務系統分離 v2.0-beta（進行中）  
-**技術基礎**：配置驅動架構已建立，支援業務模組分離  
+**專案狀態**：業務系統模組化 v2.0-beta（80%完成）→ 事件系統分離 v2.0-rc（即將完成）  
+**技術基礎**：配置驅動架構 + 完整業務邏輯模組已建立  
 **預期時程**：2個對話完成剩餘重構  
 **商業價值**：現代化架構為商業化發展奠定基礎
