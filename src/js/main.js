@@ -1,13 +1,16 @@
 /**
- * 末日房東模擬器 v2.0 - 主程式進入點（配置驅動重構版）
+ * 末日房東模擬器 v2.0 - 主程式進入點（TenantSystem 整合版）
  * 職責：應用程式初始化、模組載入協調、全域狀態管理
- * 重構：移除硬編碼常數，改用配置驅動模式
+ * 更新：整合 TenantSystem 模組，提供完整租客管理功能
  */
 
 // 核心系統模組
 import { DataManager } from "./core/DataManager.js";
 import { RuleEngine } from "./core/RuleEngine.js";
 import { GameBridge } from "./core/GameBridge.js";
+
+// 業務系統模組
+import { TenantSystem } from "./systems/TenantSystem.js";
 
 // 工具函數模組
 import { GameHelpers } from "./utils/helpers.js";
@@ -22,19 +25,21 @@ import {
 } from "./utils/constants.js";
 
 /**
- * 應用程式主類
- * 負責整個遊戲的啟動、模組協調、生命週期管理
+ * 應用程式主類（TenantSystem 整合版）
  */
 class Game {
   constructor() {
     // 遊戲狀態 - 初期使用最小預設值，待配置載入後更新
     this.gameState = this.getMinimalInitialState();
 
-    // 系統模組實例
+    // 核心系統模組實例
     this.dataManager = null;
     this.ruleEngine = null;
     this.gameBridge = null;
     this.gameHelpers = null;
+
+    // 業務系統模組實例
+    this.tenantSystem = null;
 
     // 配置狀態
     this.configLoaded = false;
@@ -46,6 +51,7 @@ class Game {
       ruleEngine: false,
       gameBridge: false,
       gameHelpers: false,
+      tenantSystem: false,
       configApplied: false,
       complete: false,
     };
@@ -88,7 +94,7 @@ class Game {
   }
 
   /**
-   * 應用程式初始化主流程
+   * 應用程式初始化主流程（TenantSystem 整合版）
    */
   async initialize() {
     console.log("🎮 末日房東模擬器 v2.0 啟動中...");
@@ -103,13 +109,16 @@ class Game {
       // 階段 3：應用配置到遊戲狀態
       await this.applyConfigurationToGameState();
 
-      // 階段 4：建立系統整合
+      // 階段 4：初始化業務系統
+      await this.initializeBusinessModules();
+
+      // 階段 5：建立系統整合
       await this.establishSystemIntegration();
 
-      // 階段 5：啟動遊戲介面
+      // 階段 6：啟動遊戲介面
       await this.initializeGameInterface();
 
-      // 階段 6：完成啟動
+      // 階段 7：完成啟動
       this.completeInitialization();
     } catch (error) {
       this.errorHandler.handleInitializationError(error);
@@ -220,6 +229,34 @@ class Game {
   }
 
   /**
+   * 初始化業務系統模組
+   */
+  async initializeBusinessModules() {
+    console.log("🏢 正在初始化業務系統模組...");
+
+    try {
+      // 初始化租客系統
+      this.tenantSystem = new TenantSystem(
+        this.gameState,
+        this.dataManager,
+        this.gameHelpers
+      );
+
+      const tenantInitSuccess = await this.tenantSystem.initialize();
+      this.initializationStatus.tenantSystem = tenantInitSuccess;
+
+      if (tenantInitSuccess) {
+        console.log("✅ TenantSystem 初始化成功");
+      } else {
+        console.warn("⚠️ TenantSystem 初始化失敗，將使用後備模式");
+      }
+    } catch (error) {
+      console.error("❌ 業務系統初始化失敗:", error);
+      this.initializationStatus.tenantSystem = false;
+    }
+  }
+
+  /**
    * 建立系統整合
    */
   async establishSystemIntegration() {
@@ -228,13 +265,54 @@ class Game {
     // 設定事件監聽
     this.setupEventListeners();
 
-    // 設定全域函數代理
+    // 設定全域函數代理（更新版）
     this.setupGlobalFunctionProxies();
+
+    // 建立租客系統事件監聽
+    this.setupTenantSystemEvents();
 
     // 建立模組間通信機制
     this.setupInterModuleCommunication();
 
     console.log("✅ 系統整合建立完成");
+  }
+
+  /**
+   * 設定租客系統事件監聽
+   */
+  setupTenantSystemEvents() {
+    if (!this.tenantSystem) return;
+
+    // 監聽租客雇用事件
+    this.tenantSystem.on("tenantHired", (data) => {
+      console.log(`🎉 租客雇用成功: ${data.tenant.name}`);
+      this.updateDisplay();
+    });
+
+    // 監聽租客離開事件
+    this.tenantSystem.on("tenantEvicted", (data) => {
+      console.log(`👋 租客離開: ${data.tenant.name} (${data.reason})`);
+      this.updateDisplay();
+    });
+
+    // 監聽租客衝突事件
+    this.tenantSystem.on("tenantConflict", (data) => {
+      console.log(`⚔️ 租客衝突發生，涉及 ${data.tenants.length} 位租客`);
+      // 這裡預留給 EventSystem 處理
+    });
+
+    // 監聽雇用失敗事件
+    this.tenantSystem.on("tenantHireFailed", (data) => {
+      console.log(`❌ 租客雇用失敗: ${data.reason}`);
+
+      const reasonMessages = {
+        applicant_not_found: "找不到指定申請者",
+        no_available_room: "沒有可用房間",
+      };
+
+      const message = reasonMessages[data.reason] || data.reason;
+      alert(message);
+    });
   }
 
   /**
@@ -256,6 +334,13 @@ class Game {
       this.addLog("⚠️ 使用後備配置模式", "danger");
     }
 
+    // TenantSystem 狀態報告
+    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+      this.addLog("✅ 租客管理系統已啟用", "event");
+    } else {
+      this.addLog("⚠️ 租客系統使用後備模式", "danger");
+    }
+
     // 更新顯示
     this.updateDisplay();
 
@@ -271,9 +356,13 @@ class Game {
     // 更新系統狀態顯示
     const statusEl = document.getElementById("systemStatus");
     if (statusEl) {
-      statusEl.textContent = this.configLoaded
-        ? "🟢 配置驅動系統 v2.0 - 運行中"
-        : "🟡 配置驅動系統 v2.0 - 後備模式";
+      if (this.configLoaded && this.initializationStatus.tenantSystem) {
+        statusEl.textContent = "🟢 配置驅動系統 v2.0 - 運行中";
+      } else if (this.configLoaded) {
+        statusEl.textContent = "🟡 配置驅動系統 v2.0 - 部分功能";
+      } else {
+        statusEl.textContent = "🟡 配置驅動系統 v2.0 - 後備模式";
+      }
       statusEl.className = "system-status modular";
     }
 
@@ -325,7 +414,7 @@ class Game {
   }
 
   /**
-   * 設定全域函數代理
+   * 設定全域函數代理（更新版）
    */
   setupGlobalFunctionProxies() {
     // 設定全域遊戲功能函數
@@ -336,8 +425,9 @@ class Game {
     window.updateDisplay = () => this.updateDisplay();
     window.closeModal = () => this.closeModal();
 
-    // 租客相關函數
+    // 租客相關函數（使用 TenantSystem）
     window.hireTenant = (applicantId) => this.hireTenant(applicantId);
+    window.generateApplicants = () => this.generateApplicants();
   }
 
   /**
@@ -375,7 +465,7 @@ class Game {
   }
 
   /**
-   * 遊戲核心功能實作
+   * 遊戲核心功能實作（TenantSystem 整合版）
    */
 
   // 收租功能
@@ -404,10 +494,10 @@ class Game {
     this.gameState.rentCollected = true;
 
     if (totalRent > 0) {
-      this.addLog(
-        MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalRent, "現金收租"),
-        "rent"
-      );
+      const message = MESSAGE_TEMPLATES.GAME?.RESOURCE_GAINED
+        ? MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalRent, "現金收租")
+        : `收取房租 $${totalRent}`;
+      this.addLog(message, "rent");
     } else {
       this.addLog("今日沒有房租收入", "event");
     }
@@ -415,84 +505,72 @@ class Game {
     this.updateDisplay();
   }
 
-  // 顯示訪客
+  // 顯示訪客（使用 TenantSystem）
   handleShowVisitors() {
-    // 生成訪客（使用配置驅動的參數）
-    this.generateApplicants();
+    console.log("🚪 顯示訪客列表...");
+
+    // 使用 TenantSystem 生成申請者
+    const applicants = this.generateApplicants();
 
     const modal = document.getElementById("visitorModal");
     const list = document.getElementById("visitorList");
 
-    list.innerHTML = this.gameState.applicants
-      .map(
-        (applicant) => `
-      <div class="applicant ${applicant.infected ? "infected" : ""}">
-        <strong>${applicant.name}</strong> - ${
-          applicant.typeName || applicant.type
-        }<br>
-        <small>${applicant.description || "尋找住所的倖存者"}</small><br>
-        <small style="color: #aaa;">外觀: ${applicant.appearance}</small><br>
-        房租: ${applicant.rent}/天<br>
-        <button class="btn ${applicant.infected ? "danger" : ""}" 
-                onclick="window.gameApp.hireTenant('${applicant.id}')">
-          雇用${applicant.infected ? " (危險)" : ""}
-        </button>
-      </div>
-    `
-      )
-      .join("");
+    if (applicants.length === 0) {
+      list.innerHTML = '<div class="applicant">今日沒有訪客前來應徵</div>';
+    } else {
+      list.innerHTML = applicants
+        .map(
+          (applicant) => `
+        <div class="applicant ${applicant.infected ? "infected" : ""}">
+          <strong>${applicant.name}</strong> - ${
+            applicant.typeName || applicant.type
+          }<br>
+          <small>${applicant.description || "尋找住所的倖存者"}</small><br>
+          <small style="color: #aaa;">外觀: ${applicant.appearance}</small><br>
+          房租: ${applicant.rent}/天<br>
+          ${
+            applicant.personalResources
+              ? `<small>個人資源: 食物${applicant.personalResources.food} 現金$${applicant.personalResources.cash}</small><br>`
+              : ""
+          }
+          <button class="btn ${applicant.infected ? "danger" : ""}" 
+                  onclick="window.gameApp.hireTenant('${applicant.id}')">
+            雇用${applicant.infected ? " (危險)" : ""}
+          </button>
+        </div>
+      `
+        )
+        .join("");
+    }
 
     modal.style.display = "block";
   }
 
-  // 雇用租客
+  // 生成申請者（使用 TenantSystem）
+  generateApplicants() {
+    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+      return this.tenantSystem.generateApplicants();
+    } else {
+      console.warn("⚠️ TenantSystem 不可用，使用後備生成");
+      return this.generateFallbackApplicants();
+    }
+  }
+
+  // 雇用租客（使用 TenantSystem）
   hireTenant(applicantId) {
-    const applicant = this.gameState.applicants.find(
-      (a) => a.id === applicantId
-    );
-    const emptyRoom = this.gameState.rooms.find((room) => !room.tenant);
+    console.log(`🤝 嘗試雇用申請者: ${applicantId}`);
 
-    if (!emptyRoom) {
-      alert("沒有空房間！");
-      return false;
+    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+      const success = this.tenantSystem.hireTenant(applicantId);
+      if (success) {
+        this.closeModal();
+        this.updateDisplay();
+      }
+      return success;
+    } else {
+      console.warn("⚠️ TenantSystem 不可用，使用後備雇用");
+      return this.hireTenantFallback(applicantId);
     }
-
-    if (!applicant) {
-      alert("找不到指定申請者！");
-      return false;
-    }
-
-    // 建立租客
-    emptyRoom.tenant = {
-      ...applicant,
-      moveInDate: this.gameState.day,
-    };
-
-    // 初始化租客滿意度（使用配置驅動的基礎值）
-    const baseSatisfaction = this.gameHelpers
-      ? this.gameHelpers.getGameBalance(
-          "tenants.satisfactionSystem.baseValue",
-          50
-        )
-      : 50;
-
-    this.gameState.tenantSatisfaction[applicant.name] = baseSatisfaction;
-
-    // 從申請者列表移除
-    this.gameState.applicants = this.gameState.applicants.filter(
-      (a) => a.id !== applicantId
-    );
-
-    this.addLog(
-      MESSAGE_TEMPLATES.GAME.ACTION_SUCCESS(
-        `${applicant.name} 入住房間 ${emptyRoom.id}`
-      ),
-      "rent"
-    );
-    this.closeModal();
-    this.updateDisplay();
-
-    return true;
   }
 
   // 房間點擊處理
@@ -503,12 +581,31 @@ class Game {
       const tenant = room.tenant;
       const satisfaction = this.gameState.tenantSatisfaction[tenant.name] || 50;
 
+      // 使用 TenantSystem 獲取詳細資訊
+      let detailInfo = "";
+      if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+        const tenantState = this.tenantSystem.getTenantState(tenant.name);
+        if (tenantState) {
+          detailInfo = `\n住了 ${tenantState.stats.daysLived} 天`;
+          if (tenantState.stats.satisfactionHistory.length > 1) {
+            const trend = tenantState.stats.satisfactionHistory.slice(-2);
+            const change = trend[1] - trend[0];
+            detailInfo +=
+              change > 0
+                ? " (滿意度上升)"
+                : change < 0
+                ? " (滿意度下降)"
+                : " (滿意度穩定)";
+          }
+        }
+      }
+
       alert(
         `房間 ${roomId} - ${tenant.name}\n類型: ${
           tenant.typeName || tenant.type
         }\n房租: ${tenant.rent}/天\n滿意度: ${satisfaction}%\n狀態: ${
           tenant.infected ? "已感染" : "健康"
-        }`
+        }${detailInfo}`
       );
     } else {
       alert(`房間 ${roomId} - 空房\n點擊「查看訪客」來招募租客`);
@@ -537,14 +634,19 @@ class Game {
 
     const baseAmount = consumption.harvestBaseAmount;
 
-    // 農夫加成
-    const farmerCount = this.gameState.rooms.filter(
-      (room) =>
-        room.tenant &&
-        (room.tenant.type === DATA_TYPES.TENANT_TYPES.FARMER ||
-          room.tenant.typeId === DATA_TYPES.TENANT_TYPES.FARMER) &&
-        !room.tenant.infected
-    ).length;
+    // 農夫加成（使用 TenantSystem）
+    let farmerCount = 0;
+    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+      farmerCount = this.tenantSystem.getTenantCountByType("farmer");
+    } else {
+      farmerCount = this.gameState.rooms.filter(
+        (room) =>
+          room.tenant &&
+          (room.tenant.type === DATA_TYPES.TENANT_TYPES.FARMER ||
+            room.tenant.typeId === DATA_TYPES.TENANT_TYPES.FARMER) &&
+          !room.tenant.infected
+      ).length;
+    }
 
     const totalAmount =
       baseAmount + farmerCount * consumption.farmerHarvestBonus;
@@ -562,15 +664,16 @@ class Game {
       farmerCount > 0
         ? ` (農夫加成 +${farmerCount * consumption.farmerHarvestBonus})`
         : "";
-    this.addLog(
-      MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalAmount, `食物${bonusText}`),
-      "rent"
-    );
 
+    const message = MESSAGE_TEMPLATES.GAME?.RESOURCE_GAINED
+      ? MESSAGE_TEMPLATES.GAME.RESOURCE_GAINED(totalAmount, `食物${bonusText}`)
+      : `院子採集獲得 ${totalAmount} 食物${bonusText}`;
+
+    this.addLog(message, "rent");
     this.updateDisplay();
   }
 
-  // 下一天
+  // 下一天（整合 TenantSystem）
   handleNextDay() {
     // 基礎日期推進
     this.gameState.day++;
@@ -586,16 +689,22 @@ class Game {
       this.gameState.harvestCooldown--;
     }
 
+    // 使用 TenantSystem 處理租客日常更新
+    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+      this.tenantSystem.updateDailyTenantStates();
+    }
+
     // 房東消費食物
     this.processLandlordConsumption();
 
     // 燃料消費
     this.processBuildingConsumption();
 
-    this.addLog(
-      MESSAGE_TEMPLATES.GAME.STATE_CHANGED(`第${this.gameState.day}天開始`),
-      "event"
-    );
+    const message = MESSAGE_TEMPLATES.GAME?.STATE_CHANGED
+      ? MESSAGE_TEMPLATES.GAME.STATE_CHANGED(`第${this.gameState.day}天開始`)
+      : `新的一天開始了 - 第${this.gameState.day}天`;
+
+    this.addLog(message, "event");
     this.updateDisplay();
   }
 
@@ -620,13 +729,10 @@ class Game {
     } else if (this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] >= 1) {
       this.gameState.resources[DATA_TYPES.RESOURCE_TYPES.FOOD] -= 1;
       this.gameState.landlordHunger += 1;
-      this.addLog(
-        MESSAGE_TEMPLATES.ERROR.INSUFFICIENT_DATA + "，房東仍感到飢餓",
-        "danger"
-      );
+      this.addLog("食物不足，房東仍感到飢餓", "danger");
     } else {
       this.gameState.landlordHunger += 2;
-      this.addLog(MESSAGE_TEMPLATES.ERROR.INSUFFICIENT_DATA + "！", "danger");
+      this.addLog("沒有食物！房東非常飢餓", "danger");
     }
   }
 
@@ -659,84 +765,65 @@ class Game {
   }
 
   /**
-   * 工具函數
+   * 後備功能實作（TenantSystem 不可用時）
    */
 
-  // 生成申請者（使用配置驅動的參數）
-  generateApplicants() {
-    if (this.gameState.applicants.length > 0) return;
-
+  generateFallbackApplicants() {
     const count = Math.min(
       Math.floor(Math.random() * 3) + 1,
       UI_CONSTANTS.DISPLAY?.MAX_APPLICANTS_PER_VISIT || 3
     );
 
-    // 使用配置驅動的機率參數
-    const probabilities = this.gameHelpers
-      ? this.gameHelpers.getProbabilities()
-      : { baseInfectionRisk: 0.2 };
-
     const types = [
-      {
-        name: "醫生",
-        type: DATA_TYPES.TENANT_TYPES.DOCTOR,
-        typeId: DATA_TYPES.TENANT_TYPES.DOCTOR,
-        typeName: "醫生",
-        rent: 15,
-        description: "可以治療感染，檢測可疑租客",
-      },
-      {
-        name: "工人",
-        type: DATA_TYPES.TENANT_TYPES.WORKER,
-        typeId: DATA_TYPES.TENANT_TYPES.WORKER,
-        typeName: "工人",
-        rent: 12,
-        description: "擅長維修建築，房間升級",
-      },
-      {
-        name: "農夫",
-        type: DATA_TYPES.TENANT_TYPES.FARMER,
-        typeId: DATA_TYPES.TENANT_TYPES.FARMER,
-        typeName: "農夫",
-        rent: 10,
-        description: "提升院子採集效率，種植作物",
-      },
-      {
-        name: "軍人",
-        type: DATA_TYPES.TENANT_TYPES.SOLDIER,
-        typeId: DATA_TYPES.TENANT_TYPES.SOLDIER,
-        typeName: "軍人",
-        rent: 18,
-        description: "戰鬥力強，提升房屋防禦",
-      },
-      {
-        name: "老人",
-        type: DATA_TYPES.TENANT_TYPES.ELDER,
-        typeId: DATA_TYPES.TENANT_TYPES.ELDER,
-        typeName: "老人",
-        rent: 8,
-        description: "經驗豐富，調解糾紛",
-      },
+      { name: "醫生", type: "doctor", rent: 15 },
+      { name: "工人", type: "worker", rent: 12 },
+      { name: "農夫", type: "farmer", rent: 10 },
     ];
 
-    this.gameState.applicants = [];
-
+    const applicants = [];
     for (let i = 0; i < count; i++) {
       const typeTemplate = types[Math.floor(Math.random() * types.length)];
-      const infected = Math.random() < probabilities.baseInfectionRisk;
+      const infected = Math.random() < 0.2;
 
-      const applicant = {
-        ...typeTemplate,
-        id: `applicant_${Date.now()}_${i}`,
+      applicants.push({
+        id: `fallback_${Date.now()}_${i}`,
         name: this.generateRandomName(),
+        type: typeTemplate.type,
+        typeName: typeTemplate.name,
+        rent: typeTemplate.rent,
         infected: infected,
-        appearance: infected
-          ? this.getInfectedAppearance()
-          : this.getNormalAppearance(),
-      };
-
-      this.gameState.applicants.push(applicant);
+        appearance: infected ? "看起來不太對勁" : "看起來精神不錯",
+        description: `${typeTemplate.name} - 尋找住所`,
+        personalResources: { food: 4, materials: 2, medical: 1, cash: 15 },
+      });
     }
+
+    // 暫時儲存到 gameState（與 TenantSystem 相容）
+    this.gameState.applicants = applicants;
+    return applicants;
+  }
+
+  hireTenantFallback(applicantId) {
+    const applicant = this.gameState.applicants.find(
+      (a) => a.id === applicantId
+    );
+    const emptyRoom = this.gameState.rooms.find((room) => !room.tenant);
+
+    if (!emptyRoom || !applicant) {
+      alert(emptyRoom ? "找不到申請者！" : "沒有空房間！");
+      return false;
+    }
+
+    emptyRoom.tenant = { ...applicant };
+    this.gameState.tenantSatisfaction[applicant.name] = 50;
+    this.gameState.applicants = this.gameState.applicants.filter(
+      (a) => a.id !== applicantId
+    );
+
+    this.addLog(`新租客 ${applicant.name} 入住房間 ${emptyRoom.id}`, "rent");
+    this.closeModal();
+    this.updateDisplay();
+    return true;
   }
 
   generateRandomName() {
@@ -744,7 +831,6 @@ class Game {
       return this.gameHelpers.generateName("nickname");
     }
 
-    // 後備名稱生成
     const names = [
       "小明",
       "小華",
@@ -765,7 +851,6 @@ class Game {
       return this.gameHelpers.getNormalAppearance();
     }
 
-    // 後備外觀描述
     const appearances = [
       "看起來精神狀態不錯",
       "衣著整潔，談吐得體",
@@ -780,7 +865,6 @@ class Game {
       return this.gameHelpers.getInfectedAppearance();
     }
 
-    // 後備外觀描述
     const appearances = [
       "眼神有點呆滯，反應遲鈍",
       "皮膚蒼白，手有輕微顫抖",
@@ -789,6 +873,10 @@ class Game {
     ];
     return appearances[Math.floor(Math.random() * appearances.length)];
   }
+
+  /**
+   * 工具函數
+   */
 
   // 添加遊戲記錄
   addLog(message, type = "event") {
@@ -923,7 +1011,7 @@ class Game {
     });
   }
 
-  // 更新租客列表
+  // 更新租客列表（增強版）
   updateTenantList() {
     const tenantList = document.getElementById("tenantList");
     if (!tenantList) return;
@@ -943,12 +1031,31 @@ class Game {
             ? '<br><small style="color:#ff6666">已感染！</small>'
             : "";
 
+          // 額外資訊（如果有 TenantSystem）
+          let extraInfo = "";
+          if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+            const tenantState = this.tenantSystem.getTenantState(tenant.name);
+            if (tenantState && tenantState.stats) {
+              extraInfo = `<br><small style="color:#aaa;">住了 ${tenantState.stats.daysLived} 天</small>`;
+            }
+          }
+
+          // 個人資源顯示
+          let resourceInfo = "";
+          if (tenant.personalResources) {
+            resourceInfo = `<br><small style="color:#cccccc;">個人: $${
+              tenant.personalResources.cash || 0
+            } 食物${tenant.personalResources.food || 0}</small>`;
+          }
+
           return `<div class="tenant-item ${
             tenant.infected ? "infected" : ""
           } ${tenant.type || tenant.typeId}">
           ${tenant.name} (${tenant.typeName || tenant.type})<br>
-          <small>房租: ${tenant.rent}/天</small><br>
+          <small>房租: ${tenant.rent}/天</small>
+          ${resourceInfo}
           <small>滿意度: ${satisfaction}%</small>
+          ${extraInfo}
           ${statusText}
         </div>`;
         })
@@ -971,7 +1078,7 @@ class Game {
     }
   }
 
-  // 取得系統狀態
+  // 取得系統狀態（增強版）
   getSystemStatus() {
     return {
       version: "2.0.0",
@@ -988,6 +1095,7 @@ class Game {
         ruleEngine: !!this.ruleEngine,
         gameBridge: !!this.gameBridge,
         gameHelpers: !!this.gameHelpers,
+        tenantSystem: this.tenantSystem ? this.tenantSystem.getStatus() : null,
       },
       config: {
         loaded: this.configLoaded,
@@ -1017,7 +1125,8 @@ class Game {
 
       handleRuntimeError: (error, context) => {
         console.error(`❌ 執行時錯誤 (${context}):`, error);
-        this.addLog(MESSAGE_TEMPLATES.ERROR.GENERIC + `: ${context}`, "danger");
+        const message = MESSAGE_TEMPLATES.ERROR?.GENERIC || "系統錯誤";
+        this.addLog(`${message}: ${context}`, "danger");
       },
     };
   }
@@ -1031,8 +1140,7 @@ class Game {
     try {
       // 使用最基本的功能初始化
       this.setupUIEventListeners();
-      this.addLog(MESSAGE_TEMPLATES.ERROR.GENERIC, "danger");
-      this.addLog("系統正在降級模式下運行", "danger");
+      this.addLog("系統啟動失敗，正在降級模式下運行", "danger");
       this.addLog("部分功能可能不可用", "danger");
       this.updateDisplay();
     } catch (fallbackError) {
