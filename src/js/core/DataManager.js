@@ -1,20 +1,25 @@
 /**
- * DataManager - 統一資料載入與管理機制（更新版）
+ * DataManager - 統一資料載入與管理機制
  * 職責：
  * 1. 從 JSON 配置檔案載入遊戲資料
- * 2. 整合統一的資料驗證系統
+ * 2. 整合 ConfigValidators 驗證系統
  * 3. 管理資料快取與更新
  * 4. 支援熱重載（開發階段）
  *
  * 設計模式：單例模式 + 工廠模式
- * 核心特性：非同步載入、錯誤處理、快取機制、模組化驗證
+ * 核心特性：非同步載入、錯誤處理、快取機制、配置驅動驗證
  */
 
 import {
   defaultValidatorFactory,
   ValidationResult,
+  ValidationUtils,
 } from "../utils/validators.js";
-import { SYSTEM_LIMITS, ERROR_CODES } from "../utils/constants.js";
+import {
+  SYSTEM_LIMITS,
+  ERROR_CODES,
+  MESSAGE_TEMPLATES,
+} from "../utils/constants.js";
 
 export class DataManager {
   constructor() {
@@ -30,6 +35,9 @@ export class DataManager {
       rules: false,
     };
 
+    // 驗證結果記錄（新增）
+    this.validationResults = new Map();
+
     // 錯誤記錄
     this.errorLog = [];
     this.maxErrorLogSize = SYSTEM_LIMITS.HISTORY.MAX_ERROR_LOG;
@@ -37,7 +45,11 @@ export class DataManager {
     // 驗證器工廠實例
     this.validatorFactory = defaultValidatorFactory;
 
-    console.log("📦 DataManager 初始化完成，整合驗證模組");
+    console.log("📦 DataManager 初始化完成，整合 ConfigValidators 系統");
+    console.log(
+      "🔍 可用驗證器類型:",
+      this.validatorFactory.getAvailableTypes()
+    );
   }
 
   /**
@@ -67,24 +79,48 @@ export class DataManager {
       console.log(`🔄 開始載入 ${dataType} 資料...`);
       const data = await loadPromise;
 
-      // 使用新的驗證系統
-      const validationResult = this.validateData(dataType, data);
+      // 使用 ConfigValidators 驗證系統
+      const validationResult = this.validateConfigData(dataType, data);
 
       if (!validationResult.isValid) {
         const firstError = validationResult.getFirstError();
-        throw new Error(`資料驗證失敗: ${firstError?.message || "未知錯誤"}`);
+        const errorMessage = firstError?.message || "未知驗證錯誤";
+
+        // 記錄詳細驗證失敗資訊
+        console.error(`❌ ${dataType} 配置驗證失敗:`, {
+          errorCount: validationResult.errors.length,
+          warningCount: validationResult.warnings.length,
+          firstError: firstError,
+          summary: this._getValidationSummary(validationResult),
+        });
+
+        throw new Error(`配置驗證失敗: ${errorMessage}`);
       }
 
-      // 記錄驗證警告
+      // 處理驗證警告
       if (validationResult.warnings.length > 0) {
-        console.warn(`⚠️ ${dataType} 資料驗證警告:`, validationResult.warnings);
+        console.warn(
+          `⚠️ ${dataType} 配置驗證警告 (${validationResult.warnings.length}個):`
+        );
+        validationResult.warnings.forEach((warning, index) => {
+          console.warn(
+            `  ${index + 1}. ${warning.message}${
+              warning.field ? ` (欄位: ${warning.field})` : ""
+            }`
+          );
+        });
       }
 
-      // 快取資料
+      // 快取資料和驗證結果
       this.cache.set(dataType, data);
+      this.validationResults.set(dataType, validationResult);
       this.loadingStatus[dataType] = true;
 
-      console.log(`✅ 成功載入並驗證 ${dataType} 資料`);
+      console.log(`✅ 成功載入並驗證 ${dataType} 資料`, {
+        errorCount: validationResult.errors.length,
+        warningCount: validationResult.warnings.length,
+        isValid: validationResult.isValid,
+      });
 
       // 特殊處理：rules 載入完成後初始化 GameHelpers
       if (dataType === "rules" && data && window.gameApp) {
@@ -119,14 +155,19 @@ export class DataManager {
 
       if (defaultData) {
         // 驗證預設資料
-        const defaultValidation = this.validateData(dataType, defaultData);
+        const defaultValidation = this.validateConfigData(
+          dataType,
+          defaultData
+        );
         if (defaultValidation.isValid) {
           this.cache.set(dataType, defaultData);
+          this.validationResults.set(dataType, defaultValidation);
           this.loadingStatus[dataType] = true;
-          console.log(`✅ ${dataType} 預設資料載入成功`);
+          console.log(`✅ ${dataType} 預設資料載入並驗證成功`);
           return defaultData;
         } else {
           console.error(`❌ 預設資料也驗證失敗:`, defaultValidation.errors);
+          this.recordValidationFailure(dataType, defaultValidation);
         }
       }
 
@@ -167,29 +208,80 @@ export class DataManager {
   }
 
   /**
-   * 資料驗證（使用新的驗證系統）
+   * 配置資料驗證（使用 ConfigValidators）
    * @param {string} dataType - 資料類型
-   * @param {any} data - 待驗證的資料
+   * @param {any} data - 待驗證的配置資料
    * @returns {ValidationResult} 驗證結果
    */
-  validateData(dataType, data) {
+  validateConfigData(dataType, data) {
     try {
-      const validationResult = this.validatorFactory.validate(dataType, data);
+      console.log(`🔍 開始驗證 ${dataType} 配置資料...`);
+
+      // 使用 ConfigValidators 系統
+      const validationResult = this.validatorFactory.validateConfig(
+        dataType,
+        data
+      );
+
+      // 記錄驗證統計
+      const summary = this._getValidationSummary(validationResult);
+      console.log(`📊 ${dataType} 驗證統計:`, summary);
 
       if (validationResult.isValid) {
-        console.log(`✅ ${dataType} 資料驗證通過`);
+        console.log(`✅ ${dataType} 配置驗證通過`);
       } else {
-        console.warn(`⚠️ ${dataType} 資料驗證失敗:`, validationResult.errors);
+        console.warn(`⚠️ ${dataType} 配置驗證失敗`);
       }
 
       return validationResult;
     } catch (error) {
-      console.error(`❌ 驗證器執行錯誤:`, error);
-      return new ValidationResult(false).addError(
-        `驗證過程發生錯誤: ${error.message}`,
+      console.error(`❌ ConfigValidator 執行錯誤:`, error);
+
+      const errorResult = new ValidationResult(false).addError(
+        `配置驗證過程發生錯誤: ${error.message}`,
         null,
-        ERROR_CODES.DATA_VALIDATION_FAILED
+        ERROR_CODES.DATA_VALIDATION_FAILED,
+        `${dataType} 配置驗證`
       );
+
+      this.recordValidationFailure(dataType, errorResult);
+      return errorResult;
+    }
+  }
+
+  /**
+   * 取得驗證結果摘要
+   * @private
+   */
+  _getValidationSummary(validationResult) {
+    return {
+      isValid: validationResult.isValid,
+      errorCount: validationResult.errors.length,
+      warningCount: validationResult.warnings.length,
+      timestamp: validationResult.timestamp,
+      hasContext: !!validationResult.context,
+    };
+  }
+
+  /**
+   * 記錄驗證失敗
+   * @private
+   */
+  recordValidationFailure(dataType, validationResult) {
+    const failureRecord = {
+      timestamp: new Date().toISOString(),
+      dataType,
+      errorCount: validationResult.errors.length,
+      warningCount: validationResult.warnings.length,
+      errors: validationResult.errors.slice(0, 5), // 只記錄前5個錯誤
+      code: ERROR_CODES.DATA_VALIDATION_FAILED,
+    };
+
+    this.errorLog.unshift(failureRecord);
+
+    // 限制錯誤記錄大小
+    if (this.errorLog.length > this.maxErrorLogSize) {
+      this.errorLog = this.errorLog.slice(0, this.maxErrorLogSize);
     }
   }
 
@@ -243,6 +335,22 @@ export class DataManager {
             "medical_production",
             "emergency_training",
           ],
+          rarity: "uncommon",
+          traits: ["professional", "cautious", "valuable"],
+          baseStats: {
+            health: 90,
+            workEfficiency: 85,
+            socialability: 70,
+            survivability: 75,
+          },
+          preferences: {
+            roomType: "clean",
+            neighbors: ["worker", "elder"],
+            conflicts: ["soldier"],
+          },
+          unlockConditions: {
+            day: 3,
+          },
         },
         {
           typeId: "worker",
@@ -265,6 +373,22 @@ export class DataManager {
             "daily_maintenance",
             "building_upgrade",
           ],
+          rarity: "common",
+          traits: ["practical", "hardworking", "reliable"],
+          baseStats: {
+            health: 95,
+            workEfficiency: 90,
+            socialability: 60,
+            survivability: 80,
+          },
+          preferences: {
+            roomType: "workshop",
+            neighbors: ["farmer", "doctor"],
+            conflicts: [],
+          },
+          unlockConditions: {
+            day: 1,
+          },
         },
         {
           typeId: "farmer",
@@ -287,6 +411,22 @@ export class DataManager {
             "wild_foraging",
             "food_preservation",
           ],
+          rarity: "common",
+          traits: ["natural", "patient", "resourceful"],
+          baseStats: {
+            health: 85,
+            workEfficiency: 75,
+            socialability: 80,
+            survivability: 85,
+          },
+          preferences: {
+            roomType: "garden_view",
+            neighbors: ["elder", "worker"],
+            conflicts: ["soldier"],
+          },
+          unlockConditions: {
+            day: 1,
+          },
         },
       ],
 
@@ -297,9 +437,33 @@ export class DataManager {
             name: "治療感染",
             type: "active",
             description: "治療感染的租客（消耗：3醫療用品 + $12酬勞）",
+            icon: "🏥",
             cost: { medical: 3, cash: 12 },
             cooldown: 0,
-            effects: [{ type: "healTenant", target: "infected" }],
+            requirements: {
+              conditions: [
+                {
+                  type: "hasTenantType",
+                  value: "infected",
+                  count: 1,
+                },
+              ],
+            },
+            effects: [
+              {
+                type: "modifyState",
+                target: "infected_tenant",
+                path: "infected",
+                value: false,
+              },
+              {
+                type: "logMessage",
+                message: "醫生成功治癒了感染租客",
+                logType: "skill",
+              },
+            ],
+            successRate: 95,
+            priority: 1,
           },
         ],
         worker: [
@@ -308,9 +472,32 @@ export class DataManager {
             name: "專業維修",
             type: "active",
             description: "以更少建材維修房間（只需1建材 + $10工資）",
+            icon: "🔧",
             cost: { materials: 1, cash: 10 },
             cooldown: 0,
-            effects: [{ type: "repairRoom", target: "needsRepair" }],
+            requirements: {
+              conditions: [
+                {
+                  type: "gameStateCheck",
+                  path: "rooms",
+                  operator: "hasNeedsRepair",
+                  value: true,
+                },
+              ],
+            },
+            effects: [
+              {
+                type: "repairRoom",
+                target: "needsRepair",
+              },
+              {
+                type: "logMessage",
+                message: "工人專業維修了房間",
+                logType: "skill",
+              },
+            ],
+            successRate: 100,
+            priority: 1,
           },
         ],
       },
@@ -319,23 +506,48 @@ export class DataManager {
         random_events: [
           {
             id: "zombie_attack",
+            category: "combat",
             title: "殭屍襲擊",
             description: "一群殭屍正在靠近房屋！",
             priority: 1,
+            trigger: {
+              type: "random",
+              probability: 0.3,
+              conditions: [
+                {
+                  type: "dayRange",
+                  min: 3,
+                },
+              ],
+            },
             choices: [
               {
                 id: "fortify_defense",
                 text: "加固防禦 (-5建材)",
+                icon: "🛡️",
                 conditions: [
-                  { type: "hasResource", resource: "materials", amount: 5 },
+                  {
+                    type: "hasResource",
+                    resource: "materials",
+                    amount: 5,
+                  },
                 ],
                 effects: [
-                  { type: "modifyResource", resource: "materials", amount: -5 },
+                  {
+                    type: "modifyResource",
+                    resource: "materials",
+                    amount: -5,
+                  },
                   {
                     type: "modifyState",
                     path: "buildingDefense",
                     value: 2,
                     operation: "add",
+                  },
+                  {
+                    type: "logMessage",
+                    message: "成功抵禦襲擊",
+                    logType: "event",
                   },
                 ],
               },
@@ -344,9 +556,27 @@ export class DataManager {
         ],
         conflict_events: [],
         special_events: [],
+        scripted_events: [],
       },
 
       rules: {
+        gameDefaults: {
+          initialResources: {
+            food: 20,
+            materials: 15,
+            medical: 10,
+            fuel: 8,
+            cash: 50,
+          },
+          initialRooms: {
+            count: 2,
+            defaultState: {
+              needsRepair: false,
+              reinforced: false,
+              tenant: null,
+            },
+          },
+        },
         gameBalance: {
           landlord: {
             dailyFoodConsumption: 2,
@@ -364,6 +594,12 @@ export class DataManager {
             satisfactionSystem: {
               baseValue: 50,
               range: { min: 0, max: 100 },
+              factors: {
+                reinforcedRoom: 3,
+                needsRepair: -8,
+                lowPersonalFood: -10,
+                highPersonalCash: 5,
+              },
             },
           },
           resources: {
@@ -374,15 +610,71 @@ export class DataManager {
               fuel: 8,
               cash: 50,
             },
+            dailyConsumption: {
+              fuel: 1,
+            },
+            warningThresholds: {
+              food: 5,
+              materials: 3,
+              medical: 2,
+              fuel: 2,
+              cash: 15,
+            },
           },
         },
         mechanics: {
-          harvest: { baseAmount: 2, cooldownDays: 2 },
-          scavenging: { maxPerDay: 2 },
-          building: { maxRooms: 6 },
+          harvest: {
+            baseAmount: 2,
+            farmerBonus: 2,
+            cooldownDays: 2,
+          },
+          scavenging: {
+            maxPerDay: 2,
+            baseSuccessRates: {
+              soldier: 85,
+              worker: 75,
+              farmer: 65,
+              doctor: 50,
+              elder: 40,
+            },
+          },
+          building: {
+            maxRooms: 6,
+            repairCosts: {
+              base: 3,
+              withWorker: 2,
+            },
+          },
+          events: {
+            randomEventChance: 0.3,
+            conflictBaseChance: 0.25,
+          },
         },
         progression: {
-          tenantUnlocks: {},
+          tenantUnlocks: {
+            doctor: {
+              minDay: 3,
+              conditions: ["medical_emergency_survived"],
+            },
+            soldier: {
+              minDay: 7,
+              conditions: ["buildingDefense >= 3"],
+            },
+            elder: {
+              minDay: 5,
+              conditions: ["totalTenants >= 2"],
+            },
+          },
+        },
+        ui: {
+          colorSchemes: {
+            critical: "#ff6666",
+            danger: "#ff3333",
+            warning: "#ffaa66",
+            normal: "#ffcc66",
+            good: "#66ccff",
+            excellent: "#66ff66",
+          },
         },
       },
     };
@@ -400,6 +692,15 @@ export class DataManager {
   }
 
   /**
+   * 取得驗證結果
+   * @param {string} dataType - 資料類型
+   * @returns {ValidationResult|null} 驗證結果，如果不存在則返回 null
+   */
+  getValidationResult(dataType) {
+    return this.validationResults.get(dataType) || null;
+  }
+
+  /**
    * 檢查資料是否已載入
    * @param {string} dataType - 資料類型
    * @returns {boolean} 是否已載入
@@ -409,20 +710,32 @@ export class DataManager {
   }
 
   /**
+   * 檢查資料是否驗證通過
+   * @param {string} dataType - 資料類型
+   * @returns {boolean} 是否驗證通過
+   */
+  isDataValid(dataType) {
+    const result = this.getValidationResult(dataType);
+    return result ? result.isValid : false;
+  }
+
+  /**
    * 清除快取
    * @param {string|null} dataType - 資料類型，如果為 null 則清除全部
    */
   clearCache(dataType = null) {
     if (dataType) {
       this.cache.delete(dataType);
+      this.validationResults.delete(dataType);
       this.loadingStatus[dataType] = false;
-      console.log(`🗑️ 清除 ${dataType} 快取`);
+      console.log(`🗑️ 清除 ${dataType} 快取和驗證結果`);
     } else {
       this.cache.clear();
+      this.validationResults.clear();
       Object.keys(this.loadingStatus).forEach((key) => {
         this.loadingStatus[key] = false;
       });
-      console.log("🗑️ 清除所有資料快取");
+      console.log("🗑️ 清除所有資料快取和驗證結果");
     }
   }
 
@@ -448,7 +761,15 @@ export class DataManager {
     const promises = dataTypes.map(async (type) => {
       try {
         const data = await this.loadData(type, forceReload);
-        return { type, status: "fulfilled", data };
+        const validation = this.getValidationResult(type);
+        return {
+          type,
+          status: "fulfilled",
+          data,
+          validation: validation
+            ? this._getValidationSummary(validation)
+            : null,
+        };
       } catch (error) {
         return { type, status: "rejected", error: error.message };
       }
@@ -458,10 +779,14 @@ export class DataManager {
 
     const loaded = {};
     const errors = {};
+    const validations = {};
 
     results.forEach((result) => {
       if (result.status === "fulfilled") {
         loaded[result.type] = result.data;
+        if (result.validation) {
+          validations[result.type] = result.validation;
+        }
       } else {
         errors[result.type] = result.error;
       }
@@ -476,7 +801,7 @@ export class DataManager {
       console.warn("⚠️ 載入失敗的資料類型:", Object.keys(errors));
     }
 
-    return { loaded, errors };
+    return { loaded, errors, validations };
   }
 
   /**
@@ -488,6 +813,25 @@ export class DataManager {
     const loaded = Object.values(this.loadingStatus).filter(Boolean).length;
     const progress = total > 0 ? (loaded / total) * 100 : 0;
 
+    // 統計驗證結果
+    const validationStats = {
+      total: this.validationResults.size,
+      passed: 0,
+      failed: 0,
+      warnings: 0,
+      errors: 0,
+    };
+
+    this.validationResults.forEach((result) => {
+      if (result.isValid) {
+        validationStats.passed++;
+      } else {
+        validationStats.failed++;
+      }
+      validationStats.warnings += result.warnings.length;
+      validationStats.errors += result.errors.length;
+    });
+
     return {
       total,
       loaded,
@@ -495,6 +839,7 @@ export class DataManager {
       details: { ...this.loadingStatus },
       errors: this.errorLog.length,
       cacheSize: this.cache.size,
+      validation: validationStats,
     };
   }
 
@@ -516,13 +861,30 @@ export class DataManager {
   }
 
   /**
-   * 驗證指定資料類型
+   * 驗證指定配置資料
    * @param {string} dataType - 資料類型
    * @param {any} data - 資料內容
    * @returns {ValidationResult} 驗證結果
    */
   validateSpecificData(dataType, data) {
-    return this.validateData(dataType, data);
+    return this.validateConfigData(dataType, data);
+  }
+
+  /**
+   * 批次驗證多種配置資料
+   * @param {Object} dataMap - 資料類型與資料的映射
+   * @returns {Object} 驗證結果映射
+   */
+  validateMultipleConfigs(dataMap) {
+    console.log(`🔍 批次驗證配置: ${Object.keys(dataMap).join(", ")}`);
+
+    const results = this.validatorFactory.validateMultipleConfigs(dataMap);
+
+    // 記錄批次驗證統計
+    const summary = ValidationUtils.summarizeValidationResults(results);
+    console.log(`📊 批次驗證統計:`, summary);
+
+    return results;
   }
 
   /**
@@ -534,15 +896,38 @@ export class DataManager {
   }
 
   /**
+   * 格式化驗證結果為可讀字串
+   * @param {string} dataType - 資料類型
+   * @returns {string} 格式化的驗證結果
+   */
+  getFormattedValidationResult(dataType) {
+    const result = this.getValidationResult(dataType);
+    if (!result) {
+      return `${dataType}: 未找到驗證結果`;
+    }
+
+    return ValidationUtils.formatValidationResult(result);
+  }
+
+  /**
    * 匯出偵錯資訊
    * @returns {Object} 完整的偵錯資訊
    */
   getDebugInfo() {
+    const loadingStatus = this.getLoadingStatus();
+
     return {
-      loadingStatus: this.getLoadingStatus(),
+      loadingStatus,
       cachedDataTypes: this.getLoadedDataTypes(),
       errorLog: this.getErrorLog(),
       validatorTypes: this.validatorFactory.getAvailableTypes(),
+      validatorStats: this.validatorFactory.getStats(),
+      validationResults: Object.fromEntries(
+        Array.from(this.validationResults.entries()).map(([type, result]) => [
+          type,
+          this._getValidationSummary(result),
+        ])
+      ),
       cacheInfo: {
         size: this.cache.size,
         keys: Array.from(this.cache.keys()),
@@ -550,6 +935,40 @@ export class DataManager {
       activePromises: Array.from(this.loadPromises.keys()),
       systemLimits: {
         maxErrorLogSize: this.maxErrorLogSize,
+      },
+    };
+  }
+
+  /**
+   * 健康檢查
+   * @returns {Object} 系統健康狀態
+   */
+  healthCheck() {
+    const status = this.getLoadingStatus();
+    const validatorStats = this.validatorFactory.getStats();
+
+    return {
+      status: status.loaded === status.total ? "healthy" : "degraded",
+      dataLoading: {
+        progress: status.progress,
+        loaded: status.loaded,
+        total: status.total,
+        errors: status.errors,
+      },
+      validation: {
+        systemReady: validatorStats.total > 0,
+        configValidators: validatorStats.configValidators,
+        instanceValidators: validatorStats.instanceValidators,
+        resultsStored: this.validationResults.size,
+      },
+      cache: {
+        size: this.cache.size,
+        hitRate:
+          this.cache.size > 0 ? (status.loaded / this.cache.size) * 100 : 0,
+      },
+      errors: {
+        count: this.errorLog.length,
+        recent: this.errorLog.slice(0, 3),
       },
     };
   }
