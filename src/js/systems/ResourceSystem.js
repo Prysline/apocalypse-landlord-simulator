@@ -1555,4 +1555,27 @@ export class ResourceSystem {
 
     return recommendations.sort((a, b) => b.priority - a.priority);
   }
+  
+  /**
+   * 檢查資源可用性
+   */
+  checkResourceAvailability(cost) {
+    const missing = {};
+    let allAvailable = true;
+
+    Object.keys(cost).forEach((resource) => {
+      const required = cost[resource];
+      const current = this.gameState.resources[resource] || 0;
+
+      if (current < required) {
+        missing[resource] = required - current;
+        allAvailable = false;
+      }
+    });
+
+    return {
+      available: allAvailable,
+      missing: allAvailable ? {} : missing,
+    };
+  }
 }

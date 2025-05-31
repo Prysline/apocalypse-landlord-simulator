@@ -716,6 +716,24 @@ export class GameHelpers {
   }
 
   /**
+   * 取得事件系統參數
+   */
+  getEventParameters() {
+    const mechanicsConfig = this.config?.mechanics || {};
+
+    return {
+      randomEventChance: mechanicsConfig.events?.randomEventChance || 0.3,
+      conflictBaseChance: mechanicsConfig.events?.conflictBaseChance || 0.25,
+      conflictModifiers: mechanicsConfig.events?.conflictModifiers || {
+        tenantCountMultiplier: 0.08,
+        satisfactionPenalty: 0.003,
+        resourceScarcityBonus: 0.1,
+        elderReduction: 0.12,
+      },
+    };
+  }
+
+  /**
    * 取得經濟相關參數 - 整合所有經濟和交易相關的配置參數
    *
    * @returns {Object} 包含各種經濟參數的物件
@@ -766,6 +784,21 @@ export class GameHelpers {
       ),
       tradeMarkup: this.getGameBalance("economy.trading.trademarkup", 1.2),
     };
+  }
+
+  /**
+   * 取得資源警告閾值
+   */
+  getResourceWarningThresholds() {
+    return (
+      this.config?.gameBalance?.resources?.warningThresholds || {
+        food: 5,
+        materials: 3,
+        medical: 2,
+        fuel: 2,
+        cash: 15,
+      }
+    );
   }
 
   // ==================== 名稱生成系統 ====================
@@ -1214,6 +1247,21 @@ export class GameHelpers {
     }
   }
 
+  /**
+   * 機率計算
+   */
+  calculateProbability(base, modifiers = []) {
+    let probability = base;
+
+    modifiers.forEach((modifier) => {
+      if (modifier.type === "hasTenantType") {
+        // 根據租客類型調整機率的邏輯
+        probability += modifier.bonus || 0;
+      }
+    });
+
+    return Math.max(0, Math.min(1, probability));
+  }
   // ==================== 工具方法 ====================
 
   /**
@@ -1584,12 +1632,15 @@ export class GameHelpers {
       "getConsumption",
       "getProbabilities",
       "getTimeParameters",
+      "getEventParameters",
       "getEconomicParameters",
+      "getResourceWarningThresholds",
       "generateName",
       "getDefenseStatus",
       "getHungerStatus",
       "calculateTenantSatisfaction",
       "calculateResourceScarcity",
+      "calculateProbability",
     ]);
     console.groupEnd();
   }
