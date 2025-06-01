@@ -1,0 +1,526 @@
+/**
+ * components.css - UI元件樣式系統
+ * 職責：按鈕、模態框、房間、租客清單等互動元件樣式
+ */
+
+/* === 按鈕元件系統 === */
+.btn {
+    background: #4a4a4a;
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-primary);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: all var(--animation-duration-normal);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    user-select: none;
+    display: inline-block;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.btn:hover {
+    background: #555;
+    border-color: var(--color-border-hover);
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn:disabled {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn.danger {
+    background: #664444;
+    border-color: #aa6666;
+}
+
+.btn.danger:hover {
+    background: #774444;
+    border-color: #bb7777;
+}
+
+.btn.success {
+    background: #446644;
+    border-color: #66aa66;
+}
+
+.btn.success:hover {
+    background: #447744;
+    border-color: #77bb77;
+}
+
+.btn.special {
+    background: #666644;
+    border-color: #aaaa66;
+}
+
+.btn.special:hover {
+    background: #777744;
+    border-color: #bbbb77;
+}
+
+/* === 房間佈局與房間元件 === */
+.house-layout {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.room {
+    aspect-ratio: 1;
+    border: 2px solid var(--color-border-default);
+    background: var(--color-bg-tertiary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--animation-duration-normal);
+    position: relative;
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-sm);
+}
+
+.room:hover {
+    border-color: var(--color-border-hover);
+    background: #444;
+    transform: scale(1.02);
+}
+
+.room.occupied {
+    background: #2d4a2d;
+    border-color: #4a7c59;
+}
+
+.room.needs-repair {
+    background: #4a2d2d;
+    border-color: #7c4a4a;
+}
+
+.room.infected {
+    background: #4a2d2d;
+    border-color: var(--color-danger);
+    animation: var(--animation-pulse);
+}
+
+.room.reinforced {
+    border-color: #4a7c9a;
+    box-shadow: inset 0 0 10px rgba(74, 124, 154, 0.3);
+}
+
+.tenant-info {
+    font-size: var(--font-size-sm);
+    text-align: center;
+    line-height: var(--line-height-compact);
+}
+
+/* === 租客清單元件 === */
+.tenant-list {
+    margin-bottom: var(--spacing-lg);
+}
+
+.tenant-item {
+    background: var(--color-bg-tertiary);
+    margin: 5px 0;
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-compact);
+    transition: background-color var(--animation-duration-normal);
+    border-left: 3px solid transparent;
+}
+
+.tenant-item:hover {
+    background: #444;
+}
+
+.tenant-item.infected {
+    background: #663333;
+    border-left-color: var(--color-danger);
+}
+
+.tenant-item.doctor {
+    border-left-color: var(--color-doctor);
+}
+
+.tenant-item.worker {
+    border-left-color: var(--color-worker);
+}
+
+.tenant-item.soldier {
+    border-left-color: var(--color-soldier);
+}
+
+.tenant-item.farmer {
+    border-left-color: var(--color-farmer);
+}
+
+.tenant-item.elder {
+    border-left-color: var(--color-elder);
+}
+
+/* === 模態框元件系統 === */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    animation: modalFadeIn var(--animation-duration-normal) ease-out;
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-bg-primary);
+    border: 2px solid var(--color-border-default);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-xl);
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    animation: modalSlideIn var(--animation-duration-normal) ease-out;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-default);
+    padding-bottom: var(--spacing-sm);
+}
+
+.modal-content p {
+    margin: 6px 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+}
+
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    justify-content: flex-end;
+}
+
+/* === 申請者/訪客元件 === */
+.applicant {
+    background: var(--color-bg-tertiary);
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border-default);
+    transition: all var(--animation-duration-normal);
+}
+
+.applicant:hover {
+    background: #444;
+    border-color: var(--color-border-hover);
+}
+
+.applicant.infected {
+    background: #663333;
+    border-color: var(--color-danger);
+    animation: var(--animation-pulse);
+}
+
+.applicant.trader {
+    background: #334466;
+    border-color: #6688aa;
+}
+
+/* === 技能系統元件 === */
+.tenant-skill-group {
+    background: #2d3d2d;
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-lg);
+    border-left: 4px solid var(--color-info);
+    border: 1px solid var(--color-border-default);
+}
+
+.tenant-skill-group h4 {
+    color: var(--color-info);
+    margin: var(--spacing-lg) 0 var(--spacing-md) 0;
+    font-size: var(--font-size-md);
+}
+
+.skill-actions {
+    background: #1e2e1e;
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    margin: var(--spacing-sm) 0;
+    border-left: 3px solid var(--color-warning);
+    border: 1px solid #333;
+}
+
+.skill-actions h5 {
+    margin: 0 0 5px 0;
+    color: var(--color-warning);
+    font-size: var(--font-size-sm);
+}
+
+.skill-actions p {
+    margin: 5px 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-compact);
+}
+
+/* === 表單元件 === */
+input,
+select,
+textarea {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-default);
+    color: var(--color-text-primary);
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px rgba(102, 204, 255, 0.2);
+}
+
+/* === 提示系統 === */
+.tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    z-index: 1001;
+    animation: tooltipFadeIn var(--animation-duration-fast) ease-out;
+}
+
+/* === 載入指示器 === */
+.loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-border-default);
+    border-radius: 50%;
+    border-top-color: var(--color-info);
+    animation: spin 1s ease-in-out infinite;
+}
+
+/* === 通知系統 === */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-md);
+    max-width: 300px;
+    z-index: 1500;
+    animation: notificationSlideIn var(--animation-duration-normal) ease-out;
+}
+
+.notification.success {
+    border-color: var(--color-success);
+    background: rgba(102, 255, 102, 0.1);
+}
+
+.notification.warning {
+    border-color: var(--color-warning);
+    background: rgba(255, 204, 102, 0.1);
+}
+
+.notification.danger {
+    border-color: var(--color-danger);
+    background: rgba(255, 102, 102, 0.1);
+}
+
+/* === 進度條元件 === */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    transition: width var(--animation-duration-normal) ease-out;
+}
+
+/* === 標籤系統 === */
+.tag {
+    display: inline-block;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    padding: 2px var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    margin: 2px;
+    border: 1px solid var(--color-border-default);
+}
+
+.tag.status-good {
+    background: rgba(102, 255, 102, 0.2);
+    border-color: var(--color-success);
+}
+
+.tag.status-warning {
+    background: rgba(255, 204, 102, 0.2);
+    border-color: var(--color-warning);
+}
+
+.tag.status-danger {
+    background: rgba(255, 102, 102, 0.2);
+    border-color: var(--color-danger);
+}
+
+/* === 動畫定義 === */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes notificationSlideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* === 響應式元件調整 === */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        padding: var(--spacing-lg);
+    }
+
+    .house-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .resources {
+        grid-template-columns: 1fr;
+    }
+
+    .btn {
+        padding: var(--spacing-md) var(--spacing-lg);
+        font-size: var(--font-size-md);
+    }
+
+    .action-buttons {
+        justify-content: center;
+    }
+
+    .tenant-skill-group {
+        padding: var(--spacing-md);
+    }
+}
+
+/* === 可訪問性增強 === */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* === 焦點管理 === */
+.btn:focus,
+.room:focus,
+.tenant-item:focus {
+    outline: 2px solid var(--color-info);
+    outline-offset: 2px;
+}
+
+/* === 高對比度模式元件調整 === */
+@media (prefers-contrast: high) {
+    .btn {
+        border-width: 2px;
+    }
+
+    .room {
+        border-width: 3px;
+    }
+
+    .modal-content {
+        border-width: 3px;
+    } }

@@ -1,6 +1,6 @@
 /**
- * 末日房東模擬器 - 主程式進入點
- * 職責：應用程式初始化、模組載入協調、全域狀態管理
+ * 末日房東模擬器 - 主程式進入點 v2.0
+ * 職責：應用程式初始化、業務邏輯協調、系統狀態管理
  */
 
 // 核心系統模組
@@ -12,6 +12,9 @@ import { GameBridge } from "./core/GameBridge.js";
 import { TenantSystem } from "./systems/TenantSystem.js";
 import { ResourceSystem } from "./systems/ResourceSystem.js";
 import { SkillSystem } from "./systems/SkillSystem.js";
+
+// UI 系統模組
+import { UIManager } from "./ui/UIManager.js";
 
 // 工具函數模組
 import { GameHelpers } from "./utils/helpers.js";
@@ -26,7 +29,7 @@ import {
 } from "./utils/constants.js";
 
 /**
- * 應用程式主類
+ * 應用程式主類 v2.0 - 純業務邏輯版本
  */
 class Game {
   constructor() {
@@ -44,6 +47,9 @@ class Game {
     this.resourceSystem = null;
     this.skillSystem = null;
 
+    // UI 系統模組實例
+    this.uiManager = null;
+
     // 配置狀態
     this.configLoaded = false;
     this.rulesConfig = null;
@@ -57,6 +63,7 @@ class Game {
       tenantSystem: false,
       resourceSystem: false,
       skillSystem: false,
+      uiManager: false,
       configApplied: false,
       complete: false,
     };
@@ -99,10 +106,10 @@ class Game {
   }
 
   /**
-   * 應用程式初始化主流程
+   * 應用程式初始化主流程 v2.0
    */
   async initialize() {
-    console.log("🎮 末日房東模擬器啟動中...");
+    console.log("🎮 末日房東模擬器 v2.0 啟動中...");
 
     try {
       // 階段 1：初始化核心系統
@@ -120,8 +127,8 @@ class Game {
       // 階段 5：建立系統整合
       await this.establishSystemIntegration();
 
-      // 階段 6：啟動遊戲介面
-      await this.initializeGameInterface();
+      // 階段 6：初始化 UI 系統
+      await this.initializeUISystem();
 
       // 階段 7：完成啟動
       this.completeInitialization();
@@ -139,12 +146,10 @@ class Game {
     // 初始化資料管理器
     this.dataManager = new DataManager();
     this.initializationStatus.dataManager = true;
-    this.updateSystemStatus("dataSystem", "✅ 已載入");
 
     // 初始化規則引擎
     this.ruleEngine = new RuleEngine(this.gameState);
     this.initializationStatus.ruleEngine = true;
-    this.updateSystemStatus("ruleEngine", "✅ 就緒");
 
     // 初始化遊戲橋接器
     this.gameBridge = new GameBridge(
@@ -153,7 +158,6 @@ class Game {
       this.ruleEngine
     );
     this.initializationStatus.gameBridge = true;
-    this.updateSystemStatus("gameBridge", "✅ 連接");
 
     // 初始化遊戲輔助工具
     this.gameHelpers = new GameHelpers();
@@ -302,12 +306,6 @@ class Game {
   async establishSystemIntegration() {
     console.log("🔗 正在建立系統整合...");
 
-    // 設定事件監聽
-    this.setupEventListeners();
-
-    // 設定全域函數代理
-    this.setupGlobalFunctionProxies();
-
     // 建立租客系統事件監聽
     this.setupTenantSystemEvents();
 
@@ -332,13 +330,13 @@ class Game {
     // 監聽租客雇用事件
     this.tenantSystem.on("tenantHired", (data) => {
       console.log(`🎉 租客雇用成功: ${data.tenant.name}`);
-      this.updateDisplay();
+      this.notifyUIUpdate("tenants");
     });
 
     // 監聽租客離開事件
     this.tenantSystem.on("tenantEvicted", (data) => {
       console.log(`👋 租客離開: ${data.tenant.name} (${data.reason})`);
-      this.updateDisplay();
+      this.notifyUIUpdate("tenants");
     });
 
     // 監聽雇用失敗事件
@@ -349,7 +347,7 @@ class Game {
         no_available_room: "沒有可用房間",
       };
       const message = reasonMessages[data.reason] || data.reason;
-      alert(message);
+      this.showUserMessage(message);
     });
   }
 
@@ -364,19 +362,19 @@ class Game {
       console.log(
         `💰 資源更新: ${data.type} ${data.amount > 0 ? "+" : ""}${data.amount}`
       );
-      this.updateDisplay();
+      this.notifyUIUpdate("resources");
     });
 
     // 監聽資源警告事件
     this.resourceSystem.on("resourceWarning", (data) => {
       console.warn(`⚠️ 資源警告: ${data.message}`);
-      this.addLog(data.message, "danger");
+      this.addGameLog(data.message, "danger");
     });
 
     // 監聽交易事件
     this.resourceSystem.on("tradeCompleted", (data) => {
       console.log(`💱 交易完成: ${data.description}`);
-      this.updateDisplay();
+      this.notifyUIUpdate("resources");
     });
   }
 
@@ -389,14 +387,17 @@ class Game {
     // 監聽技能執行事件
     this.skillSystem.addEventListener("skillExecuted", (event) => {
       const { tenantName, skillName, result } = event.detail;
-      this.addLog(`${tenantName} 使用了技能：${skillName}`, "skill");
-      this.updateDisplay();
+      this.addGameLog(`${tenantName} 使用了技能：${skillName}`, "skill");
+      this.notifyUIUpdate("fullUpdate");
     });
 
     // 監聽被動技能觸發
     this.skillSystem.addEventListener("passiveSkillTriggered", (event) => {
       const { tenant, skill } = event.detail;
-      this.addLog(`${tenant.name} 的被動技能 ${skill.name} 被觸發`, "skill");
+      this.addGameLog(
+        `${tenant.name} 的被動技能 ${skill.name} 被觸發`,
+        "skill"
+      );
     });
 
     // 監聽租客移除請求
@@ -449,167 +450,94 @@ class Game {
   }
 
   /**
-   * 初始化遊戲介面
+   * 初始化 UI 系統 v2.0
    */
-  async initializeGameInterface() {
-    console.log("🖥️ 正在初始化遊戲介面...");
+  async initializeUISystem() {
+    console.log("🎨 正在初始化 UI 系統...");
 
-    // 建立基礎介面事件監聽
-    this.setupUIEventListeners();
+    try {
+      // 初始化 UIManager
+      this.uiManager = new UIManager(this);
+      const uiInitSuccess = await this.uiManager.initialize();
+      this.initializationStatus.uiManager = uiInitSuccess;
 
-    // 初始化遊戲記錄
-    this.addLog(MESSAGE_TEMPLATES.SYSTEM.READY, "event");
-    this.addLog("業務系統模組已啟用", "event");
+      if (uiInitSuccess) {
+        // 初始化遊戲記錄
+        this.addGameLog(MESSAGE_TEMPLATES.SYSTEM.READY, "event");
+        this.addGameLog("v2.0 模組化系統已啟用", "event");
 
-    if (this.gameHelpers && this.gameHelpers.getStatus().configLoaded) {
-      this.addLog("✅ 遊戲配置載入成功", "event");
-    } else {
-      this.addLog("⚠️ 使用後備配置模式", "danger");
+        if (this.gameHelpers && this.gameHelpers.getStatus().configLoaded) {
+          this.addGameLog("✅ 遊戲配置載入成功", "event");
+        } else {
+          this.addGameLog("⚠️ 使用後備配置模式", "danger");
+        }
+
+        // 系統狀態報告
+        if (
+          this.resourceSystem &&
+          this.resourceSystem.getStatus().initialized
+        ) {
+          this.addGameLog("✅ 資源管理系統已啟用", "event");
+        }
+        if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
+          this.addGameLog("✅ 租客管理系統已啟用", "event");
+        }
+        if (this.skillSystem && this.skillSystem.getStatus().initialized) {
+          this.addGameLog("✅ 技能管理系統已啟用", "event");
+        }
+
+        // 執行初始顯示更新
+        this.notifyUIUpdate("fullUpdate");
+
+        console.log("✅ UI 系統初始化完成");
+      } else {
+        console.warn("⚠️ UI 系統初始化失敗，將使用降級模式");
+        this.attemptFallbackUI();
+      }
+    } catch (error) {
+      console.error("❌ UI 系統初始化失敗:", error);
+      this.initializationStatus.uiManager = false;
+      this.attemptFallbackUI();
     }
-
-    // 系統狀態報告
-    if (this.resourceSystem && this.resourceSystem.getStatus().initialized) {
-      this.addLog("✅ 資源管理系統已啟用", "event");
-    }
-    if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
-      this.addLog("✅ 租客管理系統已啟用", "event");
-    }
-    if (this.skillSystem && this.skillSystem.getStatus().initialized) {
-      this.addLog("✅ 技能管理系統已啟用", "event");
-    }
-
-    // 更新顯示
-    this.updateDisplay();
-
-    console.log("✅ 遊戲介面初始化完成");
   }
 
   /**
-   * 完成初始化流程
+   * 降級 UI 處理
+   */
+  attemptFallbackUI() {
+    console.log("🔄 嘗試降級 UI 模式...");
+
+    // 設定基本的全域函數
+    window.gameApp = this;
+
+    // 基本的顯示更新函數
+    window.updateDisplay = () => {
+      console.log("⚠️ 使用降級顯示更新");
+    };
+
+    window.addLog = (message, type) => {
+      console.log(`📜 遊戲記錄: ${message} (${type})`);
+    };
+  }
+
+  /**
+   * 完成初始化流程 v2.0
    */
   completeInitialization() {
     this.initializationStatus.complete = true;
 
-    // 更新系統狀態顯示
-    const statusEl = document.getElementById("systemStatus");
-    if (statusEl) {
-      const resourceOK = this.initializationStatus.resourceSystem;
-      const tenantOK = this.initializationStatus.tenantSystem;
-      const skillOK = this.initializationStatus.skillSystem;
-      const configOK = this.configLoaded;
-
-      if (configOK && resourceOK && tenantOK && skillOK) {
-        statusEl.textContent = "🟢 完整模組化系統 - 運行中";
-      } else if (configOK && (resourceOK || tenantOK || skillOK)) {
-        statusEl.textContent = "🟡 部分模組化系統 - 降級模式";
-      } else {
-        statusEl.textContent = "🟡 基礎系統 - 後備模式";
-      }
-      statusEl.className = "system-status modular";
-    }
-
-    console.log("🎯 末日房東模擬器啟動完成！");
+    console.log("🎯 末日房東模擬器 v2.0 啟動完成！");
     console.log("📊 系統狀態:", this.getSystemStatus());
   }
 
   /**
-   * 設定事件監聽器
-   */
-  setupEventListeners() {
-    // 使用事件委派處理所有按鈕點擊
-    document.addEventListener("click", (event) => {
-      const target = event.target;
-
-      // 房間點擊事件
-      if (target.classList.contains("room")) {
-        const roomId = parseInt(target.id.replace("room", ""));
-        this.handleRoomClick(roomId);
-        return;
-      }
-
-      // 按鈕點擊事件
-      switch (target.id) {
-        case "collectRentBtn":
-          this.handleCollectRent();
-          break;
-        case "showVisitorsBtn":
-          this.handleShowVisitors();
-          break;
-        case "showScavengeBtn":
-          this.handleShowScavenge();
-          break;
-        case "harvestYardBtn":
-          this.handleHarvestYard();
-          break;
-        case "showSkillBtn":
-          this.handleShowSkills();
-          break;
-        case "nextDayBtn":
-          this.handleNextDay();
-          break;
-        case "closeVisitorModal":
-        case "closeSkillModal":
-          this.closeModal();
-          break;
-      }
-    });
-  }
-
-  /**
-   * 設定全域函數代理
-   */
-  setupGlobalFunctionProxies() {
-    // 設定全域遊戲功能函數
-    window.gameApp = this;
-
-    // 向後相容性函數
-    window.addLog = (message, type) => this.addLog(message, type);
-    window.updateDisplay = () => this.updateDisplay();
-    window.closeModal = () => this.closeModal();
-
-    // 租客相關函數
-    window.hireTenant = (applicantId) => this.hireTenant(applicantId);
-    window.generateApplicants = () => this.generateApplicants();
-
-    // 搜刮相關函數
-    window.sendTenantOnScavenge = (tenantName) =>
-      this.sendTenantOnScavenge(tenantName);
-  }
-
-  /**
-   * 設定UI事件監聽器
-   */
-  setupUIEventListeners() {
-    // 鍵盤快捷鍵
-    document.addEventListener("keydown", (event) => {
-      switch (event.key) {
-        case "r":
-        case "R":
-          if (!event.ctrlKey && !event.altKey) {
-            this.handleCollectRent();
-          }
-          break;
-        case "v":
-        case "V":
-          if (!event.ctrlKey && !event.altKey) {
-            this.handleShowVisitors();
-          }
-          break;
-        case "Escape":
-          this.closeModal();
-          break;
-      }
-    });
-  }
-
-  /**
-   * 遊戲核心功能實作（三系統整合版）
+   * 遊戲核心功能實作（純業務邏輯版）
    */
 
-  // 收租功能（使用 ResourceSystem）
+  // 收租功能
   handleCollectRent() {
     if (this.gameState.rentCollected) {
-      alert("今天已經收過房租了！");
+      this.showUserMessage("今天已經收過房租了！");
       return;
     }
 
@@ -642,56 +570,24 @@ class Game {
     this.gameState.rentCollected = true;
 
     if (totalRent > 0) {
-      this.addLog(`收取房租 $${totalRent}`, "rent");
+      this.addGameLog(`收取房租 $${totalRent}`, "rent");
     } else {
-      this.addLog("今日沒有房租收入", "event");
+      this.addGameLog("今日沒有房租收入", "event");
     }
 
-    this.updateDisplay();
+    this.notifyUIUpdate("resources");
   }
 
-  // 顯示訪客（使用 TenantSystem）
+  // 顯示訪客
   handleShowVisitors() {
-    console.log("🚪 顯示訪客列表...");
-
-    // 使用 TenantSystem 生成申請者
-    const applicants = this.generateApplicants();
-
-    const modal = document.getElementById("visitorModal");
-    const list = document.getElementById("visitorList");
-
-    if (applicants.length === 0) {
-      list.innerHTML = '<div class="applicant">今日沒有訪客前來應徵</div>';
+    if (this.uiManager) {
+      this.uiManager.showVisitorModal();
     } else {
-      list.innerHTML = applicants
-        .map(
-          (applicant) => `
-        <div class="applicant ${applicant.infected ? "infected" : ""}">
-          <strong>${applicant.name}</strong> - ${
-            applicant.typeName || applicant.type
-          }<br>
-          <small>${applicant.description || "尋找住所的倖存者"}</small><br>
-          <small style="color: #aaa;">外觀: ${applicant.appearance}</small><br>
-          房租: ${applicant.rent}/天<br>
-          ${
-            applicant.personalResources
-              ? `<small>個人資源: 食物${applicant.personalResources.food} 現金$${applicant.personalResources.cash}</small><br>`
-              : ""
-          }
-          <button class="btn ${applicant.infected ? "danger" : ""}" 
-                  onclick="window.gameApp.hireTenant('${applicant.id}')">
-            雇用${applicant.infected ? " (危險)" : ""}
-          </button>
-        </div>
-      `
-        )
-        .join("");
+      this.showUserMessage("訪客系統暫時不可用");
     }
-
-    modal.style.display = "block";
   }
 
-  // 生成申請者（使用 TenantSystem）
+  // 生成申請者
   generateApplicants() {
     if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
       return this.tenantSystem.generateApplicants();
@@ -701,7 +597,7 @@ class Game {
     }
   }
 
-  // 雇用租客（使用 TenantSystem）
+  // 雇用租客
   hireTenant(applicantId) {
     console.log(`🤝 嘗試雇用申請者: ${applicantId}`);
 
@@ -709,25 +605,27 @@ class Game {
       const success = this.tenantSystem.hireTenant(applicantId);
       if (success) {
         this.closeModal();
-        this.updateDisplay();
+        this.notifyUIUpdate("fullUpdate");
       }
       return success;
     } else {
       console.warn("⚠️ TenantSystem 不可用");
-      alert("租客系統暫時不可用");
+      this.showUserMessage("租客系統暫時不可用");
       return false;
     }
   }
 
-  // 院子採集（使用 ResourceSystem）
+  // 院子採集
   handleHarvestYard() {
     if (this.gameState.harvestUsed) {
-      alert("今天已經採集過院子了！");
+      this.showUserMessage("今天已經採集過院子了！");
       return;
     }
 
     if (this.gameState.harvestCooldown > 0) {
-      alert(`院子需要休息 ${this.gameState.harvestCooldown} 天才能再次採集！`);
+      this.showUserMessage(
+        `院子需要休息 ${this.gameState.harvestCooldown} 天才能再次採集！`
+      );
       return;
     }
 
@@ -752,9 +650,9 @@ class Game {
           : { harvestCooldownDays: 2 };
         this.gameState.harvestCooldown = timeParams.harvestCooldownDays;
 
-        this.updateDisplay();
+        this.notifyUIUpdate("resources");
       } else {
-        this.addLog("院子採集失敗", "danger");
+        this.addGameLog("院子採集失敗", "danger");
       }
     } else {
       // 後備處理
@@ -764,28 +662,23 @@ class Game {
       this.gameState.harvestUsed = true;
       this.gameState.harvestCooldown = 2;
 
-      this.addLog(`院子採集獲得 ${totalAmount} 食物`, "rent");
-      this.updateDisplay();
+      this.addGameLog(`院子採集獲得 ${totalAmount} 食物`, "rent");
+      this.notifyUIUpdate("resources");
     }
   }
 
-  // 搜刮系統（使用 ResourceSystem）
+  // 搜刮系統
   handleShowScavenge() {
     if (this.gameState.scavengeUsed >= this.gameState.maxScavengePerDay) {
-      alert("今天的搜刮次數已用完！");
+      this.showUserMessage("今天的搜刮次數已用完！");
       return;
     }
 
-    // 檢查可用租客
-    const availableTenants = this.getAvailableTenantsForScavenge();
-
-    if (availableTenants.length === 0) {
-      alert("沒有可派遣的租客！");
-      return;
+    if (this.uiManager) {
+      this.uiManager.showScavengeModal();
+    } else {
+      this.showUserMessage("搜刮系統暫時不可用");
     }
-
-    // 顯示搜刮選單
-    this.showScavengeMenu(availableTenants);
   }
 
   // 取得可搜刮的租客
@@ -795,55 +688,6 @@ class Game {
         (room) => room.tenant && !room.tenant.infected && !room.tenant.onMission
       )
       .map((room) => room.tenant);
-  }
-
-  // 顯示搜刮選單
-  showScavengeMenu(availableTenants) {
-    const modal = document.getElementById("scavengeModal");
-    const list = document.getElementById("availableTenants");
-    const remainingEl = document.getElementById("remainingScavenges");
-
-    if (!modal || !list || !remainingEl) {
-      console.warn("⚠️ 搜刮選單 DOM 元素缺失");
-      return;
-    }
-
-    remainingEl.textContent =
-      this.gameState.maxScavengePerDay - this.gameState.scavengeUsed;
-
-    list.innerHTML = availableTenants
-      .map((tenant) => {
-        // 計算成功率
-        const successRate = this.calculateScavengeSuccessRate(tenant);
-        const riskLevel =
-          successRate >= 80 ? "低" : successRate >= 60 ? "中" : "高";
-        const riskColor =
-          successRate >= 80
-            ? "#66ff66"
-            : successRate >= 60
-            ? "#ffcc66"
-            : "#ff6666";
-
-        return `
-        <div class="applicant">
-          <strong>${tenant.name}</strong> - ${
-          tenant.typeName || tenant.type
-        }<br>
-          <small>成功率: ${successRate}% (風險: <span style="color: ${riskColor}">${riskLevel}</span>)</small><br>
-          <small>個人狀況: 食物${tenant.personalResources?.food || 0} 醫療${
-          tenant.personalResources?.medical || 0
-        }</small><br>
-          <button class="btn" onclick="window.gameApp.sendTenantOnScavenge('${
-            tenant.name
-          }')">
-            派遣搜刮
-          </button>
-        </div>
-      `;
-      })
-      .join("");
-
-    modal.style.display = "block";
   }
 
   // 計算搜刮成功率
@@ -878,12 +722,12 @@ class Game {
       .find((t) => t && t.name === tenantName);
 
     if (!tenant) {
-      alert("找不到指定租客！");
+      this.showUserMessage("找不到指定租客！");
       return;
     }
 
     if (this.gameState.scavengeUsed >= this.gameState.maxScavengePerDay) {
-      alert("今天的搜刮次數已用完！");
+      this.showUserMessage("今天的搜刮次數已用完！");
       return;
     }
 
@@ -901,13 +745,13 @@ class Game {
 
     this.gameState.scavengeUsed++;
     this.closeModal();
-    this.updateDisplay();
+    this.notifyUIUpdate("fullUpdate");
   }
 
   // 處理搜刮結果
   handleScavengeResult(tenant, result) {
     if (result.success) {
-      this.addLog(`${tenant.name} 搜刮成功！`, "rent");
+      this.addGameLog(`${tenant.name} 搜刮成功！`, "rent");
 
       // 顯示獲得的資源
       const rewardDesc = Object.keys(result.rewards)
@@ -915,10 +759,10 @@ class Game {
         .join(", ");
 
       if (rewardDesc) {
-        this.addLog(`獲得: ${rewardDesc}`, "rent");
+        this.addGameLog(`獲得: ${rewardDesc}`, "rent");
       }
     } else {
-      this.addLog(`${tenant.name} 搜刮失敗`, "danger");
+      this.addGameLog(`${tenant.name} 搜刮失敗`, "danger");
 
       // 處理搜刮失敗後果
       if (result.injury) {
@@ -933,7 +777,7 @@ class Game {
       case "infection_risk":
         if (Math.random() < 0.3) {
           tenant.infected = true;
-          this.addLog(`${tenant.name} 可能被感染了！`, "danger");
+          this.addGameLog(`${tenant.name} 可能被感染了！`, "danger");
         }
         break;
       case "resource":
@@ -942,12 +786,11 @@ class Game {
             0,
             tenant.personalResources.food - 2
           );
-          this.addLog(`${tenant.name} 損失了一些個人物品`, "danger");
+          this.addGameLog(`${tenant.name} 損失了一些個人物品`, "danger");
         }
         break;
       case "health":
-        // 健康狀態影響，可在後續版本實作
-        this.addLog(`${tenant.name} 受了輕傷`, "danger");
+        this.addGameLog(`${tenant.name} 受了輕傷`, "danger");
         break;
     }
   }
@@ -958,24 +801,22 @@ class Game {
     const isSuccess = Math.random() * 100 < successRate;
 
     if (isSuccess) {
-      // 簡單的資源獎勵
       const foodGain = Math.floor(Math.random() * 5) + 3;
       const materialsGain = Math.floor(Math.random() * 3) + 1;
 
       this.gameState.resources.food += foodGain;
       this.gameState.resources.materials += materialsGain;
 
-      this.addLog(
+      this.addGameLog(
         `${tenant.name} 搜刮成功，獲得 ${foodGain} 食物、${materialsGain} 建材`,
         "rent"
       );
     } else {
-      this.addLog(`${tenant.name} 搜刮失敗`, "danger");
+      this.addGameLog(`${tenant.name} 搜刮失敗`, "danger");
 
-      // 失敗可能導致受傷
       if (Math.random() < 0.3) {
         tenant.infected = Math.random() < 0.2;
-        this.addLog(
+        this.addGameLog(
           `${tenant.name} ${tenant.infected ? "被感染了" : "受了輕傷"}`,
           "danger"
         );
@@ -987,142 +828,101 @@ class Game {
   handleRoomClick(roomId) {
     const room = this.gameState.rooms.find((r) => r.id === roomId);
 
+    if (!room) {
+      this.showUserMessage("找不到指定房間");
+      return;
+    }
+
     if (room.tenant) {
+      // 房間有租客的情況
       const tenant = room.tenant;
       const satisfaction = this.gameState.tenantSatisfaction[tenant.name] || 50;
+      const statusIcon =
+        satisfaction >= 70 ? "😊" : satisfaction >= 40 ? "😐" : "😞";
 
-      // 使用 TenantSystem 獲取詳細資訊
-      let detailInfo = "";
+      let detailInfo = `房間 ${roomId} - ${tenant.name}\n`;
+      detailInfo += `類型: ${tenant.typeName || tenant.type}\n`;
+      detailInfo += `技能: ${tenant.skill || "未知"}\n`;
+      detailInfo += `房租: ${tenant.rent}/天\n`;
+      detailInfo += `滿意度: ${satisfaction}% ${statusIcon}\n`;
+      detailInfo += `狀態: ${tenant.infected ? "已感染" : "健康"}`;
+
+      // 增加詳細租客資訊
       if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
         const tenantState = this.tenantSystem.getTenantState(tenant.name);
-        if (tenantState) {
-          detailInfo = `\n住了 ${tenantState.stats.daysLived} 天`;
+        if (tenantState?.stats) {
+          detailInfo += `\n居住天數: ${tenantState.stats.daysLived} 天`;
+
           if (tenantState.stats.satisfactionHistory.length > 1) {
             const trend = tenantState.stats.satisfactionHistory.slice(-2);
             const change = trend[1] - trend[0];
-            detailInfo +=
-              change > 0
-                ? " (滿意度上升)"
-                : change < 0
-                ? " (滿意度下降)"
-                : " (滿意度穩定)";
+            const trendText =
+              change > 0 ? "↗ 上升" : change < 0 ? "↘ 下降" : "→ 穩定";
+            detailInfo += `\n滿意度趨勢: ${trendText}`;
           }
         }
       }
 
-      alert(
-        `房間 ${roomId} - ${tenant.name}\n類型: ${
-          tenant.typeName || tenant.type
-        }\n房租: ${tenant.rent}/天\n滿意度: ${satisfaction}%\n狀態: ${
-          tenant.infected ? "已感染" : "健康"
-        }${detailInfo}`
-      );
-    } else {
-      alert(`房間 ${roomId} - 空房\n點擊「查看訪客」來招募租客`);
-    }
-  }
-
-  /**
-   * 技能選單顯示（使用 SkillSystem）
-   */
-  handleShowSkills() {
-    if (!this.skillSystem?.getStatus().initialized) {
-      alert("技能系統載入中，請稍候...");
-      return;
-    }
-
-    const modal = document.getElementById("skillModal");
-    const skillList = document.getElementById("skillList");
-
-    const skillsByTenant = [];
-
-    this.gameState.rooms.forEach((room) => {
-      if (room.tenant && !room.tenant.infected) {
-        const tenant = room.tenant;
-        const tenantSkills = this.skillSystem.getAvailableSkills(tenant.name);
-
-        if (tenantSkills.length > 0) {
-          skillsByTenant.push({ tenant, skills: tenantSkills });
+      // 個人資源資訊
+      if (tenant.personalResources) {
+        detailInfo += `\n\n個人資源:`;
+        detailInfo += `\n💰 現金: $${tenant.personalResources.cash || 0}`;
+        detailInfo += `\n🍖 食物: ${tenant.personalResources.food || 0}`;
+        if (tenant.personalResources.medical > 0) {
+          detailInfo += `\n💊 醫療: ${tenant.personalResources.medical}`;
+        }
+        if (tenant.personalResources.materials > 0) {
+          detailInfo += `\n🔧 建材: ${tenant.personalResources.materials}`;
         }
       }
-    });
 
-    if (skillsByTenant.length === 0) {
-      skillList.innerHTML = "<p>目前沒有可用的技能</p>";
+      // 房間狀態資訊
+      if (room.reinforced) {
+        detailInfo += `\n\n🛡️ 房間已加固 (+20% 租金)`;
+      }
+      if (room.needsRepair) {
+        detailInfo += `\n⚠️ 房間需要維修`;
+      }
+
+      this.showUserMessage(detailInfo);
     } else {
-      skillList.innerHTML = skillsByTenant
-        .map((tenantData) => {
-          const { tenant, skills } = tenantData;
-          const roomId =
-            this.gameState.rooms.find((r) => r.tenant === tenant)?.id || "?";
+      // 空房的情況
+      let roomInfo = `房間 ${roomId} - 空置中\n`;
+      roomInfo += `\n可容納一位租客`;
 
-          return `
-        <div class="tenant-skill-group">
-          <h4 style="color: #66ccff; margin: 15px 0 10px 0;">
-            ${tenant.name} (${tenant.typeName || tenant.type}) - 房間${roomId}
-          </h4>
-          <div style="font-size: 11px; color: #aaa; margin-bottom: 10px;">
-            個人現金: $${tenant.personalResources?.cash || 0}
-          </div>
-          ${skills
-            .map(
-              (skill) => `
-            <div class="skill-actions">
-              <h5 style="margin: 5px 0; color: #ffcc66;">${skill.name}</h5>
-              <p style="margin: 5px 0; font-size: 12px;">${
-                skill.description
-              }</p>
-              ${
-                skill.cooldownRemaining > 0
-                  ? `<p style="color: #ff9966;">冷卻中：${skill.cooldownRemaining} 天</p>`
-                  : ""
-              }
-              ${
-                !skill.canAfford
-                  ? `<p style="color: #ff6666;">資源不足</p>`
-                  : ""
-              }
-              <button class="btn ${
-                skill.canAfford && skill.cooldownRemaining === 0
-                  ? "success"
-                  : ""
-              }" 
-                      onclick="window.gameApp.useSkillFromMenu('${
-                        tenant.name
-                      }', '${skill.id}')"
-                      ${
-                        !skill.canAfford || skill.cooldownRemaining > 0
-                          ? "disabled"
-                          : ""
-                      }>
-                使用技能
-              </button>
-            </div>
-          `
-            )
-            .join("")}
-        </div>
-      `;
-        })
-        .join("");
+      if (room.reinforced) {
+        roomInfo += `\n🛡️ 已加固 (提升安全性和租金)`;
+      }
+      if (room.needsRepair) {
+        roomInfo += `\n⚠️ 需要維修後才能出租`;
+      } else {
+        roomInfo += `\n\n💡 提示: 點擊「查看訪客」來招募租客`;
+      }
+
+      this.showUserMessage(roomInfo);
     }
-
-    modal.style.display = "block";
   }
 
-  /**
-   * 技能選單執行處理
-   */
+  // 技能選單顯示
+  handleShowSkills() {
+    if (this.uiManager) {
+      this.uiManager.showSkillModal();
+    } else {
+      this.showUserMessage("技能系統暫時不可用");
+    }
+  }
+
+  // 技能執行處理
   async useSkillFromMenu(tenantName, skillId) {
     if (!this.skillSystem?.getStatus().initialized) {
-      this.addLog("技能系統不可用", "danger");
+      this.addGameLog("技能系統不可用", "danger");
       return false;
     }
 
     const result = await this.skillSystem.executeSkill(tenantName, skillId);
 
     if (result.success) {
-      this.addLog(`技能執行成功`, "skill");
+      this.addGameLog(`技能執行成功`, "skill");
     } else {
       const messages = {
         tenant_not_found: "找不到指定租客",
@@ -1130,24 +930,22 @@ class Game {
         on_cooldown: result.message || "技能冷卻中",
         requirements_not_met: "技能使用條件不滿足",
       };
-      this.addLog(messages[result.reason] || "技能執行失敗", "danger");
+      this.addGameLog(messages[result.reason] || "技能執行失敗", "danger");
     }
 
     this.closeModal();
-    this.updateDisplay();
+    this.notifyUIUpdate("fullUpdate");
     return result.success;
   }
 
-  /**
-   * 被動技能處理
-   */
+  // 被動技能處理
   processPassiveSkills(trigger, context = {}) {
     if (this.skillSystem?.getStatus().initialized) {
       this.skillSystem.processPassiveSkills(trigger, context);
     }
   }
 
-  // 下一天（三系統整合版）
+  // 下一天
   handleNextDay() {
     // 基礎日期推進
     this.gameState.day++;
@@ -1171,23 +969,19 @@ class Game {
     // 觸發每日被動技能
     this.processPassiveSkills("day_end");
 
-    // 使用 ResourceSystem 處理消費
+    // 處理日常消費
     this.processDailyConsumption();
 
-    this.addLog(`新的一天開始了 - 第${this.gameState.day}天`, "event");
-    this.updateDisplay();
+    this.addGameLog(`新的一天開始了 - 第${this.gameState.day}天`, "event");
+    this.notifyUIUpdate("fullUpdate");
   }
 
-  // 日常消費處理（使用 ResourceSystem）
+  // 日常消費處理
   processDailyConsumption() {
     if (this.resourceSystem && this.resourceSystem.getStatus().initialized) {
-      // 房東日常消費
       this.resourceSystem.processConsumption("landlord_daily");
-
-      // 建築日常消費
       this.resourceSystem.processConsumption("building_daily");
     } else {
-      // 後備消費處理
       this.processLandlordConsumptionFallback();
       this.processBuildingConsumptionFallback();
     }
@@ -1203,14 +997,14 @@ class Game {
         0,
         this.gameState.landlordHunger - 1
       );
-      this.addLog(`房東消耗了 ${dailyConsumption} 食物`, "event");
+      this.addGameLog(`房東消耗了 ${dailyConsumption} 食物`, "event");
     } else if (this.gameState.resources.food >= 1) {
       this.gameState.resources.food -= 1;
       this.gameState.landlordHunger += 1;
-      this.addLog("食物不足，房東仍感到飢餓", "danger");
+      this.addGameLog("食物不足，房東仍感到飢餓", "danger");
     } else {
       this.gameState.landlordHunger += 2;
-      this.addLog("沒有食物！房東非常飢餓", "danger");
+      this.addGameLog("沒有食物！房東非常飢餓", "danger");
     }
   }
 
@@ -1220,217 +1014,53 @@ class Game {
 
     if (this.gameState.resources.fuel >= fuelConsumption) {
       this.gameState.resources.fuel -= fuelConsumption;
-      this.addLog(`房屋設施消耗了 ${fuelConsumption} 燃料`, "event");
+      this.addGameLog(`房屋設施消耗了 ${fuelConsumption} 燃料`, "event");
     } else {
-      this.addLog("燃料不足！房屋運作受影響", "danger");
+      this.addGameLog("燃料不足！房屋運作受影響", "danger");
     }
   }
 
   /**
-   * 工具函數
+   * UI 通知與輔助方法 v2.0
    */
 
+  // 通知 UI 更新
+  notifyUIUpdate(updateType = "fullUpdate") {
+    if (this.uiManager) {
+      this.uiManager.handleSystemStateChange(updateType);
+    }
+  }
+
   // 添加遊戲記錄
-  addLog(message, type = "event") {
-    const log = document.getElementById("gameLog");
-    if (!log) return;
-
-    const entry = document.createElement("div");
-    entry.className = `log-entry ${type}`;
-    entry.textContent = `第${this.gameState.day}天: ${message}`;
-    log.appendChild(entry);
-
-    // 限制日誌條目數量
-    const maxEntries = UI_CONSTANTS.LAYOUT?.MAX_LOG_VISIBLE || 50;
-    const entries = log.children;
-    if (entries.length > maxEntries) {
-      log.removeChild(entries[0]);
-    }
-
-    log.scrollTop = log.scrollHeight;
-  }
-
-  // 更新顯示
-  updateDisplay() {
-    // 更新基本狀態
-    this.updateElement("day", this.gameState.day);
-    this.updateElement("time", this.gameState.time === "day" ? "白天" : "夜晚");
-    this.updateElement("cash", this.gameState.resources.cash);
-
-    // 更新狀態文字
-    if (this.gameHelpers) {
-      const defenseStatus = this.gameHelpers.getDefenseStatus(
-        this.gameState.buildingDefense
-      );
-      const hungerStatus = this.gameHelpers.getHungerStatus(
-        this.gameState.landlordHunger
-      );
-
-      this.updateElement("buildingDefenseText", defenseStatus.text);
-      this.updateElement("landlordHungerText", hungerStatus.text);
-
-      // 設定狀態顏色
-      const defenseEl = document.getElementById("buildingDefenseText");
-      const hungerEl = document.getElementById("landlordHungerText");
-
-      if (defenseEl) {
-        defenseEl.style.color = defenseStatus.color;
-        if (defenseStatus.critical) defenseEl.classList.add("danger-status");
-      }
-
-      if (hungerEl) {
-        hungerEl.style.color = hungerStatus.color;
-        if (hungerStatus.critical) hungerEl.classList.add("danger-status");
-      }
+  addGameLog(message, type = "event") {
+    if (this.uiManager) {
+      this.uiManager.addLog(message, type);
     } else {
-      // 後備狀態顯示
-      this.updateElement(
-        "buildingDefenseText",
-        `防禦(${this.gameState.buildingDefense})`
-      );
-      this.updateElement(
-        "landlordHungerText",
-        `飢餓(${this.gameState.landlordHunger})`
-      );
-    }
-
-    this.updateElement("scavengeCount", this.gameState.scavengeUsed);
-
-    // 更新資源顯示
-    [
-      DATA_TYPES.RESOURCE_TYPES.FOOD,
-      DATA_TYPES.RESOURCE_TYPES.MATERIALS,
-      DATA_TYPES.RESOURCE_TYPES.MEDICAL,
-      DATA_TYPES.RESOURCE_TYPES.FUEL,
-    ].forEach((resource) => {
-      this.updateElement(resource, this.gameState.resources[resource]);
-    });
-
-    // 更新房間顯示
-    this.updateRoomDisplay();
-
-    // 更新租客列表
-    this.updateTenantList();
-  }
-
-  // 安全的元素更新
-  updateElement(id, value) {
-    const element = document.getElementById(id);
-    if (element) {
-      element.textContent = value;
+      // 降級處理
+      console.log(`📜 遊戲記錄: ${message} (${type})`);
     }
   }
 
-  // 更新房間顯示
-  updateRoomDisplay() {
-    this.gameState.rooms.forEach((room) => {
-      const roomElement = document.getElementById(`room${room.id}`);
-      const infoElement = document.getElementById(`room${room.id}-info`);
-
-      if (!roomElement || !infoElement) return;
-
-      roomElement.className = "room";
-
-      if (room.tenant) {
-        roomElement.classList.add("occupied");
-        if (room.tenant.infected) {
-          roomElement.classList.add("infected");
-        }
-
-        const satisfaction =
-          this.gameState.tenantSatisfaction[room.tenant.name] || 50;
-        const satisfactionText =
-          satisfaction >= 70 ? "😊" : satisfaction >= 40 ? "😐" : "😞";
-
-        infoElement.innerHTML = `${room.tenant.name}<br><small>${
-          room.tenant.typeName || room.tenant.type
-        }</small><br><small>滿意度: ${satisfaction} ${satisfactionText}</small>`;
-      } else {
-        infoElement.textContent = "空房";
-      }
-
-      if (room.needsRepair) {
-        roomElement.classList.add("needs-repair");
-        infoElement.innerHTML +=
-          '<br><small style="color:#ff6666">需要維修</small>';
-      }
-
-      if (room.reinforced) {
-        roomElement.classList.add("reinforced");
-        infoElement.innerHTML +=
-          '<br><small style="color:#66ccff">已加固</small>';
-      }
-    });
-  }
-
-  // 更新租客列表
-  updateTenantList() {
-    const tenantList = document.getElementById("tenantList");
-    if (!tenantList) return;
-
-    const tenants = this.gameState.rooms
-      .filter((room) => room.tenant)
-      .map((room) => room.tenant);
-
-    if (tenants.length === 0) {
-      tenantList.innerHTML = '<div class="tenant-item">暫無租客</div>';
-    } else {
-      tenantList.innerHTML = tenants
-        .map((tenant) => {
-          const satisfaction =
-            this.gameState.tenantSatisfaction[tenant.name] || 50;
-          const statusText = tenant.infected
-            ? '<br><small style="color:#ff6666">已感染！</small>'
-            : tenant.onMission
-            ? '<br><small style="color:#ffaa66">執行任務中</small>'
-            : "";
-
-          // 額外資訊
-          let extraInfo = "";
-          if (this.tenantSystem && this.tenantSystem.getStatus().initialized) {
-            const tenantState = this.tenantSystem.getTenantState(tenant.name);
-            if (tenantState && tenantState.stats) {
-              extraInfo = `<br><small style="color:#aaa;">住了 ${tenantState.stats.daysLived} 天</small>`;
-            }
-          }
-
-          // 個人資源顯示
-          let resourceInfo = "";
-          if (tenant.personalResources) {
-            resourceInfo = `<br><small style="color:#cccccc;">個人: $${
-              tenant.personalResources.cash || 0
-            } 食物${tenant.personalResources.food || 0}</small>`;
-          }
-
-          return `<div class="tenant-item ${
-            tenant.infected ? "infected" : ""
-          } ${tenant.type || tenant.typeId}">
-          ${tenant.name} (${tenant.typeName || tenant.type})<br>
-          <small>房租: ${tenant.rent}/天</small>
-          ${resourceInfo}
-          <small>滿意度: ${satisfaction}%</small>
-          ${extraInfo}
-          ${statusText}
-        </div>`;
-        })
-        .join("");
-    }
+  // 顯示用戶訊息
+  showUserMessage(message) {
+    alert(message); // 簡單實作，未來可改為更好的通知系統
   }
 
   // 關閉模態框
   closeModal() {
-    document.querySelectorAll(".modal").forEach((modal) => {
-      modal.style.display = "none";
-    });
-  }
-
-  // 更新系統狀態顯示
-  updateSystemStatus(elementId, text) {
-    const element = document.getElementById(elementId);
-    if (element) {
-      element.textContent = text;
+    if (this.uiManager) {
+      this.uiManager.closeModal();
+    } else {
+      // 降級處理
+      document.querySelectorAll(".modal").forEach((modal) => {
+        modal.style.display = "none";
+      });
     }
   }
+
+  /**
+   * 系統狀態與管理方法 v2.0
+   */
 
   // 取得系統狀態
   getSystemStatus() {
@@ -1454,6 +1084,7 @@ class Game {
           ? this.resourceSystem.getStatus()
           : null,
         skillSystem: this.skillSystem ? this.skillSystem.getStatus() : null,
+        uiManager: this.uiManager ? this.uiManager.getUISystemStatus() : null,
       },
       config: {
         loaded: this.configLoaded,
@@ -1493,6 +1124,12 @@ class Game {
       issues.push("SkillSystem 初始化失敗");
     }
 
+    if (this.initializationStatus.uiManager) {
+      successes.push("UIManager 正常");
+    } else {
+      issues.push("UIManager 初始化失敗");
+    }
+
     // 檢查配置狀態
     if (this.configLoaded) {
       successes.push("配置載入成功");
@@ -1509,40 +1146,32 @@ class Game {
   }
 
   /**
-   * 錯誤處理機制
+   * 錯誤處理機制 v2.0
    */
   createErrorHandler() {
     return {
       handleInitializationError: (error) => {
         console.error("❌ 應用程式初始化失敗:", error);
-
-        const statusEl = document.getElementById("systemStatus");
-        if (statusEl) {
-          statusEl.textContent = "🔴 系統啟動失敗";
-          statusEl.className = "system-status error";
-        }
-
         this.attemptFallbackInitialization();
       },
 
       handleRuntimeError: (error, context) => {
         console.error(`❌ 執行時錯誤 (${context}):`, error);
-        this.addLog(`系統錯誤: ${context}`, "danger");
+        this.addGameLog(`系統錯誤: ${context}`, "danger");
       },
     };
   }
 
   /**
-   * 降級啟動機制
+   * 降級啟動機制 v2.0
    */
   attemptFallbackInitialization() {
     console.log("🔄 嘗試降級啟動模式...");
 
     try {
-      this.setupUIEventListeners();
-      this.addLog("系統啟動失敗，正在降級模式下運行", "danger");
-      this.addLog("部分功能可能不可用", "danger");
-      this.updateDisplay();
+      this.attemptFallbackUI();
+      this.addGameLog("系統啟動失敗，正在降級模式下運行", "danger");
+      this.addGameLog("部分功能可能不可用", "danger");
     } catch (fallbackError) {
       console.error("❌ 降級啟動也失敗:", fallbackError);
       alert("遊戲初始化失敗，請重新整理頁面或檢查瀏覽器支援度");
@@ -1551,10 +1180,10 @@ class Game {
 }
 
 /**
- * 應用程式啟動
+ * 應用程式啟動 v2.0
  */
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("🎮 DOM 載入完成，開始初始化應用程式...");
+  console.log("🎮 DOM 載入完成，開始初始化應用程式 v2.0...");
 
   try {
     const app = new Game();

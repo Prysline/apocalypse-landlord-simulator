@@ -1,0 +1,319 @@
+/**
+ * main.css - 基礎樣式系統
+ * 職責：整體布局、顏色系統、字體系統、基礎動畫
+ */
+
+/* === CSS 變數系統 === */
+:root {
+    /* 色彩系統 */
+    --color-bg-primary: #2a2a2a;
+    --color-bg-secondary: #1a1a1a;
+    --color-bg-tertiary: #333;
+    --color-text-primary: #e0e0e0;
+    --color-text-secondary: #aaa;
+    --color-text-muted: #666;
+
+    /* 邊框和分隔線 */
+    --color-border-default: #555;
+    --color-border-hover: #888;
+    --color-border-focus: #aaa;
+
+    /* 狀態顏色 */
+    --color-success: #66ff66;
+    --color-warning: #ffcc66;
+    --color-danger: #ff6666;
+    --color-info: #66ccff;
+    --color-muted: #999;
+
+    /* 特殊狀態顏色 */
+    --color-good: #66ff66;
+    --color-concern: #ff9966;
+    --color-critical: #ff6666;
+
+    /* 租客類型顏色 */
+    --color-doctor: #66cc66;
+    --color-worker: #cc8866;
+    --color-soldier: #cc6666;
+    --color-farmer: #66aa44;
+    --color-elder: #cc66cc;
+
+    /* 間距系統 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 10px;
+    --spacing-lg: 15px;
+    --spacing-xl: 20px;
+
+    /* 字體系統 */
+    --font-family-mono: "Courier New", monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 14px;
+    --line-height-compact: 1.2;
+    --line-height-normal: 1.4;
+
+    /* 布局系統 */
+    --container-max-width: 1200px;
+    --sidebar-width: 300px;
+    --border-radius-sm: 4px;
+    --border-radius-md: 8px;
+
+    /* 動畫系統 */
+    --animation-duration-fast: 0.15s;
+    --animation-duration-normal: 0.3s;
+    --animation-duration-slow: 0.5s;
+    --animation-pulse: pulse 2s infinite;
+}
+
+/* === 基礎重置和全域樣式 === */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family-mono);
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    margin: 0;
+    padding: var(--spacing-xl);
+    line-height: var(--line-height-normal);
+    font-size: var(--font-size-sm);
+}
+
+/* === 主要布局系統 === */
+.game-container {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr var(--sidebar-width);
+    gap: var(--spacing-xl);
+}
+
+.main-area {
+    background: var(--color-bg-secondary);
+    border: 2px solid var(--color-border-default);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-xl);
+}
+
+.sidebar {
+    background: var(--color-bg-secondary);
+    border: 2px solid var(--color-border-default);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg);
+}
+
+/* === 狀態列 === */
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xl);
+    font-size: var(--font-size-md);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.status-bar>div {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border-default);
+    white-space: nowrap;
+}
+
+/* === 狀態指示器樣式 === */
+#buildingDefenseText {
+    color: var(--color-info);
+}
+
+#landlordHungerText {
+    color: var(--color-warning);
+}
+
+.danger-status {
+    color: var(--color-danger) !important;
+    animation: var(--animation-pulse);
+}
+
+.good-status {
+    color: var(--color-good) !important;
+}
+
+/* === 資源區域 === */
+.resources {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.resource {
+    background: var(--color-bg-tertiary);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    text-align: center;
+    font-size: var(--font-size-sm);
+}
+
+/* === 控制按鈕區域 === */
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+/* === 遊戲記錄 === */
+.log {
+    background: #222;
+    border: 1px solid #444;
+    height: 150px;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    border-radius: var(--border-radius-sm);
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    padding: 2px 0;
+    line-height: var(--line-height-compact);
+}
+
+.log-entry.event {
+    color: var(--color-warning);
+}
+
+.log-entry.rent {
+    color: var(--color-success);
+}
+
+.log-entry.danger {
+    color: var(--color-danger);
+}
+
+.log-entry.skill {
+    color: var(--color-info);
+}
+
+/* === 系統狀態指示器 === */
+.system-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+}
+
+.system-status.modular {
+    color: var(--color-success);
+}
+
+.system-status.error {
+    color: var(--color-danger);
+}
+
+/* === 系統狀態詳細資訊 === */
+.system-status-details {
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+    margin-bottom: var(--spacing-lg);
+}
+
+.system-status-details>div {
+    margin-bottom: var(--spacing-xs);
+    padding: 2px 0;
+}
+
+/* === 標題樣式 === */
+h3 {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-md);
+    margin: 0 0 var(--spacing-md) 0;
+    font-weight: bold;
+}
+
+/* === 基礎動畫 === */
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* === 響應式設計 === */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 100%;
+    }
+
+    .game-container {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+    }
+
+    body {
+        padding: var(--spacing-md);
+    }
+
+    .status-bar {
+        font-size: var(--font-size-sm);
+    }
+
+    .controls {
+        gap: var(--spacing-sm);
+    }
+}
+
+/* === 可訪問性支援 === */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* === 高對比度模式支援 === */
+@media (prefers-contrast: high) {
+    :root {
+        --color-border-default: #999;
+        --color-text-primary: #ffffff;
+        --color-bg-secondary: #000000;
+    }
+}
+
+/* === 深色模式優化（預設已是深色） === */
+@media (prefers-color-scheme: light) {
+    /* 如果需要支援淺色模式，可在此添加 */
+}
+
+/* === 列印樣式 === */
+@media print {
+
+    .system-status,
+    .controls {
+        display: none;
+    }
+
+    body {
+        background: white;
+        color: black;
+    }
+
+    .game-container {
+        display: block;
+    } }
