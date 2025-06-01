@@ -1,193 +1,290 @@
+// @ts-check
+
 /**
- * DataManager - 統一資料載入與管理機制
- * 職責：
- * 1. 從 JSON 配置檔案載入遊戲資料
- * 2. 整合 ConfigValidators 驗證系統
- * 3. 管理資料快取與更新
- * 4. 支援熱重載（開發階段）
- *
- * 設計模式：單例模式 + 工廠模式
- * 核心特性：非同步載入、錯誤處理、快取機制、配置驅動驗證
+ * @fileoverview DataManager.js - 統一資料管理核心
+ * 職責：載入並管理所有遊戲資料和配置檔案
  */
 
-import {
-  defaultValidatorFactory,
-  ValidationResult,
-  ValidationUtils,
-} from "../utils/validators.js";
-import {
-  SYSTEM_LIMITS,
-  ERROR_CODES,
-  MESSAGE_TEMPLATES,
-} from "../utils/constants.js";
+import { ERROR_CODES, MESSAGE_TEMPLATES } from "../utils/constants.js";
 
+/**
+ * 資料載入結果
+ * @typedef {Object} LoadResult
+ * @property {boolean} success - 載入是否成功
+ * @property {Object} [data] - 載入的資料
+ * @property {boolean} [fallbackMode] - 是否使用後備模式
+ * @property {Array<string>} [errors] - 錯誤訊息列表
+ * @property {string} [error] - 單一錯誤訊息
+ */
+
+/**
+ * 遊戲規則配置
+ * @typedef {Object} GameRules
+ * @property {Object} gameDefaults - 遊戲預設值
+ * @property {Object} gameDefaults.initialResources - 初始資源
+ * @property {number} gameDefaults.initialResources.food - 初始食物
+ * @property {number} gameDefaults.initialResources.materials - 初始建材
+ * @property {number} gameDefaults.initialResources.medical - 初始醫療用品
+ * @property {number} gameDefaults.initialResources.fuel - 初始燃料
+ * @property {number} gameDefaults.initialResources.cash - 初始現金
+ * @property {Object} gameDefaults.initialRooms - 初始房間設定
+ * @property {number} gameDefaults.initialRooms.count - 房間數量
+ * @property {Object} gameBalance - 遊戲平衡設定
+ * @property {Object} gameBalance.landlord - 房東相關設定
+ * @property {number} gameBalance.landlord.dailyFoodConsumption - 每日食物消耗
+ * @property {Object} gameBalance.tenants - 租客相關設定
+ * @property {number} gameBalance.tenants.dailyFoodConsumption - 租客每日食物消耗
+ * @property {Object} gameBalance.resources - 資源相關設定
+ * @property {Object} gameBalance.resources.dailyConsumption - 每日消耗
+ * @property {number} gameBalance.resources.dailyConsumption.fuel - 每日燃料消耗
+ */
+
+/**
+ * 租客類型定義
+ * @typedef {Object} TenantType
+ * @property {string} typeId - 租客類型ID
+ * @property {string} typeName - 租客類型名稱
+ * @property {'doctor'|'worker'|'farmer'|'soldier'|'elder'} category - 租客分類
+ * @property {number} rent - 房租金額
+ * @property {string} skill - 技能描述
+ * @property {number} infectionRisk - 感染風險 (0-1)
+ * @property {'common'|'uncommon'|'rare'} [rarity] - 稀有度
+ * @property {string} description - 詳細描述
+ * @property {Object} personalResources - 個人資源
+ * @property {number} personalResources.food - 食物
+ * @property {number} personalResources.materials - 建材
+ * @property {number} personalResources.medical - 醫療用品
+ * @property {number} personalResources.fuel - 燃料
+ * @property {number} personalResources.cash - 現金
+ * @property {Array<string>} [traits] - 特質列表
+ * @property {Object} [baseStats] - 基本屬性
+ * @property {Array<string>} [skillIds] - 技能ID列表
+ * @property {Object} [preferences] - 偏好設定
+ * @property {Object} [unlockConditions] - 解鎖條件
+ */
+
+/**
+ * 技能定義
+ * @typedef {Object} Skill
+ * @property {string} id - 技能ID
+ * @property {string} name - 技能名稱
+ * @property {'active'|'passive'|'special'} type - 技能類型
+ * @property {string} description - 技能描述
+ * @property {string} [icon] - 圖示
+ * @property {Object} cost - 使用成本
+ * @property {number} [cost.food] - 食物成本
+ * @property {number} [cost.materials] - 建材成本
+ * @property {number} [cost.medical] - 醫療用品成本
+ * @property {number} [cost.fuel] - 燃料成本
+ * @property {number} [cost.cash] - 現金成本
+ * @property {number} cooldown - 冷卻時間
+ * @property {number} [maxUses] - 最大使用次數
+ * @property {Object} requirements - 使用需求
+ * @property {Array<Object>} requirements.conditions - 條件列表
+ * @property {Array<Object>} effects - 效果列表
+ * @property {number} successRate - 成功率 (0-100)
+ * @property {number} priority - 優先級
+ */
+
+/**
+ * 事件定義
+ * @typedef {Object} GameEvent
+ * @property {string} id - 事件ID
+ * @property {'combat'|'economic'|'social'|'crisis'|'tutorial'} category - 事件分類
+ * @property {string} title - 事件標題
+ * @property {string} description - 事件描述
+ * @property {number} priority - 優先級
+ * @property {Object} trigger - 觸發條件
+ * @property {'random'|'conditional'|'scripted'} trigger.type - 觸發類型
+ * @property {number} [trigger.probability] - 觸發機率
+ * @property {Array<Object>} [trigger.conditions] - 觸發條件
+ * @property {number} [trigger.day] - 指定天數觸發
+ * @property {Array<Object>} choices - 選擇列表
+ */
+
+/**
+ * 技能資料集合
+ * @typedef {Object.<string, Array<Skill>>} SkillCollection
+ */
+
+/**
+ * 事件資料集合
+ * @typedef {Object} EventCollection
+ * @property {Array<GameEvent>} random_events - 隨機事件
+ * @property {Array<GameEvent>} [conflict_events] - 衝突事件
+ * @property {Array<GameEvent>} [special_events] - 特殊事件
+ * @property {Array<GameEvent>} [scripted_events] - 腳本事件
+ */
+
+/**
+ * 完整遊戲資料
+ * @typedef {Object} AllGameData
+ * @property {GameRules} rules - 遊戲規則
+ * @property {Array<TenantType>} tenants - 租客類型
+ * @property {SkillCollection} skills - 技能資料
+ * @property {EventCollection} events - 事件資料
+ */
+
+/**
+ * 系統狀態資訊
+ * @typedef {Object} SystemStatus
+ * @property {boolean} initialized - 是否已初始化
+ * @property {number} configsLoaded - 已載入配置檔案數量
+ * @property {number} gameDataLoaded - 已載入遊戲資料檔案數量
+ * @property {number} cacheSize - 快取大小
+ * @property {boolean} fallbackMode - 是否處於後備模式
+ */
+
+/**
+ * 統一資料管理核心類
+ * @class
+ */
 export class DataManager {
+  /**
+   * 建立 DataManager 實例
+   */
   constructor() {
-    // 資料快取系統
+    /** @type {Map<string, Object>} 配置檔案快取 */
+    this.configs = new Map();
+
+    /** @type {Map<string, Object>} 遊戲資料檔案快取 */
+    this.gameData = new Map();
+
+    /** @type {Map<string, Object>} 處理結果快取 */
     this.cache = new Map();
-    this.loadPromises = new Map();
 
-    // 載入狀態追蹤
-    this.loadingStatus = {
-      tenants: false,
-      skills: false,
-      events: false,
-      rules: false,
-    };
+    /** @type {Map<string, Promise<Object>>} 載入Promise快取，防止重複載入 */
+    this.loadingPromises = new Map();
 
-    // 驗證結果記錄（新增）
-    this.validationResults = new Map();
-
-    // 錯誤記錄
-    this.errorLog = [];
-    this.maxErrorLogSize = SYSTEM_LIMITS.HISTORY.MAX_ERROR_LOG;
-
-    // 驗證器工廠實例
-    this.validatorFactory = defaultValidatorFactory;
-
-    console.log("📦 DataManager 初始化完成，整合 ConfigValidators 系統");
-    console.log(
-      "🔍 可用驗證器類型:",
-      this.validatorFactory.getAvailableTypes()
-    );
+    /** @type {boolean} 初始化狀態 */
+    this.isInitialized = false;
   }
 
   /**
-   * 載入指定類型的資料
-   * @param {string} dataType - 資料類型 (tenants, skills, events, rules)
-   * @param {boolean} forceReload - 是否強制重新載入
-   * @returns {Promise<any>} 載入的資料
+   * 初始化資料管理器 - 載入所有必要資料
+   * @returns {Promise<LoadResult>} 初始化結果
    */
-  async loadData(dataType, forceReload = false) {
-    // 快取檢查
-    if (!forceReload && this.cache.has(dataType)) {
-      console.log(`📦 從快取載入 ${dataType} 資料`);
-      return this.cache.get(dataType);
+  async initialize() {
+    if (this.isInitialized) {
+      return { success: true, data: this.getAllData() };
     }
-
-    // 防止重複載入
-    if (this.loadPromises.has(dataType)) {
-      console.log(`⏳ ${dataType} 資料載入中，等待完成...`);
-      return this.loadPromises.get(dataType);
-    }
-
-    // 建立載入 Promise
-    const loadPromise = this._loadFromFile(dataType);
-    this.loadPromises.set(dataType, loadPromise);
 
     try {
-      console.log(`🔄 開始載入 ${dataType} 資料...`);
-      const data = await loadPromise;
+      console.log(MESSAGE_TEMPLATES.SYSTEM.INITIALIZING);
 
-      // 使用 ConfigValidators 驗證系統
-      const validationResult = this.validateConfigData(dataType, data);
+      // 並行載入所有核心資料
+      const loadPromises = [
+        this.loadConfig("rules"),
+        this.loadGameData("tenants"),
+        this.loadGameData("skills"),
+        this.loadGameData("events"),
+      ];
 
-      if (!validationResult.isValid) {
-        const firstError = validationResult.getFirstError();
-        const errorMessage = firstError?.message || "未知驗證錯誤";
+      const results = await Promise.allSettled(loadPromises);
 
-        // 記錄詳細驗證失敗資訊
-        console.error(`❌ ${dataType} 配置驗證失敗:`, {
-          errorCount: validationResult.errors.length,
-          warningCount: validationResult.warnings.length,
-          firstError: firstError,
-          summary: this._getValidationSummary(validationResult),
-        });
-
-        throw new Error(`配置驗證失敗: ${errorMessage}`);
+      // 檢查載入結果
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        console.warn("部分資料載入失敗，使用後備模式");
+        this.enableFallbackMode();
       }
 
-      // 處理驗證警告
-      if (validationResult.warnings.length > 0) {
-        console.warn(
-          `⚠️ ${dataType} 配置驗證警告 (${validationResult.warnings.length}個):`
-        );
-        validationResult.warnings.forEach((warning, index) => {
-          console.warn(
-            `  ${index + 1}. ${warning.message}${
-              warning.field ? ` (欄位: ${warning.field})` : ""
-            }`
-          );
-        });
-      }
+      this.isInitialized = true;
+      console.log(MESSAGE_TEMPLATES.SYSTEM.READY);
 
-      // 快取資料和驗證結果
-      this.cache.set(dataType, data);
-      this.validationResults.set(dataType, validationResult);
-      this.loadingStatus[dataType] = true;
+      return {
+        success: true,
+        data: this.getAllData(),
+        fallbackMode: failures.length > 0,
+        errors: failures.map((f) => f.reason?.message || String(f.reason)),
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(MESSAGE_TEMPLATES.SYSTEM.ERROR(errorMessage));
+      this.enableFallbackMode();
 
-      console.log(`✅ 成功載入並驗證 ${dataType} 資料`, {
-        errorCount: validationResult.errors.length,
-        warningCount: validationResult.warnings.length,
-        isValid: validationResult.isValid,
+      return {
+        success: false,
+        error: errorMessage,
+        fallbackMode: true,
+        data: this.getAllData(),
+      };
+    }
+  }
+
+  /**
+   * 載入配置檔案
+   * @param {'rules'} configType - 配置類型
+   * @returns {Promise<GameRules>} 載入的配置資料
+   * @throws {Error} 當配置載入失敗時
+   */
+  async loadConfig(configType) {
+    const cacheKey = `config_${configType}`;
+
+    if (this.loadingPromises.has(cacheKey)) {
+      return /** @type {Promise<GameRules>} */ (
+        this.loadingPromises.get(cacheKey)
+      );
+    }
+
+    const loadPromise = this._loadDataFile(`data/${configType}.json`)
+      .then((data) => {
+        this.configs.set(configType, data);
+        console.log(MESSAGE_TEMPLATES.DATA.LOADED(`${configType} 配置`));
+        return /** @type {GameRules} */ (data);
+      })
+      .catch((error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(MESSAGE_TEMPLATES.DATA.ERROR(configType, errorMessage));
+        throw new Error(`${ERROR_CODES.DATA_LOAD_FAILED}: ${configType}`);
       });
 
-      // 特殊處理：rules 載入完成後初始化 GameHelpers
-      if (dataType === "rules" && data && window.gameApp) {
-        try {
-          if (
-            window.gameApp.gameHelpers &&
-            typeof window.gameApp.gameHelpers.injectConfig === "function"
-          ) {
-            const success = window.gameApp.gameHelpers.injectConfig(data);
-            console.log(
-              success
-                ? "✅ GameHelpers 配置注入成功"
-                : "⚠️ GameHelpers 配置注入失敗"
-            );
-          }
-        } catch (error) {
-          console.warn("⚠️ GameHelpers 初始化失敗:", error.message);
-        }
-      }
-
-      return data;
-    } catch (error) {
-      const errorMessage = `載入 ${dataType} 資料失敗: ${error.message}`;
-      console.error(`❌ ${errorMessage}`);
-
-      // 記錄錯誤
-      this.recordError(dataType, error);
-
-      // 嘗試使用預設資料
-      console.warn(`🔄 嘗試使用 ${dataType} 預設資料...`);
-      const defaultData = this.getDefaultData(dataType);
-
-      if (defaultData) {
-        // 驗證預設資料
-        const defaultValidation = this.validateConfigData(
-          dataType,
-          defaultData
-        );
-        if (defaultValidation.isValid) {
-          this.cache.set(dataType, defaultData);
-          this.validationResults.set(dataType, defaultValidation);
-          this.loadingStatus[dataType] = true;
-          console.log(`✅ ${dataType} 預設資料載入並驗證成功`);
-          return defaultData;
-        } else {
-          console.error(`❌ 預設資料也驗證失敗:`, defaultValidation.errors);
-          this.recordValidationFailure(dataType, defaultValidation);
-        }
-      }
-
-      throw new Error(errorMessage);
-    } finally {
-      // 清除載入 Promise
-      this.loadPromises.delete(dataType);
-    }
+    this.loadingPromises.set(cacheKey, loadPromise);
+    return loadPromise;
   }
 
   /**
-   * 從檔案載入資料
+   * 載入遊戲資料檔案
+   * @param {'tenants'|'skills'|'events'} dataType - 資料類型
+   * @returns {Promise<Array<TenantType>|SkillCollection|EventCollection>} 載入的遊戲資料
+   * @throws {Error} 當資料載入失敗時
+   */
+  async loadGameData(dataType) {
+    const cacheKey = `data_${dataType}`;
+
+    if (this.loadingPromises.has(cacheKey)) {
+      return this.loadingPromises.get(cacheKey);
+    }
+
+    const loadPromise = this._loadDataFile(`data/${dataType}.json`)
+      .then((data) => {
+        this.gameData.set(dataType, data);
+        console.log(MESSAGE_TEMPLATES.DATA.LOADED(`${dataType} 資料`));
+        return data;
+      })
+      .catch((error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(MESSAGE_TEMPLATES.DATA.ERROR(dataType, errorMessage));
+        throw new Error(`${ERROR_CODES.DATA_LOAD_FAILED}: ${dataType}`);
+      });
+
+    this.loadingPromises.set(cacheKey, loadPromise);
+    return loadPromise;
+  }
+
+  /**
+   * 私有方法：實際載入檔案
+   * @param {string} filePath - 檔案路徑
+   * @returns {Promise<Object>} 解析後的JSON資料
+   * @throws {Error} 當檔案載入或解析失敗時
    * @private
    */
-  async _loadFromFile(dataType) {
-    const filename = `data/${dataType}.json`;
-
+  async _loadDataFile(filePath) {
     try {
-      const response = await fetch(filename);
-
+      const response = await fetch(filePath);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -195,781 +292,294 @@ export class DataManager {
       const data = await response.json();
       return data;
     } catch (error) {
-      if (error.name === "SyntaxError") {
-        throw new Error(`JSON 檔案格式錯誤: ${error.message}`);
+      if (error instanceof SyntaxError) {
+        throw new Error(`JSON 解析錯誤: ${filePath}`);
       }
-
-      if (error.message.includes("404")) {
-        throw new Error(`找不到配置檔案: ${filename}`);
-      }
-
       throw error;
     }
   }
 
   /**
-   * 配置資料驗證（使用 ConfigValidators）
-   * @param {string} dataType - 資料類型
-   * @param {any} data - 待驗證的配置資料
-   * @returns {ValidationResult} 驗證結果
+   * 啟用後備模式 - 使用硬編碼預設值
+   * @returns {void}
    */
-  validateConfigData(dataType, data) {
-    try {
-      console.log(`🔍 開始驗證 ${dataType} 配置資料...`);
+  enableFallbackMode() {
+    console.warn("啟用後備模式，使用預設配置");
 
-      // 使用 ConfigValidators 系統
-      const validationResult = this.validatorFactory.validateConfig(
-        dataType,
-        data
-      );
+    // 設定基本遊戲規則
+    if (!this.configs.has("rules")) {
+      this.configs.set("rules", this._getDefaultRules());
+    }
 
-      // 記錄驗證統計
-      const summary = this._getValidationSummary(validationResult);
-      console.log(`📊 ${dataType} 驗證統計:`, summary);
+    // 設定基本租客類型
+    if (!this.gameData.has("tenants")) {
+      this.gameData.set("tenants", this._getDefaultTenants());
+    }
 
-      if (validationResult.isValid) {
-        console.log(`✅ ${dataType} 配置驗證通過`);
-      } else {
-        console.warn(`⚠️ ${dataType} 配置驗證失敗`);
-      }
+    // 設定基本技能
+    if (!this.gameData.has("skills")) {
+      this.gameData.set("skills", this._getDefaultSkills());
+    }
 
-      return validationResult;
-    } catch (error) {
-      console.error(`❌ ConfigValidator 執行錯誤:`, error);
-
-      const errorResult = new ValidationResult(false).addError(
-        `配置驗證過程發生錯誤: ${error.message}`,
-        null,
-        ERROR_CODES.DATA_VALIDATION_FAILED,
-        `${dataType} 配置驗證`
-      );
-
-      this.recordValidationFailure(dataType, errorResult);
-      return errorResult;
+    // 設定基本事件
+    if (!this.gameData.has("events")) {
+      this.gameData.set("events", this._getDefaultEvents());
     }
   }
 
   /**
-   * 取得驗證結果摘要
-   * @private
+   * 取得遊戲規則配置
+   * @returns {GameRules} 遊戲規則物件
    */
-  _getValidationSummary(validationResult) {
-    return {
-      isValid: validationResult.isValid,
-      errorCount: validationResult.errors.length,
-      warningCount: validationResult.warnings.length,
-      timestamp: validationResult.timestamp,
-      hasContext: !!validationResult.context,
-    };
-  }
-
-  /**
-   * 記錄驗證失敗
-   * @private
-   */
-  recordValidationFailure(dataType, validationResult) {
-    const failureRecord = {
-      timestamp: new Date().toISOString(),
-      dataType,
-      errorCount: validationResult.errors.length,
-      warningCount: validationResult.warnings.length,
-      errors: validationResult.errors.slice(0, 5), // 只記錄前5個錯誤
-      code: ERROR_CODES.DATA_VALIDATION_FAILED,
-    };
-
-    this.errorLog.unshift(failureRecord);
-
-    // 限制錯誤記錄大小
-    if (this.errorLog.length > this.maxErrorLogSize) {
-      this.errorLog = this.errorLog.slice(0, this.maxErrorLogSize);
-    }
-  }
-
-  /**
-   * 記錄錯誤
-   * @private
-   */
-  recordError(dataType, error) {
-    const errorRecord = {
-      timestamp: new Date().toISOString(),
-      dataType,
-      error: error.message,
-      stack: error.stack,
-      code: ERROR_CODES.DATA_LOAD_FAILED,
-    };
-
-    this.errorLog.unshift(errorRecord);
-
-    // 限制錯誤記錄大小
-    if (this.errorLog.length > this.maxErrorLogSize) {
-      this.errorLog = this.errorLog.slice(0, this.maxErrorLogSize);
-    }
-  }
-
-  /**
-   * 取得預設資料（當 JSON 檔案不存在時的後備方案）
-   * @param {string} dataType - 資料類型
-   * @returns {any} 預設資料
-   */
-  getDefaultData(dataType) {
-    const defaults = {
-      tenants: [
-        {
-          typeId: "doctor",
-          typeName: "醫生",
-          category: "doctor",
-          rent: 15,
-          skill: "醫療",
-          infectionRisk: 0.1,
-          description: "可以治療感染，檢測可疑租客，提供醫療服務",
-          personalResources: {
-            food: 3,
-            materials: 0,
-            medical: 5,
-            fuel: 0,
-            cash: 20,
-          },
-          skillIds: [
-            "heal_infection",
-            "health_check",
-            "medical_production",
-            "emergency_training",
-          ],
-          rarity: "uncommon",
-          traits: ["professional", "cautious", "valuable"],
-          baseStats: {
-            health: 90,
-            workEfficiency: 85,
-            socialability: 70,
-            survivability: 75,
-          },
-          preferences: {
-            roomType: "clean",
-            neighbors: ["worker", "elder"],
-            conflicts: ["soldier"],
-          },
-          unlockConditions: {
-            day: 3,
-          },
-        },
-        {
-          typeId: "worker",
-          typeName: "工人",
-          category: "worker",
-          rent: 12,
-          skill: "維修",
-          infectionRisk: 0.2,
-          description: "擅長維修建築，房間升級，建築改良",
-          personalResources: {
-            food: 4,
-            materials: 8,
-            medical: 0,
-            fuel: 0,
-            cash: 15,
-          },
-          skillIds: [
-            "efficient_repair",
-            "reinforce_room",
-            "daily_maintenance",
-            "building_upgrade",
-          ],
-          rarity: "common",
-          traits: ["practical", "hardworking", "reliable"],
-          baseStats: {
-            health: 95,
-            workEfficiency: 90,
-            socialability: 60,
-            survivability: 80,
-          },
-          preferences: {
-            roomType: "workshop",
-            neighbors: ["farmer", "doctor"],
-            conflicts: [],
-          },
-          unlockConditions: {
-            day: 1,
-          },
-        },
-        {
-          typeId: "farmer",
-          typeName: "農夫",
-          category: "farmer",
-          rent: 10,
-          skill: "種植",
-          infectionRisk: 0.15,
-          description: "提升院子採集效率，種植作物，野外採集",
-          personalResources: {
-            food: 8,
-            materials: 2,
-            medical: 0,
-            fuel: 0,
-            cash: 12,
-          },
-          skillIds: [
-            "harvest_bonus",
-            "plant_crops",
-            "wild_foraging",
-            "food_preservation",
-          ],
-          rarity: "common",
-          traits: ["natural", "patient", "resourceful"],
-          baseStats: {
-            health: 85,
-            workEfficiency: 75,
-            socialability: 80,
-            survivability: 85,
-          },
-          preferences: {
-            roomType: "garden_view",
-            neighbors: ["elder", "worker"],
-            conflicts: ["soldier"],
-          },
-          unlockConditions: {
-            day: 1,
-          },
-        },
-      ],
-
-      skills: {
-        doctor: [
-          {
-            id: "heal_infection",
-            name: "治療感染",
-            type: "active",
-            description: "治療感染的租客（消耗：3醫療用品 + $12酬勞）",
-            icon: "🏥",
-            cost: { medical: 3, cash: 12 },
-            cooldown: 0,
-            requirements: {
-              conditions: [
-                {
-                  type: "hasTenantType",
-                  value: "infected",
-                  count: 1,
-                },
-              ],
-            },
-            effects: [
-              {
-                type: "modifyState",
-                target: "infected_tenant",
-                path: "infected",
-                value: false,
-              },
-              {
-                type: "logMessage",
-                message: "醫生成功治癒了感染租客",
-                logType: "skill",
-              },
-            ],
-            successRate: 95,
-            priority: 1,
-          },
-        ],
-        worker: [
-          {
-            id: "efficient_repair",
-            name: "專業維修",
-            type: "active",
-            description: "以更少建材維修房間（只需1建材 + $10工資）",
-            icon: "🔧",
-            cost: { materials: 1, cash: 10 },
-            cooldown: 0,
-            requirements: {
-              conditions: [
-                {
-                  type: "gameStateCheck",
-                  path: "rooms",
-                  operator: "hasNeedsRepair",
-                  value: true,
-                },
-              ],
-            },
-            effects: [
-              {
-                type: "repairRoom",
-                target: "needsRepair",
-              },
-              {
-                type: "logMessage",
-                message: "工人專業維修了房間",
-                logType: "skill",
-              },
-            ],
-            successRate: 100,
-            priority: 1,
-          },
-        ],
-      },
-
-      events: {
-        random_events: [
-          {
-            id: "zombie_attack",
-            category: "combat",
-            title: "殭屍襲擊",
-            description: "一群殭屍正在靠近房屋！",
-            priority: 1,
-            trigger: {
-              type: "random",
-              probability: 0.3,
-              conditions: [
-                {
-                  type: "dayRange",
-                  min: 3,
-                },
-              ],
-            },
-            choices: [
-              {
-                id: "fortify_defense",
-                text: "加固防禦 (-5建材)",
-                icon: "🛡️",
-                conditions: [
-                  {
-                    type: "hasResource",
-                    resource: "materials",
-                    amount: 5,
-                  },
-                ],
-                effects: [
-                  {
-                    type: "modifyResource",
-                    resource: "materials",
-                    amount: -5,
-                  },
-                  {
-                    type: "modifyState",
-                    path: "buildingDefense",
-                    value: 2,
-                    operation: "add",
-                  },
-                  {
-                    type: "logMessage",
-                    message: "成功抵禦襲擊",
-                    logType: "event",
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-        conflict_events: [],
-        special_events: [],
-        scripted_events: [],
-      },
-
-      rules: {
-        gameDefaults: {
-          initialResources: {
-            food: 20,
-            materials: 15,
-            medical: 10,
-            fuel: 8,
-            cash: 50,
-          },
-          initialRooms: {
-            count: 2,
-            defaultState: {
-              needsRepair: false,
-              reinforced: false,
-              tenant: null,
-            },
-          },
-        },
-        gameBalance: {
-          landlord: {
-            dailyFoodConsumption: 2,
-            hungerSystem: {
-              levels: [
-                { threshold: 0, name: "飽足", severity: "good" },
-                { threshold: 1, name: "微餓", severity: "normal" },
-                { threshold: 3, name: "飢餓", severity: "danger" },
-                { threshold: 5, name: "極度飢餓", severity: "critical" },
-              ],
-            },
-          },
-          tenants: {
-            dailyFoodConsumption: 2,
-            satisfactionSystem: {
-              baseValue: 50,
-              range: { min: 0, max: 100 },
-              factors: {
-                reinforcedRoom: 3,
-                needsRepair: -8,
-                lowPersonalFood: -10,
-                highPersonalCash: 5,
-              },
-            },
-          },
-          resources: {
-            starting: {
-              food: 20,
-              materials: 15,
-              medical: 10,
-              fuel: 8,
-              cash: 50,
-            },
-            dailyConsumption: {
-              fuel: 1,
-            },
-            warningThresholds: {
-              food: 5,
-              materials: 3,
-              medical: 2,
-              fuel: 2,
-              cash: 15,
-            },
-          },
-        },
-        mechanics: {
-          harvest: {
-            baseAmount: 2,
-            farmerBonus: 2,
-            cooldownDays: 2,
-          },
-          scavenging: {
-            maxPerDay: 2,
-            baseSuccessRates: {
-              soldier: 85,
-              worker: 75,
-              farmer: 65,
-              doctor: 50,
-              elder: 40,
-            },
-          },
-          building: {
-            maxRooms: 6,
-            repairCosts: {
-              base: 3,
-              withWorker: 2,
-            },
-          },
-          events: {
-            randomEventChance: 0.3,
-            conflictBaseChance: 0.25,
-          },
-        },
-        progression: {
-          tenantUnlocks: {
-            doctor: {
-              minDay: 3,
-              conditions: ["medical_emergency_survived"],
-            },
-            soldier: {
-              minDay: 7,
-              conditions: ["buildingDefense >= 3"],
-            },
-            elder: {
-              minDay: 5,
-              conditions: ["totalTenants >= 2"],
-            },
-          },
-        },
-        ui: {
-          colorSchemes: {
-            critical: "#ff6666",
-            danger: "#ff3333",
-            warning: "#ffaa66",
-            normal: "#ffcc66",
-            good: "#66ccff",
-            excellent: "#66ff66",
-          },
-        },
-      },
-    };
-
-    return defaults[dataType] || {};
-  }
-
-  /**
-   * 取得快取的資料
-   * @param {string} dataType - 資料類型
-   * @returns {any} 快取的資料，如果不存在則返回 null
-   */
-  getCachedData(dataType) {
-    return this.cache.get(dataType) || null;
-  }
-
-  /**
-   * 取得驗證結果
-   * @param {string} dataType - 資料類型
-   * @returns {ValidationResult|null} 驗證結果，如果不存在則返回 null
-   */
-  getValidationResult(dataType) {
-    return this.validationResults.get(dataType) || null;
-  }
-
-  /**
-   * 檢查資料是否已載入
-   * @param {string} dataType - 資料類型
-   * @returns {boolean} 是否已載入
-   */
-  isDataLoaded(dataType) {
-    return this.cache.has(dataType) && this.loadingStatus[dataType];
-  }
-
-  /**
-   * 檢查資料是否驗證通過
-   * @param {string} dataType - 資料類型
-   * @returns {boolean} 是否驗證通過
-   */
-  isDataValid(dataType) {
-    const result = this.getValidationResult(dataType);
-    return result ? result.isValid : false;
-  }
-
-  /**
-   * 清除快取
-   * @param {string|null} dataType - 資料類型，如果為 null 則清除全部
-   */
-  clearCache(dataType = null) {
-    if (dataType) {
-      this.cache.delete(dataType);
-      this.validationResults.delete(dataType);
-      this.loadingStatus[dataType] = false;
-      console.log(`🗑️ 清除 ${dataType} 快取和驗證結果`);
-    } else {
-      this.cache.clear();
-      this.validationResults.clear();
-      Object.keys(this.loadingStatus).forEach((key) => {
-        this.loadingStatus[key] = false;
-      });
-      console.log("🗑️ 清除所有資料快取和驗證結果");
-    }
-  }
-
-  /**
-   * 取得所有已載入的資料類型
-   * @returns {string[]} 已載入的資料類型陣列
-   */
-  getLoadedDataTypes() {
-    return Array.from(this.cache.keys()).filter(
-      (type) => this.loadingStatus[type]
+  getGameRules() {
+    return /** @type {GameRules} */ (
+      this.configs.get("rules") || this._getDefaultRules()
     );
   }
 
   /**
-   * 批次載入多種資料
-   * @param {string[]} dataTypes - 資料類型陣列
-   * @param {boolean} forceReload - 是否強制重新載入
-   * @returns {Promise<Object>} 載入結果，包含成功和失敗的資料
+   * 取得租客類型資料
+   * @returns {Array<TenantType>} 租客類型陣列
    */
-  async loadMultiple(dataTypes, forceReload = false) {
-    console.log(`📦 批次載入資料: ${dataTypes.join(", ")}`);
-
-    const promises = dataTypes.map(async (type) => {
-      try {
-        const data = await this.loadData(type, forceReload);
-        const validation = this.getValidationResult(type);
-        return {
-          type,
-          status: "fulfilled",
-          data,
-          validation: validation
-            ? this._getValidationSummary(validation)
-            : null,
-        };
-      } catch (error) {
-        return { type, status: "rejected", error: error.message };
-      }
-    });
-
-    const results = await Promise.all(promises);
-
-    const loaded = {};
-    const errors = {};
-    const validations = {};
-
-    results.forEach((result) => {
-      if (result.status === "fulfilled") {
-        loaded[result.type] = result.data;
-        if (result.validation) {
-          validations[result.type] = result.validation;
-        }
-      } else {
-        errors[result.type] = result.error;
-      }
-    });
-
-    const successCount = Object.keys(loaded).length;
-    const errorCount = Object.keys(errors).length;
-
-    console.log(`📊 批次載入完成: ${successCount} 成功, ${errorCount} 失敗`);
-
-    if (errorCount > 0) {
-      console.warn("⚠️ 載入失敗的資料類型:", Object.keys(errors));
-    }
-
-    return { loaded, errors, validations };
+  getTenantTypes() {
+    return /** @type {Array<TenantType>} */ (
+      this.gameData.get("tenants") || this._getDefaultTenants()
+    );
   }
 
   /**
-   * 取得資料載入狀態統計
-   * @returns {Object} 載入狀態統計資訊
+   * 取得技能資料
+   * @param {'doctor'|'worker'|'farmer'|'soldier'|'elder'} [tenantType] - 租客類型
+   * @returns {Array<Skill>} 指定類型的技能陣列
    */
-  getLoadingStatus() {
-    const total = Object.keys(this.loadingStatus).length;
-    const loaded = Object.values(this.loadingStatus).filter(Boolean).length;
-    const progress = total > 0 ? (loaded / total) * 100 : 0;
+  getSkillData(tenantType) {
+    const allSkills = /** @type {SkillCollection} */ (
+      this.gameData.get("skills") || this._getDefaultSkills()
+    );
+    return tenantType ? allSkills[tenantType] || [] : [];
+  }
 
-    // 統計驗證結果
-    const validationStats = {
-      total: this.validationResults.size,
-      passed: 0,
-      failed: 0,
-      warnings: 0,
-      errors: 0,
-    };
+  /**
+   * 取得完整技能集合
+   * @returns {SkillCollection} 技能資料集合
+   */
+  getAllSkills() {
+    return /** @type {SkillCollection} */ (
+      this.gameData.get("skills") || this._getDefaultSkills()
+    );
+  }
 
-    this.validationResults.forEach((result) => {
-      if (result.isValid) {
-        validationStats.passed++;
-      } else {
-        validationStats.failed++;
-      }
-      validationStats.warnings += result.warnings.length;
-      validationStats.errors += result.errors.length;
-    });
+  /**
+   * 取得事件資料
+   * @returns {EventCollection} 事件資料集合
+   */
+  getEventData() {
+    return /** @type {EventCollection} */ (
+      this.gameData.get("events") || this._getDefaultEvents()
+    );
+  }
 
+  /**
+   * 取得所有載入的資料
+   * @returns {AllGameData} 包含所有遊戲資料的物件
+   */
+  getAllData() {
     return {
-      total,
-      loaded,
-      progress: Math.round(progress),
-      details: { ...this.loadingStatus },
-      errors: this.errorLog.length,
+      rules: this.getGameRules(),
+      tenants: this.getTenantTypes(),
+      skills: this.getAllSkills(),
+      events: this.getEventData(),
+    };
+  }
+
+  /**
+   * 配置查詢輔助方法 - 支援路徑查詢
+   * @param {string} path - 配置路徑，用點分隔（如：'gameDefaults.initialResources.food'）
+   * @param {*} [defaultValue=null] - 預設值
+   * @returns {*} 查詢到的值或預設值
+   */
+  getRuleValue(path, defaultValue = null) {
+    const rules = this.getGameRules();
+    return this._getNestedValue(rules, path) || defaultValue;
+  }
+
+  /**
+   * 取得嵌套物件的值
+   * @param {Object} obj - 目標物件
+   * @param {string} path - 屬性路徑
+   * @returns {*} 查詢到的值或undefined
+   * @private
+   */
+  _getNestedValue(obj, path) {
+    return path
+      .split(".")
+      .reduce(
+        (current, key) =>
+          current && typeof current === "object" ? current[key] : undefined,
+        obj
+      );
+  }
+
+  /**
+   * 取得預設遊戲規則
+   * @returns {GameRules} 預設遊戲規則物件
+   * @private
+   */
+  _getDefaultRules() {
+    return {
+      gameDefaults: {
+        initialResources: {
+          food: 20,
+          materials: 15,
+          medical: 10,
+          fuel: 8,
+          cash: 50,
+        },
+        initialRooms: { count: 2 },
+      },
+      gameBalance: {
+        landlord: { dailyFoodConsumption: 2 },
+        tenants: { dailyFoodConsumption: 2 },
+        resources: { dailyConsumption: { fuel: 1 } },
+      },
+    };
+  }
+
+  /**
+   * 取得預設租客類型
+   * @returns {Array<TenantType>} 預設租客類型陣列
+   * @private
+   */
+  _getDefaultTenants() {
+    return [
+      {
+        typeId: "doctor",
+        typeName: "醫生",
+        category: "doctor",
+        rent: 15,
+        skill: "醫療",
+        infectionRisk: 0.1,
+        description: "可以治療感染，檢測可疑租客",
+        personalResources: {
+          food: 3,
+          materials: 0,
+          medical: 5,
+          fuel: 0,
+          cash: 20,
+        },
+      },
+      {
+        typeId: "worker",
+        typeName: "工人",
+        category: "worker",
+        rent: 12,
+        skill: "維修",
+        infectionRisk: 0.2,
+        description: "擅長維修建築，房間升級",
+        personalResources: {
+          food: 4,
+          materials: 8,
+          medical: 0,
+          fuel: 0,
+          cash: 15,
+        },
+      },
+    ];
+  }
+
+  /**
+   * 取得預設技能資料
+   * @returns {SkillCollection} 預設技能集合
+   * @private
+   */
+  _getDefaultSkills() {
+    return {
+      doctor: [
+        {
+          id: "heal_infection",
+          name: "治療感染",
+          type: "active",
+          description: "治療感染的租客",
+          cost: { medical: 3, cash: 12 },
+          cooldown: 0,
+          requirements: { conditions: [] },
+          effects: [],
+          successRate: 95,
+          priority: 1,
+        },
+      ],
+      worker: [
+        {
+          id: "efficient_repair",
+          name: "專業維修",
+          type: "active",
+          description: "以更少建材維修房間",
+          cost: { materials: 1, cash: 10 },
+          cooldown: 0,
+          requirements: { conditions: [] },
+          effects: [],
+          successRate: 100,
+          priority: 1,
+        },
+      ],
+    };
+  }
+
+  /**
+   * 取得預設事件資料
+   * @returns {EventCollection} 預設事件集合
+   * @private
+   */
+  _getDefaultEvents() {
+    return {
+      random_events: [
+        {
+          id: "zombie_attack",
+          category: "combat",
+          title: "殭屍襲擊",
+          description: "一群殭屍正在靠近房屋！",
+          priority: 1,
+          trigger: {
+            type: "random",
+            probability: 0.3,
+          },
+          choices: [
+            {
+              id: "fortify_defense",
+              text: "加固防禦 (-5建材)",
+              cost: { materials: 5 },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  /**
+   * 取得系統狀態資訊
+   * @returns {SystemStatus} 系統狀態物件
+   */
+  getSystemStatus() {
+    return {
+      initialized: this.isInitialized,
+      configsLoaded: this.configs.size,
+      gameDataLoaded: this.gameData.size,
       cacheSize: this.cache.size,
-      validation: validationStats,
+      fallbackMode: this.configs.size === 0 || this.gameData.size === 0,
     };
   }
 
   /**
-   * 取得錯誤記錄
-   * @param {number} limit - 返回的錯誤記錄數量限制
-   * @returns {Array} 錯誤記錄陣列
+   * 清理所有資源和快取
+   * @returns {void}
    */
-  getErrorLog(limit = 10) {
-    return this.errorLog.slice(0, limit);
-  }
-
-  /**
-   * 清除錯誤記錄
-   */
-  clearErrorLog() {
-    this.errorLog = [];
-    console.log("🗑️ 已清除錯誤記錄");
-  }
-
-  /**
-   * 驗證指定配置資料
-   * @param {string} dataType - 資料類型
-   * @param {any} data - 資料內容
-   * @returns {ValidationResult} 驗證結果
-   */
-  validateSpecificData(dataType, data) {
-    return this.validateConfigData(dataType, data);
-  }
-
-  /**
-   * 批次驗證多種配置資料
-   * @param {Object} dataMap - 資料類型與資料的映射
-   * @returns {Object} 驗證結果映射
-   */
-  validateMultipleConfigs(dataMap) {
-    console.log(`🔍 批次驗證配置: ${Object.keys(dataMap).join(", ")}`);
-
-    const results = this.validatorFactory.validateMultipleConfigs(dataMap);
-
-    // 記錄批次驗證統計
-    const summary = ValidationUtils.summarizeValidationResults(results);
-    console.log(`📊 批次驗證統計:`, summary);
-
-    return results;
-  }
-
-  /**
-   * 取得驗證器工廠
-   * @returns {ValidatorFactory} 驗證器工廠實例
-   */
-  getValidatorFactory() {
-    return this.validatorFactory;
-  }
-
-  /**
-   * 格式化驗證結果為可讀字串
-   * @param {string} dataType - 資料類型
-   * @returns {string} 格式化的驗證結果
-   */
-  getFormattedValidationResult(dataType) {
-    const result = this.getValidationResult(dataType);
-    if (!result) {
-      return `${dataType}: 未找到驗證結果`;
-    }
-
-    return ValidationUtils.formatValidationResult(result);
-  }
-
-  /**
-   * 匯出偵錯資訊
-   * @returns {Object} 完整的偵錯資訊
-   */
-  getDebugInfo() {
-    const loadingStatus = this.getLoadingStatus();
-
-    return {
-      loadingStatus,
-      cachedDataTypes: this.getLoadedDataTypes(),
-      errorLog: this.getErrorLog(),
-      validatorTypes: this.validatorFactory.getAvailableTypes(),
-      validatorStats: this.validatorFactory.getStats(),
-      validationResults: Object.fromEntries(
-        Array.from(this.validationResults.entries()).map(([type, result]) => [
-          type,
-          this._getValidationSummary(result),
-        ])
-      ),
-      cacheInfo: {
-        size: this.cache.size,
-        keys: Array.from(this.cache.keys()),
-      },
-      activePromises: Array.from(this.loadPromises.keys()),
-      systemLimits: {
-        maxErrorLogSize: this.maxErrorLogSize,
-      },
-    };
-  }
-
-  /**
-   * 健康檢查
-   * @returns {Object} 系統健康狀態
-   */
-  healthCheck() {
-    const status = this.getLoadingStatus();
-    const validatorStats = this.validatorFactory.getStats();
-
-    return {
-      status: status.loaded === status.total ? "healthy" : "degraded",
-      dataLoading: {
-        progress: status.progress,
-        loaded: status.loaded,
-        total: status.total,
-        errors: status.errors,
-      },
-      validation: {
-        systemReady: validatorStats.total > 0,
-        configValidators: validatorStats.configValidators,
-        instanceValidators: validatorStats.instanceValidators,
-        resultsStored: this.validationResults.size,
-      },
-      cache: {
-        size: this.cache.size,
-        hitRate:
-          this.cache.size > 0 ? (status.loaded / this.cache.size) * 100 : 0,
-      },
-      errors: {
-        count: this.errorLog.length,
-        recent: this.errorLog.slice(0, 3),
-      },
-    };
+  cleanup() {
+    this.configs.clear();
+    this.gameData.clear();
+    this.cache.clear();
+    this.loadingPromises.clear();
+    this.isInitialized = false;
   }
 }
+
+export default DataManager;

@@ -1,136 +1,522 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>末日房東模擬器 v2.0</title>
-    
-    <!-- CSS 模組載入 -->
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/components.css">
-  </head>
-  <body>
-    <!-- 系統狀態指示器 -->
-    <div id="systemStatus" class="system-status modular">
-      🟢 模組化系統 v2.0
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>末日房東模擬器 v2.0 - 基礎設施測試</title>
+    <style>
+        /* 基礎樣式 */
+        body {
+            font-family: "Courier New", monospace;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.4;
+        }
 
-    <div class="game-container">
-      <div class="main-area">
-        <div class="status-bar">
-          <div>第 <span id="day">1</span> 天</div>
-          <div>時間: <span id="time">白天</span></div>
-          <div>💰 現金: $<span id="cash">50</span></div>
-          <div>🛡️ 防禦: <span id="buildingDefenseText">脆弱(0)</span></div>
-          <div>🍽️ 飢餓: <span id="landlordHungerText">飽足(0)</span></div>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        .main-area {
+            background: #1a1a1a;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .sidebar {
+            background: #1a1a1a;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        /* 系統狀態樣式 */
+        .system-status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status-normal {
+            background: rgba(102, 255, 102, 0.2);
+            border: 1px solid #66ff66;
+            color: #66ff66;
+        }
+
+        .status-fallback {
+            background: rgba(255, 204, 102, 0.2);
+            border: 1px solid #ffcc66;
+            color: #ffcc66;
+        }
+
+        .status-error {
+            background: rgba(255, 102, 102, 0.2);
+            border: 1px solid #ff6666;
+            color: #ff6666;
+        }
+
+        /* 狀態顯示 */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            background: #333;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        /* 按鈕樣式 */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #4a4a4a;
+            border: 1px solid #666;
+            color: #e0e0e0;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #555;
+        }
+
+        .btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .btn.success {
+            background: #446644;
+            border-color: #66aa66;
+        }
+
+        .btn.warning {
+            background: #666644;
+            border-color: #aaaa66;
+        }
+
+        .btn.danger {
+            background: #664444;
+            border-color: #aa6666;
+        }
+
+        /* 日誌樣式 */
+        .log {
+            background: #222;
+            border: 1px solid #444;
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-entry.system {
+            color: #66ccff;
+        }
+
+        .log-entry.event {
+            color: #ffcc66;
+        }
+
+        .log-entry.error {
+            color: #ff6666;
+        }
+
+        /* 除錯面板樣式 */
+        .debug-panel {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .debug-section {
+            margin-bottom: 10px;
+        }
+
+        .debug-section h4 {
+            margin: 0 0 5px 0;
+            color: #66ccff;
+            font-size: 14px;
+        }
+
+        .debug-info {
+            font-size: 11px;
+            color: #ccc;
+            font-family: monospace;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-area">
+            <h1>末日房東模擬器 v2.0</h1>
+            <p>基礎設施測試版本 - ES6 模組化架構</p>
+
+            <!-- 系統狀態指示器 -->
+            <div id="mainSystemStatus" class="system-status status-normal">
+                🔄 系統正在初始化...
+            </div>
+
+            <!-- 遊戲狀態顯示 -->
+            <div class="status-grid">
+                <div class="status-item">
+                    天數: <span id="gameDay">-</span>
+                </div>
+                <div class="status-item">
+                    現金: $<span id="gameCash">-</span>
+                </div>
+                <div class="status-item">
+                    食物: <span id="gameFood">-</span>
+                </div>
+                <div class="status-item">
+                    租客: <span id="gameTenants">-</span>
+                </div>
+            </div>
+
+            <!-- 測試控制 -->
+            <div class="controls">
+                <button class="btn success" onclick="testDataManager()">測試資料管理</button>
+                <button class="btn success" onclick="testGameState()">測試狀態管理</button>
+                <button class="btn success" onclick="testEventBus()">測試事件系統</button>
+                <button class="btn warning" onclick="runAllTests()">執行所有測試</button>
+                <button class="btn" onclick="showDebugInfo()">顯示除錯資訊</button>
+                <button class="btn danger" onclick="triggerError()">觸發錯誤測試</button>
+            </div>
+
+            <!-- 遊戲日誌 -->
+            <h3>系統日誌</h3>
+            <div class="log" id="gameLog">
+                <div class="log-entry system">系統正在啟動...</div>
+            </div>
         </div>
 
-        <div class="house-layout">
-          <div class="room" id="room1">
-            <div class="tenant-info" id="room1-info">空房</div>
-          </div>
-          <div class="room" id="room2">
-            <div class="tenant-info" id="room2-info">空房</div>
-          </div>
-        </div>
+        <div class="sidebar">
+            <h3>系統資訊</h3>
+            
+            <!-- 系統狀態 -->
+            <div class="debug-panel">
+                <div class="debug-section">
+                    <h4>核心系統</h4>
+                    <div class="debug-info" id="coreSystemInfo">
+                        載入中...
+                    </div>
+                </div>
+                
+                <div class="debug-section">
+                    <h4>模組狀態</h4>
+                    <div class="debug-info" id="moduleStatusInfo">
+                        載入中...
+                    </div>
+                </div>
+                
+                <div class="debug-section">
+                    <h4>事件統計</h4>
+                    <div class="debug-info" id="eventStatsInfo">
+                        載入中...
+                    </div>
+                </div>
+            </div>
 
-        <div class="resources">
-          <div class="resource">🍖 食物: <span id="food">20</span></div>
-          <div class="resource">🔧 建材: <span id="materials">15</span></div>
-          <div class="resource">💊 醫療: <span id="medical">10</span></div>
-          <div class="resource">⛽ 燃料: <span id="fuel">8</span></div>
-        </div>
+            <h3>快速操作</h3>
+            <div class="controls" style="flex-direction: column;">
+                <button class="btn" onclick="advanceDay()">推進一天</button>
+                <button class="btn" onclick="addTestResources()">增加測試資源</button>
+                <button class="btn" onclick="clearLogs()">清空日誌</button>
+                <button class="btn" onclick="exportGameState()">匯出狀態</button>
+            </div>
 
-        <div class="controls">
-          <button class="btn success" id="collectRentBtn">收租</button>
-          <button class="btn" id="showVisitorsBtn">查看訪客</button>
-          <button class="btn" id="showScavengeBtn">
-            派遣搜刮 (<span id="scavengeCount">0</span>/2)
-          </button>
-          <button class="btn" id="harvestYardBtn">院子採集</button>
-          <button class="btn special" id="showSkillBtn">使用技能</button>
-          <button class="btn danger" id="nextDayBtn">下一天</button>
+            <h3>開發工具</h3>
+            <div class="debug-info" style="font-size: 10px;">
+                <p>在瀏覽器控制台輸入 <code>gameApp.debug()</code> 查看詳細資訊</p>
+                <p>在 URL 加上 <code>?debug=true</code> 啟用除錯模式</p>
+                <p>系統會自動檢測模組載入和 ES6 支援</p>
+            </div>
         </div>
-
-        <div class="log" id="gameLog"></div>
-      </div>
-
-      <div class="sidebar">
-        <h3>租客列表</h3>
-        <div class="tenant-list" id="tenantList">
-          <div class="tenant-item">暫無租客</div>
-        </div>
-
-        <h3>系統狀態</h3>
-        <div class="system-status-details">
-          <div>📊 架構版本: <span id="archVersion">ES6模組 v2.0</span></div>
-          <div>🔧 資料系統: <span id="dataSystem">載入中...</span></div>
-          <div>⚙️ 規則引擎: <span id="ruleEngine">載入中...</span></div>
-          <div>🌉 系統橋接: <span id="gameBridge">載入中...</span></div>
-        </div>
-
-        <h3>遊戲說明</h3>
-        <div style="font-size: 11px">
-          <p>• 點擊房間查看詳情</p>
-          <p>• 邀請訪客租房或交易</p>
-          <p>• 商人訪客提供各種交易</p>
-          <p>• 租客可用資源抵付房租</p>
-          <p>• 善用租客技能求生</p>
-          <p>• 房東也需要食物維生</p>
-        </div>
-      </div>
     </div>
 
-    <!-- 模態框群組 -->
-    <div class="modal" id="visitorModal">
-      <div class="modal-content">
-        <h3>今日訪客</h3>
-        <div id="visitorList"></div>
-        <button class="btn" id="closeVisitorModal">關閉</button>
-      </div>
-    </div>
+    <!-- 測試腳本 -->
+    <script>
+        // 測試函數（在模組載入前提供基本功能）
 
-    <div class="modal" id="tenantModal">
-      <div class="modal-content">
-        <h3 id="tenantModalTitle">租客管理</h3>
-        <div id="tenantModalContent"></div>
-        <div id="tenantModalActions" class="action-buttons"></div>
-      </div>
-    </div>
+        function addLog(message, type = 'system') {
+            const logElement = document.getElementById('gameLog');
+            const entryElement = document.createElement('div');
+            entryElement.className = `log-entry ${type}`;
+            entryElement.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logElement.appendChild(entryElement);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
 
-    <div class="modal" id="skillModal">
-      <div class="modal-content">
-        <h3>租客技能</h3>
-        <div id="skillList"></div>
-        <button class="btn" id="closeSkillModal">關閉</button>
-      </div>
-    </div>
+        function updateSystemStatus(status, message) {
+            const statusElement = document.getElementById('mainSystemStatus');
+            statusElement.className = `system-status status-${status}`;
+            statusElement.textContent = message;
+        }
 
-    <div class="modal" id="scavengeModal">
-      <div class="modal-content">
-        <h3>選擇派遣人員</h3>
-        <p>剩餘派遣次數: <span id="remainingScavenges">2</span></p>
-        <div id="availableTenants"></div>
-        <button class="btn" onclick="closeModal()">取消</button>
-      </div>
-    </div>
+        function updateGameStats() {
+            if (!gameApp || !gameApp.gameState) return;
 
-    <div class="modal" id="eventModal">
-      <div class="modal-content">
-        <h3 id="eventTitle">事件</h3>
-        <p id="eventDescription"></p>
-        <div id="eventChoices"></div>
-      </div>
-    </div>
+            const stats = gameApp.gameState.getStateStats();
+            const resources = gameApp.gameState.getStateValue('resources', {});
 
-    <!-- ES6 模組載入進入點 -->
-    <script type="module" src="js/main.js"></script>
+            document.getElementById('gameDay').textContent = stats.day || 0;
+            document.getElementById('gameCash').textContent = resources.cash || 0;
+            document.getElementById('gameFood').textContent = resources.food || 0;
+            document.getElementById('gameTenants').textContent = stats.totalTenants || 0;
+        }
 
-    <!-- 舊版瀏覽器提示 -->
-    <script nomodule>
-      alert(
-        "請使用現代瀏覽器（Chrome 61+, Firefox 60+, Safari 10.1+）以獲得最佳遊戲體驗。"
-      );
+        function updateDebugInfo() {
+            if (!gameApp) return;
+
+            const status = gameApp.getStatus();
+            
+            // 核心系統資訊
+            document.getElementById('coreSystemInfo').innerHTML = `
+                初始化: ${status.initialized ? '✅' : '❌'}<br>
+                模式: ${status.mode}<br>
+                運行時間: ${((Date.now() - startTime) / 1000).toFixed(1)}s
+            `;
+
+            // 模組狀態
+            document.getElementById('moduleStatusInfo').innerHTML = `
+                DataManager: ${status.dataManager ? '✅' : '❌'}<br>
+                GameState: ${status.gameState ? '✅' : '❌'}<br>
+                EventBus: ${status.eventBus ? '✅' : '❌'}
+            `;
+
+            // 事件統計
+            if (status.eventBus) {
+                document.getElementById('eventStatsInfo').innerHTML = `
+                    事件類型: ${status.eventBus.totalEventTypes}<br>
+                    監聽器: ${status.eventBus.totalListeners}<br>
+                    歷史記錄: ${status.eventBus.eventHistory}
+                `;
+            }
+        }
+
+        // 測試函數
+        function testDataManager() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            try {
+                const rules = gameApp.dataManager.getGameRules();
+                const tenants = gameApp.dataManager.getTenantTypes();
+                addLog(`資料測試: 規則 ${!!rules ? '✅' : '❌'}, 租客 ${!!tenants ? '✅' : '❌'}`, 'system');
+            } catch (error) {
+                addLog(`資料管理器測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        function testGameState() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            try {
+                const oldCash = gameApp.gameState.getStateValue('resources.cash');
+                gameApp.gameState.modifyResource('cash', 100, '測試增加');
+                const newCash = gameApp.gameState.getStateValue('resources.cash');
+                addLog(`狀態測試: ${oldCash} → ${newCash} ${newCash > oldCash ? '✅' : '❌'}`, 'system');
+                updateGameStats();
+            } catch (error) {
+                addLog(`遊戲狀態測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        function testEventBus() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            try {
+                let received = false;
+                const unsubscribe = gameApp.eventBus.on('test_event', () => {
+                    received = true;
+                    addLog('事件測試: 成功接收測試事件 ✅', 'system');
+                    unsubscribe();
+                });
+                
+                gameApp.eventBus.emit('test_event', { test: true });
+                
+                setTimeout(() => {
+                    if (!received) {
+                        addLog('事件測試: 未接收到事件 ❌', 'error');
+                    }
+                }, 100);
+            } catch (error) {
+                addLog(`事件系統測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        function runAllTests() {
+            addLog('開始執行完整系統測試', 'system');
+            testDataManager();
+            setTimeout(() => testGameState(), 200);
+            setTimeout(() => testEventBus(), 400);
+            setTimeout(() => addLog('所有測試完成', 'system'), 600);
+        }
+
+        function showDebugInfo() {
+            if (gameApp) {
+                gameApp.debug();
+                addLog('除錯資訊已輸出到控制台', 'system');
+            } else {
+                addLog('系統未初始化，無法顯示除錯資訊', 'error');
+            }
+        }
+
+        function triggerError() {
+            try {
+                throw new Error('這是一個測試錯誤');
+            } catch (error) {
+                addLog(`錯誤測試: ${error.message}`, 'error');
+                if (gameApp && gameApp.eventBus) {
+                    gameApp.eventBus.emit('test_error', { error: error.message });
+                }
+            }
+        }
+
+        function advanceDay() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            const success = gameApp.gameState.advanceDay();
+            if (success) {
+                addLog('成功推進到下一天', 'event');
+                updateGameStats();
+            } else {
+                addLog('推進日期失敗', 'error');
+            }
+        }
+
+        function addTestResources() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            gameApp.gameState.setState({
+                resources: {
+                    food: gameApp.gameState.getStateValue('resources.food') + 10,
+                    materials: gameApp.gameState.getStateValue('resources.materials') + 5,
+                    medical: gameApp.gameState.getStateValue('resources.medical') + 3,
+                    cash: gameApp.gameState.getStateValue('resources.cash') + 50
+                }
+            }, '測試資源增加');
+            
+            addLog('增加測試資源', 'event');
+            updateGameStats();
+        }
+
+        function clearLogs() {
+            document.getElementById('gameLog').innerHTML = '';
+            addLog('日誌已清空', 'system');
+        }
+
+        function exportGameState() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            const exported = gameApp.gameState.export();
+            console.log('遊戲狀態匯出:', exported);
+            addLog('狀態已匯出到控制台', 'system');
+        }
+
+        // 系統監控
+        const startTime = Date.now();
+        
+        setInterval(() => {
+            if (gameApp && gameApp.isInitialized) {
+                updateGameStats();
+                updateDebugInfo();
+            }
+        }, 2000);
+
+        // 錯誤處理
+        window.addEventListener('error', (event) => {
+            addLog(`全局錯誤: ${event.error.message}`, 'error');
+            updateSystemStatus('error', '🔴 系統發生錯誤');
+        });
+
+        // ES6 模組支援檢測
+        if (!window.fetch || !window.Promise) {
+            updateSystemStatus('error', '🔴 瀏覽器不支援必要功能');
+            addLog('瀏覽器缺少必要的 API 支援', 'error');
+        } else {
+            addLog('瀏覽器環境檢查通過', 'system');
+        }
     </script>
-  </body>
+
+    <!-- 主模組載入 -->
+    <script type="module">
+        import { gameApp } from './js/main.js';
+        
+        // 等待初始化完成
+        const checkInit = setInterval(() => {
+            if (window.gameApp) {
+                // 模組已載入
+                clearInterval(checkInit);
+                window.gameApp = window.gameApp;
+                
+                // 設定全局參考
+                window.gameApp = window.gameApp;
+                
+                updateSystemStatus('normal', '🟢 模組化系統 v2.0 - 運行中');
+                addLog('ES6 模組載入成功', 'system');
+                addLog('核心系統已初始化', 'system');
+                
+                // 自動更新狀態
+                updateGameStats();
+                updateDebugInfo();
+                
+            }
+        }, 100);
+
+        // 超時處理
+        setTimeout(() => {
+            if (!window.gameApp) {
+                clearInterval(checkInit);
+                updateSystemStatus('error', '🔴 模組載入超時');
+                addLog('模組載入超時，請檢查檔案路徑', 'error');
+            }
+        }, 5000);
+    </script>
+
+    <!-- 後備模式 -->
+    <script nomodule>
+        updateSystemStatus('error', '🔴 不支援 ES6 模組');
+        addLog('瀏覽器不支援 ES6 模組，請使用現代瀏覽器', 'error');
+    </script>
+</body>
 </html>
