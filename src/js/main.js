@@ -8,6 +8,7 @@
 import DataManager from "./core/DataManager.js";
 import GameState from "./core/GameState.js";
 import EventBus from "./core/EventBus.js";
+import ResourceManager from "./systems/ResourceSystem.js";
 
 /**
  * 系統運行模式
@@ -29,6 +30,7 @@ import EventBus from "./core/EventBus.js";
  * @property {number} totalResources - 總資源數量
  * @property {number} totalTenants - 總租客數量
  * @property {number} systemEvents - 系統事件數量
+ * @property {boolean} resourceManagerActive - 資源管理器是否啟用
  */
 
 /**
@@ -65,6 +67,7 @@ import EventBus from "./core/EventBus.js";
  * @property {Object} [dataManager] - 資料管理器狀態
  * @property {Object} [gameState] - 遊戲狀態統計
  * @property {Object} [eventBus] - 事件系統統計
+ *  * @property {Object} [resourceManager] - 資源管理器統計
  */
 
 /**
@@ -121,6 +124,12 @@ class GameApplication {
     this.eventBus = null;
 
     /**
+     * 資源管理器實例
+     * @type {ResourceManager|null}
+     */
+    this.resourceManager = null;
+
+    /**
      * 系統是否已初始化
      * @type {boolean}
      */
@@ -137,7 +146,7 @@ class GameApplication {
 
   /**
    * 初始化應用程式
-   * 按序初始化事件系統、資料管理器、遊戲狀態等核心組件
+   * 按序初始化事件系統、資料管理器、遊戲狀態、業務模組等核心組件
    * @returns {Promise<InitializationResult>} 初始化結果
    * @throws {Error} 當初始化過程發生致命錯誤時
    */
@@ -162,13 +171,18 @@ class GameApplication {
       this.gameState = new GameState(dataResult.data);
       this._setupGameStateListeners();
 
-      // 4. 更新系統狀態
+      // 4. 初始化業務模組
+      console.log("🔧 正在初始化業務模組...");
+      await this._initializeBusinessModules();
+
+      // 5. 更新系統狀態
       this.gameState.setState(
         {
           system: {
             initialized: true,
             fallbackMode: this.systemMode === "fallback",
             lastSaved: new Date().toISOString(),
+            gameRules: this.dataManager.getGameRules(),
           },
         },
         "系統初始化完成"
@@ -176,7 +190,7 @@ class GameApplication {
 
       this.isInitialized = true;
 
-      // 5. 通知系統就緒
+      // 6. 通知系統就緒
       this.eventBus.emit("system_ready", {
         mode: this.systemMode,
         dataLoaded: dataResult.success,
@@ -196,6 +210,58 @@ class GameApplication {
       this._handleInitializationError(error);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * 初始化業務模組
+   * @private
+   * @returns {Promise<void>}
+   */
+  async _initializeBusinessModules() {
+    try {
+      // 初始化資源管理器
+      this.resourceManager = new ResourceManager(this.gameState, this.eventBus);
+      console.log("✅ ResourceManager 初始化完成");
+
+      // 設定業務模組間的事件監聽
+      this._setupBusinessModuleListeners();
+
+      console.log("🔧 業務模組初始化完成");
+    } catch (error) {
+      console.error("❌ 業務模組初始化失敗:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 設定業務模組事件監聽器
+   * @private
+   * @returns {void}
+   */
+  _setupBusinessModuleListeners() {
+    if (!this.resourceManager) return;
+
+    // 監聽資源警告事件
+    this.eventBus.on("resource_threshold_warning", (eventObj) => {
+      const data = eventObj.data;
+      console.warn(
+        `⚠️ 資源警告: ${data.resourceType} 剩餘 ${data.currentValue}`
+      );
+    });
+
+    // 監聽資源危急事件
+    this.eventBus.on("resource_critical_low", (eventObj) => {
+      const data = eventObj.data;
+      console.error(
+        `🚨 資源危急: ${data.resourceType} 僅剩 ${data.currentValue}`
+      );
+    });
+
+    // 監聽資源轉移完成事件
+    this.eventBus.on("resource_transfer_completed", (eventObj) => {
+      const data = eventObj.data;
+      console.log(`💰 資源轉移: ${data.from} → ${data.to}`);
+    });
   }
 
   /**
@@ -274,6 +340,8 @@ class GameApplication {
       totalResources: 0,
       totalTenants: 0,
       systemEvents: 0,
+      resourceManagerActive:
+        this.resourceManager?.getSystemStats?.()?.isActive || false,
     };
 
     if (this.gameState) {
@@ -326,6 +394,7 @@ class GameApplication {
     const currentStatus =
       status || (this.systemMode === "fallback" ? "fallback" : "normal");
     const stats = this._getSystemStats();
+    const moduleCount = this._getActiveModuleCount();
 
     /** @type {Record<StatusDisplayMode, StatusConfig>} */
     const statusConfig = {
@@ -346,6 +415,20 @@ class GameApplication {
     const config = statusConfig[currentStatus] || statusConfig.error;
     statusElement.textContent = config.text;
     statusElement.className = `system-status ${config.class}`;
+  }
+
+  /**
+   * 取得活躍模組數量
+   * @private
+   * @returns {number} 活躍模組數量
+   */
+  _getActiveModuleCount() {
+    let count = 0;
+    if (this.dataManager) count++;
+    if (this.gameState) count++;
+    if (this.eventBus) count++;
+    if (this.resourceManager) count++;
+    return count;
   }
 
   /**
@@ -453,6 +536,7 @@ class GameApplication {
       dataManager: this.dataManager?.getSystemStatus(),
       gameState: this.gameState?.getStateStats(),
       eventBus: this.eventBus?.getStats(),
+      resourceManager: this.resourceManager?.getSystemStats(),
     };
   }
 
@@ -476,6 +560,10 @@ class GameApplication {
     if (this.eventBus) {
       console.log("事件系統:", this.eventBus.getStats());
       this.eventBus.debug();
+    }
+
+    if (this.resourceManager) {
+      console.log("資源管理器:", this.resourceManager.getSystemStats());
     }
 
     console.groupEnd();
@@ -512,8 +600,23 @@ class GameApplication {
       this.eventBus.emit("test_event", { test: true });
       console.log("✅ 事件通信:", eventReceived);
 
-      // 測試4: 系統整合（修正日誌型別）
-      console.log("測試4: 系統整合");
+      // 測試4: 資源管理器
+      console.log("測試4: 資源管理器");
+      if (this.resourceManager) {
+        const beforeFood = this.gameState.getStateValue("resources.food");
+        const success = this.resourceManager.modifyResource(
+          "food",
+          5,
+          "測試資源管理器"
+        );
+        const afterFood = this.gameState.getStateValue("resources.food");
+        console.log("✅ 資源管理器:", success && afterFood === beforeFood + 5);
+      } else {
+        console.log("❌ 資源管理器: 未初始化");
+      }
+
+      // 測試5: 系統整合
+      console.log("測試5: 系統整合");
       this.gameState.addLog("系統測試完成", "event");
       console.log("✅ 系統整合: 通過");
 

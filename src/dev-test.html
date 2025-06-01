@@ -233,6 +233,7 @@
                 <button class="btn success" onclick="testDataManager()">測試資料管理</button>
                 <button class="btn success" onclick="testGameState()">測試狀態管理</button>
                 <button class="btn success" onclick="testEventBus()">測試事件系統</button>
+                <button class="btn success" onclick="testResourceManager()">測試資源管理</button>
                 <button class="btn warning" onclick="runAllTests()">執行所有測試</button>
                 <button class="btn" onclick="showDebugInfo()">顯示除錯資訊</button>
                 <button class="btn danger" onclick="triggerError()">觸發錯誤測試</button>
@@ -260,6 +261,13 @@
                 <div class="debug-section">
                     <h4>模組狀態</h4>
                     <div class="debug-info" id="moduleStatusInfo">
+                        載入中...
+                    </div>
+                </div>
+                
+                <div class="debug-section">
+                    <h4>業務模組</h4>
+                    <div class="debug-info" id="businessModuleInfo">
                         載入中...
                     </div>
                 </div>
@@ -333,11 +341,18 @@
                 運行時間: ${((Date.now() - startTime) / 1000).toFixed(1)}s
             `;
 
-            // 模組狀態
+            // 核心模組狀態
             document.getElementById('moduleStatusInfo').innerHTML = `
                 DataManager: ${status.dataManager ? '✅' : '❌'}<br>
                 GameState: ${status.gameState ? '✅' : '❌'}<br>
                 EventBus: ${status.eventBus ? '✅' : '❌'}
+            `;
+
+            // 業務模組狀態
+            document.getElementById('businessModuleInfo').innerHTML = `
+                ResourceManager: ${status.resourceManager ? '✅' : '❌'}<br>
+                活躍狀態: ${status.resourceManager?.isActive ? '✅' : '❌'}<br>
+                修改記錄: ${status.resourceManager?.modificationHistory || 0}
             `;
 
             // 事件統計
@@ -400,12 +415,41 @@
             }
         }
 
+        function testResourceManager() {
+            if (!gameApp) return addLog('系統未初始化', 'error');
+            
+            if (!gameApp.resourceManager) {
+                return addLog('ResourceManager 未初始化', 'error');
+            }
+            
+            try {
+                // 測試資源修改功能
+                const oldFood = gameApp.gameState.getStateValue('resources.food');
+                const success = gameApp.resourceManager.modifyResource('food', 5, '測試資源修改');
+                const newFood = gameApp.gameState.getStateValue('resources.food');
+                
+                // 測試資源驗證功能
+                const hasEnough = gameApp.resourceManager.hasEnoughResource('cash', 10);
+                
+                // 測試資源狀態評估
+                const foodStatus = gameApp.resourceManager.getResourceStatus('food');
+                
+                addLog(`ResourceManager 測試: 修改 ${success ? '✅' : '❌'}, 驗證 ${hasEnough ? '✅' : '❌'}, 狀態 ${foodStatus ? '✅' : '❌'}`, 'system');
+                addLog(`食物: ${oldFood} → ${newFood}, 狀態: ${foodStatus.level}`, 'system');
+                updateGameStats();
+                
+            } catch (error) {
+                addLog(`ResourceManager 測試失敗: ${error.message}`, 'error');
+            }
+        }
+
         function runAllTests() {
             addLog('開始執行完整系統測試', 'system');
             testDataManager();
             setTimeout(() => testGameState(), 200);
             setTimeout(() => testEventBus(), 400);
-            setTimeout(() => addLog('所有測試完成', 'system'), 600);
+            setTimeout(() => testResourceManager(), 600);
+            setTimeout(() => addLog('所有測試完成', 'system'), 800);
         }
 
         function showDebugInfo() {

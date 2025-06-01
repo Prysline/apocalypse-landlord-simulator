@@ -123,6 +123,7 @@
  * @property {boolean} initialized - 是否已初始化
  * @property {boolean} fallbackMode - 是否為後備模式
  * @property {string|null} lastSaved - 最後存檔時間
+ * @property {Object|null} gameRules - 遊戲規則配置物件
  */
 
 /**
@@ -327,6 +328,7 @@ export class GameState {
         initialized: false,
         fallbackMode: false,
         lastSaved: null,
+        gameRules: null,
       },
     };
 
