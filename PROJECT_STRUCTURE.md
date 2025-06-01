@@ -16,7 +16,8 @@ apocalypse-landlord-simulator/
 ├── .gitignore                         # 📋 Git版本控制設定
 │
 ├── src/                               # 📁 原始碼目錄
-│   ├── index.html                     # ✅ 基礎設施測試頁面
+│   ├── index.html                     # 📋 正式版本入口（預留）
+│   ├── dev-test.html                  # ✅ 開發測試環境
 │   ├── game-refactored.html           # 📦 v1.1穩定版本（備份）
 │   ├── index-original.html            # 📦 v1.0原始版本（參考）
 │   │
@@ -92,7 +93,7 @@ apocalypse-landlord-simulator/
 - **constants.js** - 系統級常數管理（純技術常數）
 - **validators.js** - 輕量驗證系統（可選啟用）
 - **main.js** - 應用程式進入點（系統整合協調）
-- **index.html** - 基礎設施測試頁面（即時監控）
+- **dev-test.html** - 開發測試環境（模組化架構驗證）
 
 #### 📊 配置驅動體系
 - **rules.json** - 集中遊戲規則配置（擴展版）
@@ -137,6 +138,10 @@ apocalypse-landlord-simulator/
 - **DisplayUpdater.js** - 畫面更新邏輯，狀態到UI映射  
 - **InteractionHandler.js** - 使用者互動處理，按鈕事件綁定
 
+#### 版本規劃與入口檔案
+- **dev-test.html** - 開發測試環境，模組整合驗證，系統監控
+- **index.html** - 正式版本入口（預留），完整遊戲體驗
+
 ## 🎯 技術架構核心特色
 
 ### 配置驅動設計
@@ -173,7 +178,7 @@ apocalypse-landlord-simulator/
 
 ### 開發效率
 - **並行開發**：不同模組可同時開發，依賴明確
-- **即時測試**：index.html 提供完整的測試環境  
+- **即時測試**：dev-test.html 提供完整的測試環境  
 - **除錯便利**：內建統計、日誌、狀態監控功能
 - **快速迭代**：配置驅動設計，參數調整無需改程式碼
 
@@ -206,9 +211,10 @@ apocalypse-landlord-simulator/
 
 ### 長期目標（後續發展）
 8. **UI系統完善** - 現代化使用者介面  
-9. **效能優化** - 載入速度和記憶體使用優化
-10. **商業化準備** - 多平台支援和進階功能
+9. **正式版本完成** - index.html 完整遊戲體驗
+10. **效能優化** - 載入速度和記憶體使用優化
+11. **商業化準備** - 多平台支援和進階功能
 
 ---
 
-**專案狀態總結**：核心基礎設施已建構完成並驗證穩定，具備了現代化ES6模組架構的所有優勢。下階段專注於業務邏輯模組實作，預期在完成ResourceManager和TradeManager後，整體功能完整度將達到90%以上。
+**專案狀態總結**：核心基礎設施已建構完成並驗證穩定，開發測試環境提供完整的模組整合驗證能力。下階段專注於業務邏輯模組實作，預期在完成ResourceManager和TradeManager後，整體功能完整度將達到90%以上。

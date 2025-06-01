@@ -27,7 +27,7 @@
 
 **系統整合測試**：
 - **main.js** - 應用程式進入點，完整錯誤處理
-- **index.html** - 即時系統監控，開發者測試工具
+- **dev-test.html** - 開發測試環境，即時系統監控
 
 ### 🚀 下階段目標：業務邏輯模組（30%）
 
@@ -42,16 +42,17 @@
 
 ### 推薦遊玩方式
 1. **穩定版本**：下載 `src/game-refactored.html`（v1.1完整功能）
-2. **開發版本**：訪問 `src/index.html`（v2.0模組化測試版）
-3. **使用現代瀏覽器**：Chrome 61+, Firefox 60+, Safari 10.1+
+2. **開發測試**：訪問 `src/dev-test.html`（v2.0模組化測試環境）
+3. **正式版本**：`src/index.html`（v2.0正式版本，開發中）
+4. **使用現代瀏覽器**：Chrome 61+, Firefox 60+, Safari 10.1+
 
 ### 基礎設施測試（開發者）
 ```bash
 # 1. Clone 專案
 git clone https://github.com/Prysline/apocalypse-landlord-simulator.git
 
-# 2. 開啟測試頁面
-# 直接用瀏覽器開啟 src/index.html
+# 2. 開啟開發測試頁面
+# 直接用瀏覽器開啟 src/dev-test.html
 
 # 3. 檢查系統狀態
 # 頁面右上角顯示系統運行模式
@@ -107,10 +108,10 @@ git clone https://github.com/Prysline/apocalypse-landlord-simulator.git
 
 ## 📊 系統狀態監控
 
-遊戲提供即時系統狀態指示器：
+開發測試環境提供即時系統狀態指示器：
 
-- **🟢 模組化系統 v2.0 - 運行中**：所有模組正常載入，完整功能可用
-- **🟡 模組化系統 v2.0 - 後備模式**：部分配置載入失敗，使用預設配置
+- **🟢 開發環境 v2.0 - 運行中**：所有模組正常載入，完整功能可用
+- **🟡 開發環境 v2.0 - 後備模式**：部分配置載入失敗，使用預設配置
 - **🔴 系統啟動失敗**：需要檢查瀏覽器ES6模組支援
 
 ## 🔄 重構進展與技術對比
