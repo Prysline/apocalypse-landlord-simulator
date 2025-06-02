@@ -1079,7 +1079,7 @@ export class ResourceManager {
    * 取得系統統計資訊
    * @returns {Object} 系統統計資訊
    */
-  getSystemStats() {
+  getStatus() {
     return {
       isActive: this.isActive,
       thresholdCount: this.thresholds.size,

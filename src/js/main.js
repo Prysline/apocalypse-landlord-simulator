@@ -8,7 +8,8 @@
 import DataManager from "./core/DataManager.js";
 import GameState from "./core/GameState.js";
 import EventBus from "./core/EventBus.js";
-import ResourceManager from "./systems/ResourceSystem.js";
+import ResourceManager from "./systems/ResourceManager.js";
+import TradeManager from "./systems/TradeManager.js";
 
 /**
  * 系統運行模式
@@ -67,7 +68,8 @@ import ResourceManager from "./systems/ResourceSystem.js";
  * @property {Object} [dataManager] - 資料管理器狀態
  * @property {Object} [gameState] - 遊戲狀態統計
  * @property {Object} [eventBus] - 事件系統統計
- *  * @property {Object} [resourceManager] - 資源管理器統計
+ * @property {Object} [resourceManager] - 資源管理器統計
+ * @property {Object} [tradeManager] - 資源管理器統計
  */
 
 /**
@@ -128,6 +130,12 @@ class GameApplication {
      * @type {ResourceManager|null}
      */
     this.resourceManager = null;
+
+    /**
+     * 交易管理器實例
+     * @type {TradeManager|null}
+     */
+    this.tradeManager = null;
 
     /**
      * 系統是否已初始化
@@ -222,6 +230,15 @@ class GameApplication {
       // 初始化資源管理器
       this.resourceManager = new ResourceManager(this.gameState, this.eventBus);
       console.log("✅ ResourceManager 初始化完成");
+
+      // 初始化交易管理器
+      this.tradeManager = new TradeManager(
+        this.gameState,
+        this.resourceManager,
+        this.dataManager,
+        this.eventBus
+      );
+      console.log("✅ TradeManager 初始化完成");
 
       // 設定業務模組間的事件監聽
       this._setupBusinessModuleListeners();
@@ -341,7 +358,7 @@ class GameApplication {
       totalTenants: 0,
       systemEvents: 0,
       resourceManagerActive:
-        this.resourceManager?.getSystemStats?.()?.isActive || false,
+        this.resourceManager?.getStatus?.()?.isActive || false,
     };
 
     if (this.gameState) {
@@ -536,7 +553,8 @@ class GameApplication {
       dataManager: this.dataManager?.getSystemStatus(),
       gameState: this.gameState?.getStateStats(),
       eventBus: this.eventBus?.getStats(),
-      resourceManager: this.resourceManager?.getSystemStats(),
+      resourceManager: this.resourceManager?.getStatus(),
+      tradeManager: this.tradeManager?.getStatus(),
     };
   }
 
@@ -563,7 +581,7 @@ class GameApplication {
     }
 
     if (this.resourceManager) {
-      console.log("資源管理器:", this.resourceManager.getSystemStats());
+      console.log("資源管理器:", this.resourceManager.getStatus());
     }
 
     console.groupEnd();
