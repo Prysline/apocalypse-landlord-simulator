@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @fileoverview main.js - 應用程式進入點（基礎設施測試版）
+ * @fileoverview main.js - 應用程式進入點（含 TenantManager 整合）
  * 職責：整合核心系統，建立應用程式基礎架構
  */
 
@@ -10,6 +10,7 @@ import GameState from "./core/GameState.js";
 import EventBus from "./core/EventBus.js";
 import ResourceManager from "./systems/ResourceManager.js";
 import TradeManager from "./systems/TradeManager.js";
+import TenantManager from "./systems/TenantManager.js";
 
 /**
  * 系統運行模式
@@ -32,6 +33,7 @@ import TradeManager from "./systems/TradeManager.js";
  * @property {number} totalTenants - 總租客數量
  * @property {number} systemEvents - 系統事件數量
  * @property {boolean} resourceManagerActive - 資源管理器是否啟用
+ * @property {boolean} tenantManagerActive - 租客管理器是否啟用
  */
 
 /**
@@ -69,7 +71,8 @@ import TradeManager from "./systems/TradeManager.js";
  * @property {Object} [gameState] - 遊戲狀態統計
  * @property {Object} [eventBus] - 事件系統統計
  * @property {Object} [resourceManager] - 資源管理器統計
- * @property {Object} [tradeManager] - 資源管理器統計
+ * @property {Object} [tradeManager] - 交易管理器統計
+ * @property {Object} [tenantManager] - 租客管理器統計
  */
 
 /**
@@ -136,6 +139,12 @@ class GameApplication {
      * @type {TradeManager|null}
      */
     this.tradeManager = null;
+
+    /**
+     * 租客管理器實例
+     * @type {TenantManager|null}
+     */
+    this.tenantManager = null;
 
     /**
      * 系統是否已初始化
@@ -240,6 +249,17 @@ class GameApplication {
       );
       console.log("✅ TradeManager 初始化完成");
 
+      // 初始化租客管理器
+      this.tenantManager = new TenantManager(
+        this.gameState,
+        this.resourceManager,
+        this.tradeManager,
+        this.dataManager,
+        this.eventBus
+      );
+      await this.tenantManager.initialize();
+      console.log("✅ TenantManager 初始化完成");
+
       // 設定業務模組間的事件監聽
       this._setupBusinessModuleListeners();
 
@@ -258,7 +278,7 @@ class GameApplication {
   _setupBusinessModuleListeners() {
     if (!this.resourceManager) return;
 
-    // 監聽資源警告事件
+    // ResourceManager 事件監聽
     this.eventBus.on("resource_threshold_warning", (eventObj) => {
       const data = eventObj.data;
       console.warn(
@@ -266,7 +286,6 @@ class GameApplication {
       );
     });
 
-    // 監聽資源危急事件
     this.eventBus.on("resource_critical_low", (eventObj) => {
       const data = eventObj.data;
       console.error(
@@ -274,11 +293,42 @@ class GameApplication {
       );
     });
 
-    // 監聽資源轉移完成事件
     this.eventBus.on("resource_transfer_completed", (eventObj) => {
       const data = eventObj.data;
       console.log(`💰 資源轉移: ${data.from} → ${data.to}`);
     });
+
+    // TenantManager 事件監聽
+    if (this.tenantManager) {
+      this.eventBus.on("tenant_tenantHired", (eventObj) => {
+        const data = eventObj.data;
+        console.log(
+          `🏠 新租客入住: ${data.tenant.name} (房間 ${data.room.id})`
+        );
+      });
+
+      this.eventBus.on("tenant_tenantEvicted", (eventObj) => {
+        const data = eventObj.data;
+        console.log(`🚪 租客離開: ${data.tenant.name} (原因: ${data.reason})`);
+      });
+
+      this.eventBus.on("tenant_satisfactionCritical", (eventObj) => {
+        const data = eventObj.data;
+        console.warn(
+          `😡 租客滿意度極低: ${data.tenantName} (${data.satisfaction})`
+        );
+      });
+
+      this.eventBus.on("tenant_conflictTriggered", (eventObj) => {
+        const data = eventObj.data;
+        console.warn(`💥 租客衝突: ${data.description}`);
+      });
+
+      this.eventBus.on("tenant_dailySatisfactionReport", (eventObj) => {
+        const data = eventObj.data;
+        console.log(`📊 每日滿意度報告: 平均 ${data.averageSatisfaction}`);
+      });
+    }
   }
 
   /**
@@ -359,6 +409,8 @@ class GameApplication {
       systemEvents: 0,
       resourceManagerActive:
         this.resourceManager?.getStatus?.()?.isActive || false,
+      tenantManagerActive:
+        this.tenantManager?.getStatus?.()?.initialized || false,
     };
 
     if (this.gameState) {
@@ -416,11 +468,11 @@ class GameApplication {
     /** @type {Record<StatusDisplayMode, StatusConfig>} */
     const statusConfig = {
       normal: {
-        text: `🟢 模組化系統 v2.0 - 運行中 (Day ${stats.gameDay})`,
+        text: `🟢 完整業務系統 v2.0 - 運行中 (Day ${stats.gameDay})`,
         class: "status-normal",
       },
       fallback: {
-        text: `🟡 模組化系統 v2.0 - 後備模式 (Day ${stats.gameDay})`,
+        text: `🟡 完整業務系統 v2.0 - 後備模式 (Day ${stats.gameDay})`,
         class: "status-fallback",
       },
       error: {
@@ -445,6 +497,8 @@ class GameApplication {
     if (this.gameState) count++;
     if (this.eventBus) count++;
     if (this.resourceManager) count++;
+    if (this.tradeManager) count++;
+    if (this.tenantManager) count++;
     return count;
   }
 
@@ -555,6 +609,7 @@ class GameApplication {
       eventBus: this.eventBus?.getStats(),
       resourceManager: this.resourceManager?.getStatus(),
       tradeManager: this.tradeManager?.getStatus(),
+      tenantManager: this.tenantManager?.getStatus(),
     };
   }
 
@@ -582,6 +637,14 @@ class GameApplication {
 
     if (this.resourceManager) {
       console.log("資源管理器:", this.resourceManager.getStatus());
+    }
+
+    if (this.tradeManager) {
+      console.log("交易管理器:", this.tradeManager.getStatus());
+    }
+
+    if (this.tenantManager) {
+      console.log("租客管理器:", this.tenantManager.getStatus());
     }
 
     console.groupEnd();
@@ -633,8 +696,17 @@ class GameApplication {
         console.log("❌ 資源管理器: 未初始化");
       }
 
-      // 測試5: 系統整合
-      console.log("測試5: 系統整合");
+      // 測試5: 租客管理器
+      console.log("測試5: 租客管理器");
+      if (this.tenantManager) {
+        const tenantStats = this.tenantManager.getTenantStats();
+        console.log("✅ 租客管理器:", !!tenantStats);
+      } else {
+        console.log("❌ 租客管理器: 未初始化");
+      }
+
+      // 測試6: 系統整合
+      console.log("測試6: 系統整合");
       this.gameState.addLog("系統測試完成", "event");
       console.log("✅ 系統整合: 通過");
 
