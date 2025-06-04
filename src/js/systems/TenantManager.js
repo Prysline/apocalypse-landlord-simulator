@@ -465,10 +465,11 @@ export class TenantManager {
   setupEventListeners() {
     if (!this.eventBus) return;
 
-    // 監聽新一天開始，更新滿意度
+    // 監聽新一天開始，更新滿意度、重置搜刮狀態
     this.eventBus.on("day_advanced", () => {
       this.updateDailySatisfaction();
       this.checkConflictTriggers();
+      this.resetDailyScavengeStatus();
     });
 
     // 監聽資源變更，影響滿意度
@@ -482,6 +483,27 @@ export class TenantManager {
     // 監聽建築防禦變更
     this.eventBus.on("building_defense_changed", () => {
       this.updateSatisfactionFromDefenseChange();
+    });
+
+    // 監聽搜刮請求
+    this.eventBus.on("request_scavenge", async (eventObj) => {
+      const data = eventObj.data;
+      if (data && data.tenantName) {
+        const result = await this.sendTenantScavenging(data.tenantName);
+        this.eventBus.emit("scavenge_result", result);
+      }
+    });
+
+    // 監聽資源獎勵（從搜刮系統獲得）
+    this.eventBus.on("scavenge_rewards_received", (eventObj) => {
+      const data = eventObj.data;
+      if (data && data.rewards) {
+        Object.entries(data.rewards).forEach(([resourceType, amount]) => {
+          if (amount > 0) {
+            this.addLog(`搜刮獲得 ${amount} ${resourceType}`, "event");
+          }
+        });
+      }
     });
   }
 
@@ -2092,6 +2114,436 @@ export class TenantManager {
     this.configLoaded = false;
 
     console.log("TenantManager 已清理");
+  }
+
+  // ==========================================
+  // 搜刮派遣系統
+  // ==========================================
+
+  /**
+   * 派遣租客進行搜刮 - 主要入口點
+   * @param {string} tenantName - 租客姓名
+   * @returns {Promise<Object>} 搜刮結果
+   */
+  async sendTenantScavenging(tenantName) {
+    if (!this.initialized) {
+      return { success: false, error: "系統未初始化" };
+    }
+
+    console.log(`🚶 派遣租客搜刮: ${tenantName}`);
+
+    try {
+      // 檢查搜刮條件
+      const canScavengeResult = this.canScavenge();
+      if (!canScavengeResult.canScavenge) {
+        return {
+          success: false,
+          error: canScavengeResult.reason,
+          remainingAttempts: canScavengeResult.remaining,
+        };
+      }
+
+      // 尋找租客
+      const tenantInfo = this.findTenantAndRoom(tenantName);
+      if (!tenantInfo) {
+        return { success: false, error: "找不到指定租客" };
+      }
+
+      const { tenant, room } = tenantInfo;
+
+      // 檢查租客狀態
+      const tenantValidation = this.validateTenantForScavenging(tenant);
+      if (!tenantValidation.valid) {
+        return { success: false, error: tenantValidation.error };
+      }
+
+      // 計算成功率
+      const successRate = this.calculateScavengeSuccessRate(tenant);
+
+      // 發送搜刮開始事件（供未來技能系統監聽）
+      this.emitEvent("scavengeStarted", {
+        tenant: tenant,
+        baseSuccessRate: successRate,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 執行搜刮結果
+      const result = await this.executeScavengeResult(tenant, successRate);
+
+      // 更新搜刮狀態
+      this._updateScavengeState(result.success);
+
+      // 發送搜刮完成事件
+      this.emitEvent("scavengeCompleted", {
+        tenant: tenant,
+        result: result,
+        timestamp: new Date().toISOString(),
+      });
+
+      return result;
+    } catch (error) {
+      console.error("❌ 搜刮派遣失敗:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * 檢查是否可以進行搜刮
+   * @returns {Object} 搜刮條件檢查結果
+   */
+  canScavenge() {
+    try {
+      const scavengeConfig = this._getScavengeConfig();
+      const maxPerDay = scavengeConfig.maxPerDay || 2;
+      const currentUsed = this.gameState.getStateValue("scavengeUsed", 0);
+
+      if (currentUsed >= maxPerDay) {
+        return {
+          canScavenge: false,
+          reason: `今日搜刮次數已用完 (${currentUsed}/${maxPerDay})`,
+          remaining: 0,
+          maxPerDay: maxPerDay,
+        };
+      }
+
+      return {
+        canScavenge: true,
+        reason: "可以進行搜刮",
+        remaining: maxPerDay - currentUsed,
+        maxPerDay: maxPerDay,
+      };
+    } catch (error) {
+      console.error("檢查搜刮條件失敗:", error);
+      return {
+        canScavenge: false,
+        reason: "系統錯誤",
+        remaining: 0,
+      };
+    }
+  }
+
+  /**
+   * 取得可用的搜刮人員列表
+   * @returns {Tenant[]} 可派遣租客列表
+   */
+  getAvailableScavengers() {
+    if (!this.initialized) {
+      console.warn("⚠️ TenantManager 未初始化");
+      return [];
+    }
+
+    try {
+      const allTenants = this.gameState.getAllTenants();
+
+      // 過濾出可派遣的租客
+      const availableScavengers = allTenants.filter((tenant) => {
+        // 排除感染租客
+        if (tenant.infected) return false;
+
+        // 排除正在執行任務的租客
+        if (tenant.onMission) return false;
+
+        // 排除健康狀況不佳的租客（可以擴展更多條件）
+        return true;
+      });
+
+      // 按搜刮能力排序（軍人 > 工人 > 農夫 > 醫生 > 老人）
+      const typeOrder = {
+        soldier: 5,
+        worker: 4,
+        farmer: 3,
+        doctor: 2,
+        elder: 1,
+      };
+      availableScavengers.sort((a, b) => {
+        const aOrder = typeOrder[a.type] || 0;
+        const bOrder = typeOrder[b.type] || 0;
+        return bOrder - aOrder;
+      });
+
+      return availableScavengers;
+    } catch (error) {
+      console.error("取得可用搜刮人員失敗:", error);
+      return [];
+    }
+  }
+
+  /**
+   * 驗證租客是否可以執行搜刮任務
+   * @param {Tenant} tenant - 租客物件
+   * @returns {import("../utils/validators.js").ValidationResult} 驗證結果
+   */
+  validateTenantForScavenging(tenant) {
+    if (!tenant) {
+      return { valid: false, error: "租客資料無效" };
+    }
+
+    if (tenant.infected) {
+      return { valid: false, error: `${tenant.name} 已感染，無法外出搜刮` };
+    }
+
+    if (tenant.onMission) {
+      return { valid: false, error: `${tenant.name} 正在執行其他任務` };
+    }
+
+    // 檢查租客個人健康狀況（可擴展）
+    if (tenant.personalResources?.food === 0) {
+      return {
+        valid: false,
+        error: `${tenant.name} 飢餓狀態，不適合外出搜刮`,
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * 計算搜刮成功率（純基礎功能）
+   * @param {Tenant} tenant - 租客物件
+   * @returns {number} 成功率百分比 (0-100)
+   */
+  calculateScavengeSuccessRate(tenant) {
+    try {
+      const scavengeConfig = this._getScavengeConfig();
+      const baseRates = scavengeConfig.baseSuccessRates || {};
+
+      // 取得租客類型的基礎成功率
+      const baseRate = baseRates[tenant.type] || 50; // 預設50%
+
+      console.log(
+        `📊 ${tenant.name} (${tenant.type}) 搜刮基礎成功率: ${baseRate}%`
+      );
+
+      return baseRate;
+    } catch (error) {
+      console.error("計算搜刮成功率失敗:", error);
+      return 50; // 預設成功率
+    }
+  }
+
+  /**
+   * 執行搜刮並處理結果
+   * @param {Tenant} tenant - 執行搜刮的租客
+   * @param {number} successRate - 成功率
+   * @returns {Promise<Object>} 搜刮結果
+   */
+  async executeScavengeResult(tenant, successRate) {
+    try {
+      // 隨機判定是否成功
+      const isSuccess = Math.random() * 100 < successRate;
+
+      /** @type {Object} */
+      const result = {
+        success: isSuccess,
+        tenantName: tenant.name,
+        tenantType: tenant.type,
+        successRate: successRate,
+        rewards: {},
+        risks: {},
+        message: "",
+      };
+
+      if (isSuccess) {
+        // 成功：獲得資源獎勵
+        result.rewards = this._generateScavengeRewards();
+        result.message = `${tenant.name} 搜刮成功！`;
+
+        // 將獎勵添加到主資源池
+        Object.entries(result.rewards).forEach(([resourceType, amount]) => {
+          if (amount > 0) {
+            this.resourceManager.modifyResource(
+              /** @type {ResourceType} */ (resourceType),
+              amount,
+              `${tenant.name}搜刮獲得`
+            );
+          }
+        });
+
+        this.addLog(`${tenant.name} 搜刮成功，獲得了一些物資`, "event");
+      } else {
+        // 失敗：可能受傷或其他風險
+        result.risks = this._processScavengeRisks(tenant);
+        result.message = `${tenant.name} 搜刮失敗`;
+
+        this.addLog(`${tenant.name} 搜刮失敗，空手而歸`, "danger");
+      }
+
+      return result;
+    } catch (error) {
+      console.error("執行搜刮結果失敗:", error);
+      return {
+        success: false,
+        tenantName: tenant.name,
+        error: error instanceof Error ? error.message : String(error),
+        message: "搜刮過程發生錯誤",
+      };
+    }
+  }
+
+  /**
+   * 生成搜刮獎勵
+   * @private
+   * @returns {Object} 獎勵資源
+   */
+  _generateScavengeRewards() {
+    const scavengeConfig = this._getScavengeConfig();
+    const rewardRanges = scavengeConfig.rewardRanges || {};
+
+    const rewards = {};
+
+    // 隨機選擇 1-2 種資源類型
+    const resourceTypes = ["food", "materials", "medical"];
+    const selectedTypes = resourceTypes
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.floor(Math.random() * 2) + 1);
+
+    selectedTypes.forEach((resourceType) => {
+      const range = rewardRanges[resourceType];
+      if (range) {
+        const min = range.min || 1;
+        const max = range.max || 3;
+        const amount = Math.floor(Math.random() * (max - min + 1)) + min;
+        rewards[resourceType] = amount;
+      }
+    });
+
+    return rewards;
+  }
+
+  /**
+   * 處理搜刮風險
+   * @private
+   * @param {Tenant} tenant - 租客物件
+   * @returns {Object} 風險處理結果
+   */
+  _processScavengeRisks(tenant) {
+    const risks = {};
+
+    // 10% 機率受輕傷（消耗個人食物恢復）
+    if (Math.random() < 0.1) {
+      if (tenant.personalResources && tenant.personalResources.food > 0) {
+        tenant.personalResources.food = Math.max(
+          0,
+          tenant.personalResources.food - 1
+        );
+        risks.minorInjury = true;
+        this.addLog(`${tenant.name} 在搜刮中受了輕傷`, "danger");
+      }
+    }
+
+    // 5% 機率感染風險增加（但不會立即感染）
+    if (Math.random() < 0.05) {
+      risks.infectionRisk = true;
+      this.addLog(`${tenant.name} 接觸了可疑物質，需要注意健康`, "danger");
+    }
+
+    return risks;
+  }
+
+  /**
+   * 取得搜刮配置
+   * @private
+   * @returns {Object} 搜刮配置
+   */
+  _getScavengeConfig() {
+    try {
+      const rules = this.gameState.getStateValue("system.gameRules") || {};
+      return (
+        rules.mechanics?.scavenging || {
+          maxPerDay: 2,
+          baseSuccessRates: {
+            soldier: 85,
+            worker: 75,
+            farmer: 65,
+            doctor: 50,
+            elder: 40,
+          },
+          rewardRanges: {
+            food: { min: 3, max: 8 },
+            materials: { min: 2, max: 6 },
+            medical: { min: 1, max: 4 },
+          },
+        }
+      );
+    } catch (error) {
+      console.warn("載入搜刮配置失敗，使用預設值:", error);
+      return {
+        maxPerDay: 2,
+        baseSuccessRates: {
+          soldier: 85,
+          worker: 75,
+          farmer: 65,
+          doctor: 50,
+          elder: 40,
+        },
+        rewardRanges: {
+          food: { min: 3, max: 8 },
+          materials: { min: 2, max: 6 },
+          medical: { min: 1, max: 4 },
+        },
+      };
+    }
+  }
+
+  /**
+   * 更新搜刮狀態
+   * @private
+   * @param {boolean} wasSuccessful - 搜刮是否成功
+   * @returns {void}
+   */
+  _updateScavengeState(wasSuccessful) {
+    try {
+      // 增加今日搜刮使用次數
+      const currentUsed = this.gameState.getStateValue("scavengeUsed", 0);
+      this.gameState.setStateValue(
+        "scavengeUsed",
+        currentUsed + 1,
+        "scavenge_attempt"
+      );
+
+      console.log(`📊 今日搜刮次數: ${currentUsed + 1}`);
+    } catch (error) {
+      console.error("更新搜刮狀態失敗:", error);
+    }
+  }
+
+  /**
+   * 重置每日搜刮狀態（由日夜循環調用）
+   * @returns {void}
+   */
+  resetDailyScavengeStatus() {
+    try {
+      // 重置每日搜刮次數
+      this.gameState.setStateValue("scavengeUsed", 0, "daily_reset");
+      console.log("🔄 每日搜刮次數已重置");
+    } catch (error) {
+      console.error("重置每日搜刮狀態失敗:", error);
+    }
+  }
+
+  /**
+   * 取得搜刮狀態資訊
+   * @returns {Object} 搜刮狀態
+   */
+  getScavengeStatus() {
+    const scavengeResult = this.canScavenge();
+    const availableScavengers = this.getAvailableScavengers();
+
+    return {
+      canScavenge: scavengeResult.canScavenge,
+      reason: scavengeResult.reason,
+      remainingAttempts: scavengeResult.remaining,
+      maxPerDay: scavengeResult.maxPerDay,
+      availableScavengers: availableScavengers.length,
+      scavengerList: availableScavengers.map((t) => ({
+        name: t.name,
+        type: t.type,
+        successRate: this.calculateScavengeSuccessRate(t),
+      })),
+    };
   }
 }
 

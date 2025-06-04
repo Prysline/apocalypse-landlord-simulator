@@ -298,6 +298,20 @@ class GameApplication {
       console.log(`💰 資源轉移: ${data.from} → ${data.to}`);
     });
 
+    this.eventBus.on("harvest_completed", (eventObj) => {
+      const data = eventObj.data;
+      console.log(`🌱 院子採集完成: 獲得 ${data.finalAmount} 食物`);
+    });
+
+    this.eventBus.on("harvest_result", (eventObj) => {
+      const data = eventObj.data;
+      if (data.success) {
+        console.log("✅ 院子採集成功");
+      } else {
+        console.log("❌ 院子採集失敗");
+      }
+    });
+
     // TenantManager 事件監聽
     if (this.tenantManager) {
       this.eventBus.on("tenant_tenantHired", (eventObj) => {
@@ -327,6 +341,31 @@ class GameApplication {
       this.eventBus.on("tenant_dailySatisfactionReport", (eventObj) => {
         const data = eventObj.data;
         console.log(`📊 每日滿意度報告: 平均 ${data.averageSatisfaction}`);
+      });
+
+      // 搜刮派遣事件監聽
+      this.eventBus.on("tenant_scavengeStarted", (eventObj) => {
+        const data = eventObj.data;
+        console.log(
+          `🚶 ${data.tenant.name} 開始搜刮任務 (成功率: ${data.baseSuccessRate}%)`
+        );
+      });
+
+      this.eventBus.on("tenant_scavengeCompleted", (eventObj) => {
+        const data = eventObj.data;
+        const result = data.result;
+        if (result.success) {
+          console.log(`✅ ${result.tenantName} 搜刮成功！獲得物資`);
+        } else {
+          console.log(`❌ ${result.tenantName} 搜刮失敗`);
+        }
+      });
+
+      this.eventBus.on("scavenge_result", (eventObj) => {
+        const result = eventObj.data || eventObj;
+        console.log(
+          `📋 搜刮結果: ${result.success ? "成功" : "失敗"} - ${result.message}`
+        );
       });
     }
   }

@@ -283,10 +283,17 @@ export class ResourceManager {
    * @returns {void}
    */
   _setupEventListeners() {
-    // 監聽每日推進，觸發資源分析
+    // 監聽每日推進，觸發資源分析、重置採集狀態
     this.eventBus.on("day_advanced", () => {
       this._updateConsumptionStats();
       this._checkAllResourceThresholds();
+      this.resetDailyHarvestStatus();
+    });
+
+    // 監聽院子採集請求
+    this.eventBus.on("request_harvest", () => {
+      const result = this.harvestYard();
+      this.eventBus.emit("harvest_result", { success: result });
     });
 
     // 監聽租客變更，更新消費基準
@@ -1118,6 +1125,185 @@ export class ResourceManager {
     this.transferHistory = [];
     this.isActive = false;
     console.log("ResourceManager 已清理");
+  }
+
+  // ==========================================
+  // 院子採集系統
+  // ==========================================
+
+  /**
+   * 院子採集 - 主要入口點
+   * @returns {boolean} 採集是否成功
+   */
+  harvestYard() {
+    if (!this.isActive) {
+      console.warn("ResourceManager 已停用，無法進行院子採集");
+      return false;
+    }
+
+    try {
+      // 檢查採集條件
+      if (!this.canHarvest()) {
+        return false;
+      }
+
+      // 取得基礎採集量（純基礎功能，不計算技能加成）
+      const harvestConfig = this._getHarvestConfig();
+      const baseAmount = harvestConfig.baseAmount || 2;
+
+      // 執行資源修改
+      const success = this.modifyResource("food", baseAmount, "院子採集");
+
+      if (success) {
+        // 更新採集狀態
+        this._updateHarvestState();
+
+        // 發送採集完成事件（供未來技能系統監聽）
+        this.eventBus.emit("harvest_completed", {
+          baseAmount: baseAmount,
+          finalAmount: baseAmount, // 當前階段等於基礎值
+          source: "yard_harvest",
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log(`🌱 院子採集獲得 ${baseAmount} 食物`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("院子採集失敗:", error);
+      return false;
+    }
+  }
+
+  /**
+   * 檢查是否可以進行院子採集
+   * @returns {boolean} 是否可以採集
+   */
+  canHarvest() {
+    try {
+      // 檢查是否已使用每日採集
+      const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+      if (harvestUsed) {
+        console.log("❌ 今日已進行過院子採集");
+        return false;
+      }
+
+      // 檢查採集冷卻時間
+      const harvestCooldown = this.gameState.getStateValue(
+        "harvestCooldown",
+        0
+      );
+      if (harvestCooldown > 0) {
+        console.log(`❌ 院子採集冷卻中，剩餘 ${harvestCooldown} 天`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("檢查採集條件失敗:", error);
+      return false;
+    }
+  }
+
+  /**
+   * 檢查採集冷卻狀態
+   * @returns {Object} 採集狀態資訊
+   */
+  getHarvestStatus() {
+    const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+    const harvestCooldown = this.gameState.getStateValue("harvestCooldown", 0);
+    const config = this._getHarvestConfig();
+
+    return {
+      canHarvest: this.canHarvest(),
+      usedToday: harvestUsed,
+      cooldownRemaining: harvestCooldown,
+      cooldownDays: config.cooldownDays || 2,
+      baseAmount: config.baseAmount || 2,
+    };
+  }
+
+  /**
+   * 取得採集配置
+   * @private
+   * @returns {Object} 採集配置
+   */
+  _getHarvestConfig() {
+    try {
+      const rules = this.gameState.getStateValue("system.gameRules") || {};
+      return (
+        rules.mechanics?.harvest || {
+          baseAmount: 2,
+          cooldownDays: 2,
+        }
+      );
+    } catch (error) {
+      console.warn("載入採集配置失敗，使用預設值:", error);
+      return {
+        baseAmount: 2,
+        cooldownDays: 2,
+      };
+    }
+  }
+
+  /**
+   * 更新採集狀態
+   * @private
+   * @returns {void}
+   */
+  _updateHarvestState() {
+    try {
+      const config = this._getHarvestConfig();
+
+      // 標記今日已使用採集
+      this.gameState.setStateValue("harvestUsed", true, "yard_harvest_used");
+
+      // 設定採集冷卻
+      this.gameState.setStateValue(
+        "harvestCooldown",
+        config.cooldownDays || 2,
+        "harvest_cooldown_set"
+      );
+
+      console.log(`⏰ 院子採集冷卻 ${config.cooldownDays || 2} 天已設定`);
+    } catch (error) {
+      console.error("更新採集狀態失敗:", error);
+    }
+  }
+
+  /**
+   * 重置每日採集狀態（由日夜循環調用）
+   * @returns {void}
+   */
+  resetDailyHarvestStatus() {
+    try {
+      // 重置每日採集標記
+      this.gameState.setStateValue("harvestUsed", false, "daily_reset");
+
+      // 減少採集冷卻
+      const currentCooldown = this.gameState.getStateValue(
+        "harvestCooldown",
+        0
+      );
+      if (currentCooldown > 0) {
+        const newCooldown = Math.max(0, currentCooldown - 1);
+        this.gameState.setStateValue(
+          "harvestCooldown",
+          newCooldown,
+          "cooldown_decrease"
+        );
+
+        if (newCooldown === 0) {
+          console.log("✅ 院子採集冷卻完成，明日可再次採集");
+        } else {
+          console.log(`⏰ 院子採集冷卻剩餘 ${newCooldown} 天`);
+        }
+      }
+    } catch (error) {
+      console.error("重置每日採集狀態失敗:", error);
+    }
   }
 }
 
