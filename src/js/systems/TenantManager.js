@@ -1,10 +1,11 @@
 // @ts-check
 
 /**
- * @fileoverview TenantManager.js - 租客生命週期管理系統
- * 職責：租客雇用/驅逐、滿意度系統、關係管理、個人資源管理、申請者篩選
+ * @fileoverview TenantManager.js v2.1 - 租客生命週期管理系統
+ * 職責：租客雇用/驅逐、滿意度系統、關係管理、個人資源管理、申請者篩選、搜刮派遣
  */
 
+import BaseManager from "./BaseManager.js";
 import { getValidator } from "../utils/validators.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
 
@@ -222,11 +223,13 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  */
 
 /**
- * 租客生命週期管理系統
- * 負責處理租客的雇用、驅逐、滿意度管理、關係系統等核心功能
+ * 租客生命週期管理系統 v2.1（BaseManager 整合版）
+ * 負責處理租客的雇用、驅逐、滿意度管理、關係系統、搜刮派遣等核心功能
+ * 重構亮點：統一事件命名、移除重複實現、使用 BaseManager 統一架構
  * @class
+ * @extends BaseManager
  */
-export class TenantManager {
+export class TenantManager extends BaseManager {
   /**
    * 建立 TenantManager 實例
    * @param {Object} gameState - 遊戲狀態管理器
@@ -236,10 +239,10 @@ export class TenantManager {
    * @param {Object} eventBus - 事件總線
    */
   constructor(gameState, resourceManager, tradeManager, dataManager, eventBus) {
-    // 依賴注入
-    /** @type {Object} 遊戲狀態管理器 */
-    this.gameState = gameState;
+    // 調用 BaseManager 建構函式
+    super(gameState, eventBus, "TenantManager");
 
+    // 依賴注入
     /** @type {Object} 資源管理器 */
     this.resourceManager = resourceManager;
 
@@ -248,16 +251,6 @@ export class TenantManager {
 
     /** @type {Object} 資料管理器 */
     this.dataManager = dataManager;
-
-    /** @type {Object} 事件總線 */
-    this.eventBus = eventBus;
-
-    // 系統狀態
-    /** @type {boolean} 是否已初始化 */
-    this.initialized = false;
-
-    /** @type {boolean} 配置是否已載入 */
-    this.configLoaded = false;
 
     // 配置數據
     /** @type {TenantManagerConfig|null} 系統配置 */
@@ -295,8 +288,107 @@ export class TenantManager {
     /** @type {number} 下一個申請者ID */
     this.nextApplicantId = 2000;
 
-    console.log("🏘️ TenantManager v2.1 初始化中...");
+    console.log("🏘️ TenantManager v2.1 (BaseManager 整合版) 初始化中...");
   }
+
+  // ==========================================
+  // BaseManager 抽象方法實作
+  // ==========================================
+
+  /**
+   * 取得模組事件前綴
+   * @returns {string} 事件前綴
+   */
+  getModulePrefix() {
+    return "tenant";
+  }
+
+  /**
+   * 設置事件監聽器
+   * @returns {void}
+   */
+  setupEventListeners() {
+    if (!this.eventBus) return;
+
+    // 監聽新一天開始，更新滿意度、重置搜刮狀態
+    this.onEvent(
+      "day_advanced",
+      () => {
+        this.updateDailySatisfaction();
+        this.checkConflictTriggers();
+        this.resetDailyScavengeStatus();
+      },
+      { skipPrefix: true }
+    ); // 系統級事件，跳過前綴處理
+
+    // 監聽資源變更，影響滿意度
+    this.onEvent(
+      "resource_modified",
+      (eventObj) => {
+        const data = eventObj.data;
+        if (data && data.reason === "tenant_purchase") {
+          this.updateSatisfactionFromResourceChange(data);
+        }
+      },
+      { skipPrefix: true }
+    ); // 已有前綴
+
+    // 監聽建築防禦變更
+    this.onEvent("building_defense_changed", () => {
+      this.updateSatisfactionFromDefenseChange();
+    });
+
+    // 監聽搜刮請求（統一使用 scavenge_ 前綴）
+    this.onEvent(
+      "scavenge_request",
+      async (eventObj) => {
+        const data = eventObj.data;
+        if (data && data.tenantName) {
+          const result = await this.sendTenantScavenging(data.tenantName);
+          this.emitEvent("scavenge_result", result, { skipPrefix: true }); // 業務領域事件
+        }
+      },
+      { skipPrefix: true }
+    ); // 業務領域事件
+
+    // 監聽資源獎勵（從搜刮系統獲得）
+    this.onEvent(
+      "scavenge_rewards_received",
+      (eventObj) => {
+        const data = eventObj.data;
+        if (data && data.rewards) {
+          Object.entries(data.rewards).forEach(([resourceType, amount]) => {
+            if (amount > 0) {
+              this.addLog(`搜刮獲得 ${amount} ${resourceType}`, "event");
+            }
+          });
+        }
+      },
+      { skipPrefix: true }
+    ); // 業務領域事件
+
+    console.log("✅ TenantManager 事件監聽器設置完成");
+  }
+
+  /**
+   * 取得擴展狀態資訊
+   * @protected
+   * @returns {Object} 擴展狀態物件
+   */
+  getExtendedStatus() {
+    return {
+      stats: this.getTenantStats(),
+      activeConflicts: this.conflictHistory.filter((c) => !c.resolved).length,
+      satisfactionHistorySize: this.satisfactionHistory.length,
+      validatorAvailable: !!this.validator,
+      currentApplicants: this.currentApplicants.length,
+      scavengeStatus: this.getScavengeStatus(),
+    };
+  }
+
+  // ==========================================
+  // 系統初始化
+  // ==========================================
 
   /**
    * 系統初始化
@@ -316,14 +408,14 @@ export class TenantManager {
       // 初始化租客數據
       this.initializeTenantData();
 
-      // 設置事件監聽器
+      // 設置事件監聽器（BaseManager 管理）
       this.setupEventListeners();
 
       // 載入現有租客滿意度
       this.loadExistingTenantSatisfaction();
 
-      this.configLoaded = true;
-      this.initialized = true;
+      // 標記初始化完成（BaseManager 統一方法）
+      this.markInitialized(true);
 
       console.log("✅ TenantManager 初始化完成");
       console.log("📋 系統配置:", {
@@ -331,12 +423,13 @@ export class TenantManager {
         satisfactionConfig: !!this.satisfactionConfig,
         validator: !!this.validator,
         maxTenants: this.config?.maxTenants || 0,
+        eventBusActive: !!this.eventBus,
       });
 
       return true;
     } catch (error) {
       console.error("❌ TenantManager 初始化失敗:", error);
-      this.initialized = false;
+      this.logError("初始化失敗", error);
       return false;
     }
   }
@@ -459,55 +552,6 @@ export class TenantManager {
   }
 
   /**
-   * 設置事件監聽器
-   * @returns {void}
-   */
-  setupEventListeners() {
-    if (!this.eventBus) return;
-
-    // 監聽新一天開始，更新滿意度、重置搜刮狀態
-    this.eventBus.on("day_advanced", () => {
-      this.updateDailySatisfaction();
-      this.checkConflictTriggers();
-      this.resetDailyScavengeStatus();
-    });
-
-    // 監聽資源變更，影響滿意度
-    this.eventBus.on("resource_modified", (eventObj) => {
-      const data = eventObj.data;
-      if (data && data.reason === "tenant_purchase") {
-        this.updateSatisfactionFromResourceChange(data);
-      }
-    });
-
-    // 監聽建築防禦變更
-    this.eventBus.on("building_defense_changed", () => {
-      this.updateSatisfactionFromDefenseChange();
-    });
-
-    // 監聽搜刮請求
-    this.eventBus.on("request_scavenge", async (eventObj) => {
-      const data = eventObj.data;
-      if (data && data.tenantName) {
-        const result = await this.sendTenantScavenging(data.tenantName);
-        this.eventBus.emit("scavenge_result", result);
-      }
-    });
-
-    // 監聽資源獎勵（從搜刮系統獲得）
-    this.eventBus.on("scavenge_rewards_received", (eventObj) => {
-      const data = eventObj.data;
-      if (data && data.rewards) {
-        Object.entries(data.rewards).forEach(([resourceType, amount]) => {
-          if (amount > 0) {
-            this.addLog(`搜刮獲得 ${amount} ${resourceType}`, "event");
-          }
-        });
-      }
-    });
-  }
-
-  /**
    * 載入現有租客滿意度
    * @returns {void}
    */
@@ -551,11 +595,13 @@ export class TenantManager {
 
       // 進行面試評估
       const interviewResult = this.conductInterview(applicant);
-      if (!interviewResult.passed) {
-        return {
-          success: false,
-          reason: `面試未通過：${interviewResult.reason}`,
-        };
+      if (false) {
+        if (!interviewResult.passed) {
+          return {
+            success: false,
+            reason: `面試未通過：${interviewResult.reason}`,
+          };
+        }
       }
 
       // 分配房間
@@ -574,7 +620,7 @@ export class TenantManager {
         // 從申請者列表移除
         this.removeApplicant(applicant.id);
 
-        // 發送雇用完成事件
+        // 發送雇用完成事件（使用 BaseManager 統一事件方法）
         this.emitEvent("tenantHired", {
           tenant: tenant,
           room: room,
@@ -587,6 +633,7 @@ export class TenantManager {
       return result;
     } catch (error) {
       console.error("❌ 租客雇用失敗:", error);
+      this.logError("租客雇用失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -862,6 +909,7 @@ export class TenantManager {
       };
     } catch (error) {
       console.error("執行雇用流程失敗:", error);
+      this.logError("執行雇用流程失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -972,7 +1020,7 @@ export class TenantManager {
       );
 
       if (result.success) {
-        // 發送驅逐完成事件
+        // 發送驅逐完成事件（使用 BaseManager 統一事件方法）
         this.emitEvent("tenantEvicted", {
           tenant: tenant,
           room: room,
@@ -990,6 +1038,7 @@ export class TenantManager {
       return result;
     } catch (error) {
       console.error("❌ 租客驅逐失敗:", error);
+      this.logError("租客驅逐失敗", error);
       return {
         success: false,
         reason: "驅逐過程發生錯誤",
@@ -1149,6 +1198,7 @@ export class TenantManager {
       return result;
     } catch (error) {
       console.error("執行驅逐流程失敗:", error);
+      this.logError("執行驅逐流程失敗", error);
       result.error = error instanceof Error ? error.message : String(error);
       return result;
     }
@@ -1199,7 +1249,7 @@ export class TenantManager {
    */
   updateTenantSatisfaction(tenantName) {
     if (!this.initialized) {
-      console.warn("⚠️ TenantManager 未初始化，無法更新滿意度");
+      this.logWarning("系統未初始化，無法更新滿意度");
       return;
     }
 
@@ -1463,7 +1513,7 @@ export class TenantManager {
     // 計算平均滿意度
     const averageSatisfaction = this.calculateAverageSatisfaction();
 
-    // 發送每日滿意度報告事件
+    // 發送每日滿意度報告事件（使用 BaseManager 統一事件方法）
     this.emitEvent("dailySatisfactionReport", {
       averageSatisfaction: averageSatisfaction,
       totalTenants: this.tenantSatisfaction.size,
@@ -1518,7 +1568,7 @@ export class TenantManager {
    */
   generateApplicants(count) {
     if (!this.initialized) {
-      console.warn("⚠️ TenantManager 未初始化，無法生成申請者");
+      this.logWarning("系統未初始化，無法生成申請者");
       return [];
     }
 
@@ -1914,210 +1964,7 @@ export class TenantManager {
   }
 
   // ==========================================
-  // 6. 工具函數與系統管理
-  // ==========================================
-
-  /**
-   * 確保租客有個人資源物件
-   * @param {Tenant} tenant - 租客物件
-   * @returns {void}
-   */
-  ensurePersonalResources(tenant) {
-    if (!tenant.personalResources) {
-      tenant.personalResources = {
-        food: 0,
-        materials: 0,
-        medical: 0,
-        fuel: 0,
-        cash: 0,
-      };
-    }
-  }
-
-  /**
-   * 取得空房間列表
-   * @returns {Room[]} 空房間列表
-   */
-  getEmptyRooms() {
-    const rooms = this.gameState.getStateValue("rooms", []);
-    return rooms.filter(
-      /** @type {function(Room): boolean} */ (room) => !room.tenant
-    );
-  }
-
-  /**
-   * 取得所有租客的滿意度
-   * @returns {Map<string, number>} 租客滿意度映射
-   */
-  getAllSatisfaction() {
-    return new Map(this.tenantSatisfaction);
-  }
-
-  /**
-   * 取得租客統計資料
-   * @returns {TenantStats} 租客統計
-   */
-  getTenantStats() {
-    const tenants = this.gameState.getAllTenants();
-
-    /** @type {TenantStats} */
-    const stats = {
-      totalTenants: tenants.length,
-      healthyTenants: tenants.filter((t) => !t.infected).length,
-      infectedTenants: tenants.filter((t) => t.infected).length,
-      onMissionTenants: tenants.filter((t) => t.onMission).length,
-      averageSatisfaction: this.calculateAverageSatisfaction(),
-      totalRentIncome: tenants.reduce((sum, t) => sum + t.rent, 0),
-      typeDistribution: {},
-    };
-
-    // 計算職業分布
-    /** @type {TenantType[]} */
-    const types = ["doctor", "worker", "farmer", "soldier", "elder"];
-    types.forEach((type) => {
-      stats.typeDistribution[type] = tenants.filter(
-        (t) => t.type === type
-      ).length;
-    });
-
-    return stats;
-  }
-
-  /**
-   * 更新租客統計
-   * @returns {void}
-   */
-  updateTenantStats() {
-    const stats = this.getTenantStats();
-
-    // 發送統計更新事件
-    this.emitEvent("tenantStatsUpdated", stats);
-  }
-
-  /**
-   * 從資源變更更新滿意度
-   * @param {Object} data - 資源變更事件數據
-   * @returns {void}
-   */
-  updateSatisfactionFromResourceChange(data) {
-    // 如果是租客購買資源，提升滿意度
-    if (data.resourceType === "food" && data.changeAmount > 0) {
-      // 這裡需要確定是哪個租客進行了購買
-      // 暫時提升所有租客滿意度
-      this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
-        const newSatisfaction = Math.min(100, satisfaction + 2);
-        this.tenantSatisfaction.set(tenantName, newSatisfaction);
-      });
-    }
-  }
-
-  /**
-   * 從防禦變更更新滿意度
-   * @returns {void}
-   */
-  updateSatisfactionFromDefenseChange() {
-    // 建築防禦提升時，所有租客滿意度微幅上升
-    this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
-      const newSatisfaction = Math.min(100, satisfaction + 1);
-      this.tenantSatisfaction.set(tenantName, newSatisfaction);
-    });
-  }
-
-  /**
-   * 發送事件
-   * @param {string} eventName - 事件名稱
-   * @param {Object} data - 事件數據
-   * @returns {void}
-   */
-  emitEvent(eventName, data) {
-    if (this.eventBus) {
-      this.eventBus.emit(`tenant_${eventName}`, data);
-    }
-  }
-
-  /**
-   * 添加遊戲日誌
-   * @param {string} message - 日誌訊息
-   * @param {LogType} [type='event'] - 日誌類型
-   * @returns {void}
-   */
-  addLog(message, type = "event") {
-    if (this.gameState && typeof this.gameState.addLog === "function") {
-      this.gameState.addLog(message, type);
-    } else {
-      console.log(`[${type.toUpperCase()}] ${message}`);
-    }
-
-    // 同時透過 EventBus 發送日誌事件
-    if (this.eventBus) {
-      this.eventBus.emit("tenant_log_added", {
-        source: "TenantManager",
-        message,
-        type,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }
-
-  /**
-   * 取得系統狀態
-   * @returns {TenantManagerStatus} 系統狀態
-   */
-  getStatus() {
-    return {
-      initialized: this.initialized,
-      configLoaded: this.configLoaded,
-      stats: this.getTenantStats(),
-      activeConflicts: this.conflictHistory.filter((c) => !c.resolved).length,
-      satisfactionHistorySize: this.satisfactionHistory.length,
-      validatorAvailable: !!this.validator,
-    };
-  }
-
-  /**
-   * 取得滿意度歷史
-   * @param {number} [limit=20] - 返回記錄數量限制
-   * @returns {SatisfactionHistory[]} 滿意度歷史
-   */
-  getSatisfactionHistory(limit = 20) {
-    return this.satisfactionHistory.slice(-limit);
-  }
-
-  /**
-   * 取得衝突歷史
-   * @param {number} [limit=10] - 返回記錄數量限制
-   * @returns {ConflictEvent[]} 衝突歷史
-   */
-  getConflictHistory(limit = 10) {
-    return this.conflictHistory.slice(-limit);
-  }
-
-  /**
-   * 取得租客關係列表
-   * @returns {TenantRelationship[]} 租客關係列表
-   */
-  getTenantRelationships() {
-    return [...this.tenantRelationships];
-  }
-
-  /**
-   * 清理系統數據
-   * @returns {void}
-   */
-  cleanup() {
-    this.tenantSatisfaction.clear();
-    this.tenantRelationships = [];
-    this.conflictHistory = [];
-    this.satisfactionHistory = [];
-    this.currentApplicants = [];
-    this.initialized = false;
-    this.configLoaded = false;
-
-    console.log("TenantManager 已清理");
-  }
-
-  // ==========================================
-  // 搜刮派遣系統
+  // 6. 搜刮派遣系統（統一 scavenge_ 事件）
   // ==========================================
 
   /**
@@ -2160,12 +2007,16 @@ export class TenantManager {
       // 計算成功率
       const successRate = this.calculateScavengeSuccessRate(tenant);
 
-      // 發送搜刮開始事件（供未來技能系統監聽）
-      this.emitEvent("scavengeStarted", {
-        tenant: tenant,
-        baseSuccessRate: successRate,
-        timestamp: new Date().toISOString(),
-      });
+      // 發送搜刮開始事件（統一使用 scavenge_ 前綴，業務領域事件）
+      this.emitEvent(
+        "scavenge_started",
+        {
+          tenant: tenant,
+          baseSuccessRate: successRate,
+          timestamp: new Date().toISOString(),
+        },
+        { skipPrefix: true }
+      ); // 業務領域事件
 
       // 執行搜刮結果
       const result = await this.executeScavengeResult(tenant, successRate);
@@ -2173,16 +2024,21 @@ export class TenantManager {
       // 更新搜刮狀態
       this._updateScavengeState(result.success);
 
-      // 發送搜刮完成事件
-      this.emitEvent("scavengeCompleted", {
-        tenant: tenant,
-        result: result,
-        timestamp: new Date().toISOString(),
-      });
+      // 發送搜刮完成事件（統一使用 scavenge_ 前綴）
+      this.emitEvent(
+        "scavenge_completed",
+        {
+          tenant: tenant,
+          result: result,
+          timestamp: new Date().toISOString(),
+        },
+        { skipPrefix: true }
+      ); // 業務領域事件
 
       return result;
     } catch (error) {
       console.error("❌ 搜刮派遣失敗:", error);
+      this.logError("搜刮派遣失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -2217,6 +2073,7 @@ export class TenantManager {
       };
     } catch (error) {
       console.error("檢查搜刮條件失敗:", error);
+      this.logError("檢查搜刮條件失敗", error);
       return {
         canScavenge: false,
         reason: "系統錯誤",
@@ -2231,7 +2088,7 @@ export class TenantManager {
    */
   getAvailableScavengers() {
     if (!this.initialized) {
-      console.warn("⚠️ TenantManager 未初始化");
+      this.logWarning("系統未初始化");
       return [];
     }
 
@@ -2267,6 +2124,7 @@ export class TenantManager {
       return availableScavengers;
     } catch (error) {
       console.error("取得可用搜刮人員失敗:", error);
+      this.logError("取得可用搜刮人員失敗", error);
       return [];
     }
   }
@@ -2320,6 +2178,7 @@ export class TenantManager {
       return baseRate;
     } catch (error) {
       console.error("計算搜刮成功率失敗:", error);
+      this.logError("計算搜刮成功率失敗", error);
       return 50; // 預設成功率
     }
   }
@@ -2374,6 +2233,7 @@ export class TenantManager {
       return result;
     } catch (error) {
       console.error("執行搜刮結果失敗:", error);
+      this.logError("執行搜刮結果失敗", error);
       return {
         success: false,
         tenantName: tenant.name,
@@ -2507,6 +2367,7 @@ export class TenantManager {
       console.log(`📊 今日搜刮次數: ${currentUsed + 1}`);
     } catch (error) {
       console.error("更新搜刮狀態失敗:", error);
+      this.logError("更新搜刮狀態失敗", error);
     }
   }
 
@@ -2521,6 +2382,7 @@ export class TenantManager {
       console.log("🔄 每日搜刮次數已重置");
     } catch (error) {
       console.error("重置每日搜刮狀態失敗:", error);
+      this.logError("重置每日搜刮狀態失敗", error);
     }
   }
 
@@ -2544,6 +2406,159 @@ export class TenantManager {
         successRate: this.calculateScavengeSuccessRate(t),
       })),
     };
+  }
+
+  // ==========================================
+  // 7. 工具函數與系統管理
+  // ==========================================
+
+  /**
+   * 確保租客有個人資源物件
+   * @param {Tenant} tenant - 租客物件
+   * @returns {void}
+   */
+  ensurePersonalResources(tenant) {
+    if (!tenant.personalResources) {
+      tenant.personalResources = {
+        food: 0,
+        materials: 0,
+        medical: 0,
+        fuel: 0,
+        cash: 0,
+      };
+    }
+  }
+
+  /**
+   * 取得空房間列表
+   * @returns {Room[]} 空房間列表
+   */
+  getEmptyRooms() {
+    const rooms = this.gameState.getStateValue("rooms", []);
+    return rooms.filter(
+      /** @type {function(Room): boolean} */ (room) => !room.tenant
+    );
+  }
+
+  /**
+   * 取得所有租客的滿意度
+   * @returns {Map<string, number>} 租客滿意度映射
+   */
+  getAllSatisfaction() {
+    return new Map(this.tenantSatisfaction);
+  }
+
+  /**
+   * 取得租客統計資料
+   * @returns {TenantStats} 租客統計
+   */
+  getTenantStats() {
+    const tenants = this.gameState.getAllTenants();
+
+    /** @type {TenantStats} */
+    const stats = {
+      totalTenants: tenants.length,
+      healthyTenants: tenants.filter((t) => !t.infected).length,
+      infectedTenants: tenants.filter((t) => t.infected).length,
+      onMissionTenants: tenants.filter((t) => t.onMission).length,
+      averageSatisfaction: this.calculateAverageSatisfaction(),
+      totalRentIncome: tenants.reduce((sum, t) => sum + t.rent, 0),
+      typeDistribution: {},
+    };
+
+    // 計算職業分布
+    /** @type {TenantType[]} */
+    const types = ["doctor", "worker", "farmer", "soldier", "elder"];
+    types.forEach((type) => {
+      stats.typeDistribution[type] = tenants.filter(
+        (t) => t.type === type
+      ).length;
+    });
+
+    return stats;
+  }
+
+  /**
+   * 更新租客統計
+   * @returns {void}
+   */
+  updateTenantStats() {
+    const stats = this.getTenantStats();
+
+    // 發送統計更新事件（使用 BaseManager 統一事件方法）
+    this.emitEvent("tenantStatsUpdated", stats);
+  }
+
+  /**
+   * 從資源變更更新滿意度
+   * @param {Object} data - 資源變更事件數據
+   * @returns {void}
+   */
+  updateSatisfactionFromResourceChange(data) {
+    // 如果是租客購買資源，提升滿意度
+    if (data.resourceType === "food" && data.changeAmount > 0) {
+      // 這裡需要確定是哪個租客進行了購買
+      // 暫時提升所有租客滿意度
+      this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
+        const newSatisfaction = Math.min(100, satisfaction + 2);
+        this.tenantSatisfaction.set(tenantName, newSatisfaction);
+      });
+    }
+  }
+
+  /**
+   * 從防禦變更更新滿意度
+   * @returns {void}
+   */
+  updateSatisfactionFromDefenseChange() {
+    // 建築防禦提升時，所有租客滿意度微幅上升
+    this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
+      const newSatisfaction = Math.min(100, satisfaction + 1);
+      this.tenantSatisfaction.set(tenantName, newSatisfaction);
+    });
+  }
+
+  /**
+   * 取得滿意度歷史
+   * @param {number} [limit=20] - 返回記錄數量限制
+   * @returns {SatisfactionHistory[]} 滿意度歷史
+   */
+  getSatisfactionHistory(limit = 20) {
+    return this.satisfactionHistory.slice(-limit);
+  }
+
+  /**
+   * 取得衝突歷史
+   * @param {number} [limit=10] - 返回記錄數量限制
+   * @returns {ConflictEvent[]} 衝突歷史
+   */
+  getConflictHistory(limit = 10) {
+    return this.conflictHistory.slice(-limit);
+  }
+
+  /**
+   * 取得租客關係列表
+   * @returns {TenantRelationship[]} 租客關係列表
+   */
+  getTenantRelationships() {
+    return [...this.tenantRelationships];
+  }
+
+  /**
+   * 清理系統數據
+   * @returns {void}
+   */
+  cleanup() {
+    this.tenantSatisfaction.clear();
+    this.tenantRelationships = [];
+    this.conflictHistory = [];
+    this.satisfactionHistory = [];
+    this.currentApplicants = [];
+
+    // 調用 BaseManager 的清理方法
+    super.cleanup();
+
+    console.log("TenantManager 已清理");
   }
 }
 

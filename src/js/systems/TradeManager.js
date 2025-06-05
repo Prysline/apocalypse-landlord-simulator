@@ -1,11 +1,12 @@
 // @ts-check
 
 /**
- * @fileoverview TradeManager.js - 統一交易系統
+ * @fileoverview TradeManager.js v3.0 - 統一交易系統（基於 BaseManager）
  * 職責：租金收取、商人交易、商隊交易、互助交易系統
- * 架構特點：配置驅動、事件通信、與 resourceManager 協作
+ * 架構特點：繼承 BaseManager，專注核心交易邏輯，移除重複基礎設施
  */
 
+import BaseManager from "./BaseManager.js";
 import { getValidator } from "../utils/validators.js";
 
 /**
@@ -39,8 +40,13 @@ import { getValidator } from "../utils/validators.js";
  */
 
 /**
- * 日誌類型
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
+ * 資源物件
+ * @typedef {Object} Resources
+ * @property {number} food - 食物數量
+ * @property {number} materials - 建材數量
+ * @property {number} medical - 醫療用品數量
+ * @property {number} fuel - 燃料數量
+ * @property {number} cash - 現金數量
  */
 
 /**
@@ -77,20 +83,6 @@ import { getValidator } from "../utils/validators.js";
  */
 
 /**
- * 價格範圍配置
- * @typedef {Object} PriceRange
- * @property {number} min - 最小價格
- * @property {number} max - 最大價格
- */
-
-/**
- * 數量範圍配置
- * @typedef {Object} AmountRange
- * @property {number} min - 最小數量
- * @property {number} max - 最大數量
- */
-
-/**
  * 商人交易選項
  * @typedef {Object} MerchantOffer
  * @property {MerchantTradeType} type - 交易類型
@@ -99,8 +91,6 @@ import { getValidator } from "../utils/validators.js";
  * @property {number} price - 交易價格
  * @property {MerchantServiceType} [service] - 服務類型
  * @property {string} description - 交易描述
- * @property {PriceRange} [priceRange] - 價格範圍（用於隨機生成）
- * @property {AmountRange} [amountRange] - 數量範圍（用於隨機生成）
  */
 
 /**
@@ -122,35 +112,6 @@ import { getValidator } from "../utils/validators.js";
  */
 
 /**
- * 交易配置
- * @typedef {Object} TradeConfig
- * @property {number} rentBonusRate - 加固房間租金加成比率
- * @property {number} mutualAidProbability - 互助發生機率
- * @property {number} landlordTradeProbability - 房東交易機率
- */
-
-/**
- * 交易匯率表
- * @typedef {Object.<ResourceType, number>} ExchangeRates
- */
-
-/**
- * 商人模板
- * @typedef {Object} MerchantTemplate
- * @property {MerchantOffer[]} offers - 交易選項列表
- */
-
-/**
- * 商人模板集合
- * @typedef {Object.<TenantType, MerchantTemplate>} MerchantTemplates
- */
-
-/**
- * 商隊交易集合
- * @typedef {Object.<string, CaravanOffer>} CaravanOffers
- */
-
-/**
  * 租金收取結果
  * @typedef {Object} RentCollectionResult
  * @property {boolean} success - 是否成功
@@ -160,18 +121,6 @@ import { getValidator } from "../utils/validators.js";
  * @property {number} bonusIncome - 加固房間加成收入
  * @property {string} summary - 收取摘要
  * @property {string} [error] - 錯誤訊息
- */
-
-/**
- * 個別租客租金處理結果
- * @typedef {Object} IndividualRentResult
- * @property {boolean} success - 是否成功
- * @property {string} tenant - 租客姓名
- * @property {number} cashAmount - 現金支付金額
- * @property {number} bonusAmount - 加成金額
- * @property {ResourcePayment[]} resourcePayments - 資源支付記錄
- * @property {number} shortage - 短缺金額
- * @property {string} reason - 支付方式或失敗原因
  */
 
 /**
@@ -189,6 +138,18 @@ import { getValidator } from "../utils/validators.js";
  * @property {string} tenant - 租客姓名
  * @property {string} reason - 失敗原因
  * @property {number} shortage - 短缺金額
+ */
+
+/**
+ * 個別租客租金處理結果
+ * @typedef {Object} IndividualRentResult
+ * @property {boolean} success - 是否成功
+ * @property {string} tenant - 租客姓名
+ * @property {number} cashAmount - 現金支付金額
+ * @property {number} bonusAmount - 加成金額
+ * @property {ResourcePayment[]} resourcePayments - 資源支付記錄
+ * @property {number} shortage - 短缺金額
+ * @property {string} reason - 支付方式或失敗原因
  */
 
 /**
@@ -240,13 +201,6 @@ import { getValidator } from "../utils/validators.js";
  */
 
 /**
- * 服務執行結果
- * @typedef {Object} ServiceResult
- * @property {string} description - 服務描述
- * @property {string|null} effect - 服務效果
- */
-
-/**
  * 每日交易統計
  * @typedef {Object} DailyTradeStats
  * @property {number} day - 天數
@@ -269,58 +223,25 @@ import { getValidator } from "../utils/validators.js";
  */
 
 /**
- * 系統健康狀態
- * @typedef {Object} SystemHealth
- * @property {boolean} healthy - 是否健康
- * @property {string[]} issues - 問題列表
- * @property {Object} stats - 統計資料
- * @property {number} stats.totalTransactions - 總交易數
- * @property {number} stats.totalValue - 總價值
- * @property {number} stats.dailyValue - 當日價值
+ * 交易配置
+ * @typedef {Object} TradeConfig
+ * @property {number} rentBonusRate - 加固房間租金加成比率
+ * @property {number} mutualAidProbability - 互助發生機率
+ * @property {number} landlordTradeProbability - 房東交易機率
  */
 
 /**
- * 系統狀態
- * @typedef {Object} TradeManagerStatus
- * @property {boolean} initialized - 是否已初始化
- * @property {boolean} configLoaded - 配置是否載入
- * @property {TradeStats} tradeStats - 交易統計
- * @property {boolean} exchangeRatesLoaded - 匯率是否載入
- * @property {boolean} merchantTemplatesLoaded - 商人模板是否載入
- * @property {boolean} caravanOffersLoaded - 商隊選項是否載入
- * @property {SystemHealth} systemHealth - 系統健康狀態
+ * 交易匯率表
+ * @typedef {Object.<ResourceType, number>} ExchangeRates
  */
 
 /**
- * 交易建議
- * @typedef {Object} TradeRecommendation
- * @property {'warning'|'suggestion'|'economic'} type - 建議類型
- * @property {string} message - 建議訊息
- * @property {number} priority - 優先級 (1-3)
- */
-
-/**
- * 交易報告
- * @typedef {Object} TradeReport
- * @property {TradeStats} stats - 交易統計
- * @property {SystemHealth} systemHealth - 系統健康狀態
- * @property {Object} configuration - 配置資訊
- * @property {ExchangeRates} configuration.exchangeRates - 交易匯率
- * @property {TradeConfig} configuration.tradeConfig - 交易配置
- * @property {TradeRecommendation[]} recommendations - 交易建議
- */
-
-/**
- * 事件監聽器回調函數
- * @typedef {function(Object): void} EventListener
- */
-
-/**
- * 統一交易系統管理類
+ * 統一交易系統管理類 v3.0（基於 BaseManager）
  * 負責處理租金收取、商人交易、商隊交易、互助交易等所有交易相關功能
  * @class
+ * @extends BaseManager
  */
-export class TradeManager {
+export class TradeManager extends BaseManager {
   /**
    * 建立 TradeManager 實例
    * @param {Object} gameStateRef - 遊戲狀態參考
@@ -329,24 +250,14 @@ export class TradeManager {
    * @param {Object} eventBus - 事件總線實例
    */
   constructor(gameStateRef, resourceManager, dataManager, eventBus) {
-    /** @type {Object} 遊戲狀態參考 */
-    this.gameState = gameStateRef;
+    // 繼承 BaseManager，自動獲得事件處理、日誌記錄、狀態管理功能
+    super(gameStateRef, eventBus, "TradeManager");
 
     /** @type {Object} 資源系統實例 */
     this.resourceManager = resourceManager;
 
     /** @type {Object} 資料管理器實例 */
     this.dataManager = dataManager;
-
-    /** @type {Object} 事件總線實例 */
-    this.eventBus = eventBus;
-
-    // 系統狀態
-    /** @type {boolean} 是否已初始化 */
-    this.initialized = false;
-
-    /** @type {boolean} 配置是否已載入 */
-    this.configLoaded = false;
 
     // 交易配置
     /** @type {TradeConfig|null} 交易配置 */
@@ -355,10 +266,10 @@ export class TradeManager {
     /** @type {ExchangeRates|null} 交易匯率表 */
     this.exchangeRates = null;
 
-    /** @type {MerchantTemplates|null} 商人模板 */
+    /** @type {Object|null} 商人模板 */
     this.merchantTemplates = null;
 
-    /** @type {CaravanOffers|null} 商隊交易選項 */
+    /** @type {Object|null} 商隊交易選項 */
     this.caravanOffers = null;
 
     // 交易統計
@@ -383,12 +294,59 @@ export class TradeManager {
     /** @type {Object|null} 交易驗證器 */
     this.tradeValidator = null;
 
-    // 事件監聽器
-    /** @type {Map<string, EventListener[]>} 事件監聽器映射 */
-    this.eventListeners = new Map();
-
-    console.log("🏪 TradeManager v2.1 初始化中...");
+    console.log("🏪 TradeManager v3.0 初始化中...");
   }
+
+  // ==========================================
+  // BaseManager 抽象方法實作
+  // ==========================================
+
+  /**
+   * 取得模組事件前綴
+   * @returns {string} 事件前綴
+   */
+  getModulePrefix() {
+    return "trade";
+  }
+
+  /**
+   * 設置事件監聽器
+   * @returns {void}
+   */
+  setupEventListeners() {
+    // 監聽新一天開始，重置每日統計
+    this.onEvent(
+      "day_advanced",
+      () => {
+        this.resetDailyStats();
+      },
+      { skipPrefix: true }
+    ); // 跳過前綴，因為這是系統級事件
+
+    // 監聽資源管理器事件
+    this.onEvent("resource_modified", (eventObj) => {
+      // 可以在此處添加資源變更的響應邏輯
+    });
+  }
+
+  /**
+   * 取得擴展狀態資訊
+   * @protected
+   * @returns {Object} 擴展狀態物件
+   */
+  getExtendedStatus() {
+    return {
+      tradeStats: { ...this.tradeStats },
+      exchangeRatesLoaded: !!this.exchangeRates,
+      merchantTemplatesLoaded: !!this.merchantTemplates,
+      caravanOffersLoaded: !!this.caravanOffers,
+      systemHealth: this.validateSystemHealth(),
+    };
+  }
+
+  // ==========================================
+  // 系統初始化
+  // ==========================================
 
   /**
    * 系統初始化
@@ -397,7 +355,7 @@ export class TradeManager {
    */
   async initialize() {
     try {
-      console.log("💼 載入交易系統配置...");
+      this.logSuccess("開始載入交易系統配置");
 
       // 初始化驗證器
       this.initializeValidators();
@@ -405,34 +363,26 @@ export class TradeManager {
       // 載入交易配置
       await this.loadTradeConfigurations();
 
-      // 設置事件監聽器
+      // 設置事件監聽器（BaseManager 會自動呼叫）
       this.setupEventListeners();
 
       // 初始化統計數據
       this.initializeTradeStats();
 
-      this.configLoaded = true;
-      this.initialized = true;
+      // 標記初始化完成（BaseManager 統一方法）
+      this.markInitialized(true);
 
-      console.log("✅ TradeManager 初始化完成");
-      console.log("📋 系統配置:", {
-        exchangeRates: !!this.exchangeRates,
-        merchantTemplates: !!this.merchantTemplates,
-        caravanOffers: !!this.caravanOffers,
-        validator: !!this.tradeValidator,
-      });
-
+      this.logSuccess("TradeManager v3.0 初始化完成");
       return true;
     } catch (error) {
-      console.error("❌ TradeManager 初始化失敗:", error);
-      this.initialized = false;
+      this.logError("TradeManager 初始化失敗", error);
+      this.markInitialized(false);
       return false;
     }
   }
 
   /**
    * 初始化驗證器
-   * 建立交易驗證器實例，用於驗證交易參數和條件
    * @returns {void}
    */
   initializeValidators() {
@@ -442,16 +392,15 @@ export class TradeManager {
         strictMode: false,
         logErrors: true,
       });
-      console.log("🔍 TradeManager 驗證器初始化完成");
+      this.logSuccess("交易驗證器初始化完成");
     } catch (error) {
-      console.warn("⚠️ TradeValidator 初始化失敗，使用後備驗證:", error);
+      this.logWarning("TradeValidator 初始化失敗，使用後備驗證");
       this.tradeValidator = null;
     }
   }
 
   /**
    * 載入交易配置
-   * 從 DataManager 載入所有交易相關配置
    * @returns {Promise<void>} 載入完成的 Promise
    * @throws {Error} 當配置載入失敗時
    */
@@ -485,31 +434,16 @@ export class TradeManager {
       landlordTradeProbability: 0.25, // 房東交易機率
     };
 
-    console.log("📋 交易配置載入完成");
-  }
-
-  /**
-   * 設置事件監聽器
-   * 註冊系統事件監聽器，處理天數推進等事件
-   * @returns {void}
-   */
-  setupEventListeners() {
-    // 監聽新一天開始，重置每日統計
-    if (this.eventBus) {
-      this.eventBus.on("day_advanced", () => {
-        this.resetDailyStats();
-      });
-    }
+    this.logSuccess("交易配置載入完成");
   }
 
   /**
    * 初始化交易統計
-   * 設置當日交易統計的初始值
    * @returns {void}
    */
   initializeTradeStats() {
     this.tradeStats.dailyStats = {
-      day: this.gameState.day,
+      day: this.gameState.getStateValue("day", 1),
       rentCollected: 0,
       merchantTrades: 0,
       caravanTrades: 0,
@@ -524,13 +458,12 @@ export class TradeManager {
 
   /**
    * 處理租金收取 - 主要入口點
-   * 處理所有租客的租金收取，包括現金支付和資源抵付
    * @returns {Promise<RentCollectionResult>} 租金收取結果
    * @throws {Error} 當系統未初始化或處理過程發生錯誤時
    */
   async processRentCollection() {
-    if (!this.initialized) {
-      console.warn("⚠️ TradeManager 未初始化");
+    if (!this.isInitialized()) {
+      this.logWarning("TradeManager 未初始化");
       return {
         success: false,
         error: "系統未初始化",
@@ -542,7 +475,7 @@ export class TradeManager {
       };
     }
 
-    console.log("💰 開始處理租金收取");
+    this.logSuccess("開始處理租金收取");
 
     /** @type {RentCollectionResult} */
     const results = {
@@ -555,8 +488,22 @@ export class TradeManager {
     };
 
     try {
-      // 取得所有已出租房間
-      const occupiedRooms = this.gameState.rooms.filter(
+      // 取得所有房間
+      const rooms = this.gameState.getStateValue("rooms", []);
+
+      // 檢查是否有租客
+      const roomsWithTenants = rooms.filter(
+        /** @type {function(Room): boolean} */ (room) => room.tenant !== null
+      );
+      if (roomsWithTenants.length === 0) {
+        results.success = false;
+        results.summary = "❌ 目前沒有租客，無法進行收租";
+        this.addLog(results.summary, "rent");
+        return results;
+      }
+
+      // 篩選可收租的租客（未感染）
+      const occupiedRooms = rooms.filter(
         /** @type {function(Room): boolean} */ (room) =>
           room.tenant && !room.tenant.infected
       );
@@ -595,9 +542,18 @@ export class TradeManager {
           "rent_collection"
         );
 
-        if (this.gameState.landlord) {
-          this.gameState.landlord.totalIncome +=
-            results.totalCashRent + results.bonusIncome;
+        // 更新房東總收入
+        const landlord = this.gameState.getStateValue("landlord", {});
+        if (landlord) {
+          landlord.totalIncome =
+            (landlord.totalIncome || 0) +
+            results.totalCashRent +
+            results.bonusIncome;
+          this.gameState.setStateValue(
+            "landlord",
+            landlord,
+            "rent_income_update"
+          );
         }
       }
 
@@ -614,10 +570,10 @@ export class TradeManager {
       // 發送租金收取完成事件
       this.emitEvent("rentCollectionCompleted", results);
 
-      console.log("✅ 租金收取處理完成");
+      this.logSuccess("租金收取處理完成");
       return results;
     } catch (error) {
-      console.error("❌ 租金收取處理失敗:", error);
+      this.logError("租金收取處理失敗", error);
       results.success = false;
       results.error = error instanceof Error ? error.message : String(error);
       return results;
@@ -860,11 +816,11 @@ export class TradeManager {
    * @throws {Error} 當系統未初始化或交易處理失敗時
    */
   async processMerchantTrade(merchant, selectedOffer) {
-    if (!this.initialized) {
+    if (!this.isInitialized()) {
       return { success: false, error: "系統未初始化" };
     }
 
-    console.log(`🛒 處理商人交易: ${merchant.name} (${merchant.type})`);
+    this.logSuccess(`處理商人交易: ${merchant.name} (${merchant.type})`);
 
     try {
       // 驗證商人和交易選項
@@ -898,7 +854,7 @@ export class TradeManager {
 
       return result;
     } catch (error) {
-      console.error("❌ 商人交易處理失敗:", error);
+      this.logError("商人交易處理失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -933,28 +889,6 @@ export class TradeManager {
         error: "無效的交易選項",
         suggestion: "確認交易選項物件格式",
       };
-    }
-
-    // 使用 validators.js 的交易驗證
-    const tradeOperation = {
-      type:
-        offer.type === "buy"
-          ? "rent"
-          : offer.type === "sell"
-          ? "merchant"
-          : "caravan",
-      from: "player",
-      to: merchant.name,
-      cost:
-        offer.type === "buy"
-          ? { [offer.item || "cash"]: offer.amount || 0 }
-          : { cash: offer.price },
-    };
-
-    const tradeValidation =
-      this.tradeValidator.validateTradeOperation(tradeOperation);
-    if (!tradeValidation.valid) {
-      return tradeValidation;
     }
 
     // 額外的資源檢查
@@ -1073,7 +1007,7 @@ export class TradeManager {
    * 執行商人服務
    * @param {Merchant} merchant - 商人物件
    * @param {MerchantServiceType} service - 服務類型
-   * @returns {Promise<ServiceResult>} 服務結果
+   * @returns {Promise<{description: string, effect: string|null}>} 服務結果
    */
   async executeMerchantService(merchant, service) {
     switch (service) {
@@ -1097,38 +1031,31 @@ export class TradeManager {
   /**
    * 商人健康檢查服務
    * @param {Merchant} merchant - 商人物件
-   * @returns {ServiceResult} 服務結果
+   * @returns {{description: string, effect: string|null}} 服務結果
    */
   performMerchantHealthCheck(merchant) {
     let foundIssues = false;
 
     // 檢查訪客
-    if (
-      this.gameState.visitors &&
-      Array.isArray(this.gameState.visitors) &&
-      this.gameState.visitors.length > 0
-    ) {
-      this.gameState.visitors.forEach(
-        /** @type {function(Object): void} */ (visitor) => {
-          if (visitor.infected && !visitor.revealedInfection) {
-            visitor.revealedInfection = true;
-            this.addLog(
-              `商人醫生檢測發現訪客 ${visitor.name} 已被感染！`,
-              "danger"
-            );
-            foundIssues = true;
-          }
+    const visitors = this.gameState.getStateValue("visitors", []);
+    if (Array.isArray(visitors) && visitors.length > 0) {
+      visitors.forEach((visitor) => {
+        if (visitor.infected && !visitor.revealedInfection) {
+          visitor.revealedInfection = true;
+          this.addLog(
+            `商人醫生檢測發現訪客 ${visitor.name} 已被感染！`,
+            "danger"
+          );
+          foundIssues = true;
         }
-      );
+      });
     }
 
     // 檢查租客（早期感染偵測）
-    const healthyTenants = this.gameState.rooms
-      .filter(
-        /** @type {function(Room): boolean} */ (room) =>
-          room.tenant && !room.tenant.infected
-      )
-      .map(/** @type {function(Room): Tenant} */ (room) => room.tenant);
+    const rooms = this.gameState.getStateValue("rooms", []);
+    const healthyTenants = rooms
+      .filter((room) => room.tenant && !room.tenant.infected)
+      .map((room) => room.tenant);
 
     healthyTenants.forEach((tenant) => {
       if (Math.random() < 0.15) {
@@ -1158,15 +1085,15 @@ export class TradeManager {
   /**
    * 商人快速維修服務
    * @param {Merchant} merchant - 商人物件
-   * @returns {ServiceResult} 服務結果
+   * @returns {{description: string, effect: string|null}} 服務結果
    */
   performMerchantRepair(merchant) {
-    const repairRooms = this.gameState.rooms.filter(
-      /** @type {function(Room): boolean} */ (room) => room.needsRepair
-    );
+    const rooms = this.gameState.getStateValue("rooms", []);
+    const repairRooms = rooms.filter((room) => room.needsRepair);
 
     if (repairRooms.length > 0) {
       repairRooms[0].needsRepair = false;
+      this.gameState.setStateValue("rooms", rooms, "merchant_repair");
       this.addLog(
         `商人工人 ${merchant.name} 快速修復了房間 ${repairRooms[0].id}`,
         "skill"
@@ -1192,13 +1119,12 @@ export class TradeManager {
   /**
    * 安全諮詢服務
    * @param {Merchant} merchant - 商人物件
-   * @returns {ServiceResult} 服務結果
+   * @returns {{description: string, effect: string|null}} 服務結果
    */
   performSecurityConsultation(merchant) {
-    // 使用 GameState 的安全存取方式
-    const currentDefense = this.gameState.getStateValue("buildingDefense", 0);
+    const currentDefense = this.gameState.getStateValue("building.defense", 0);
     this.gameState.setStateValue(
-      "buildingDefense",
+      "building.defense",
       currentDefense + 1,
       "security_consultation"
     );
@@ -1217,7 +1143,7 @@ export class TradeManager {
   /**
    * 情報服務
    * @param {Merchant} merchant - 商人物件
-   * @returns {ServiceResult} 服務結果
+   * @returns {{description: string, effect: string|null}} 服務結果
    */
   performInformationService(merchant) {
     const infoEffects = [
@@ -1228,7 +1154,6 @@ export class TradeManager {
             `商人老人 ${merchant.name} 告訴你附近有廢棄的醫院`,
             "event"
           );
-          // 設置搜刮加成標記（由其他系統處理）
           this.emitEvent("scavengeBonus", { source: "merchant_info" });
         },
       },
@@ -1236,7 +1161,6 @@ export class TradeManager {
         description: "獲得食物保存技巧",
         effect: () => {
           this.addLog(`商人老人 ${merchant.name} 分享了食物保存技巧`, "event");
-          // 設置採集加成標記
           this.emitEvent("harvestBonus", { source: "merchant_info" });
         },
       },
@@ -1291,75 +1215,224 @@ export class TradeManager {
     }
   }
 
-  /**
-   * 生成商人交易選項
-   * @param {Merchant} merchant - 商人物件
-   * @returns {MerchantOffer[]} 交易選項列表
-   */
-  generateMerchantOffers(merchant) {
-    const tenantType = /** @type {TenantType} */ (merchant.type);
-    const template =
-      this.merchantTemplates && this.merchantTemplates[tenantType];
-
-    if (!template) {
-      return this.getDefaultMerchantOffers(tenantType);
-    }
-
-    const offers = [];
-    const availableOffers = [...template.offers];
-
-    // 隨機選擇2-3個交易選項
-    const numOffers = Math.min(
-      availableOffers.length,
-      Math.floor(Math.random() * 2) + 2
-    );
-
-    for (let i = 0; i < numOffers; i++) {
-      if (availableOffers.length === 0) break;
-
-      const randomIndex = Math.floor(Math.random() * availableOffers.length);
-      const offer = availableOffers.splice(randomIndex, 1)[0];
-
-      if (offer) {
-        offers.push(this.processOfferTemplate(offer, merchant));
-      }
-    }
-
-    return offers;
-  }
-
-  /**
-   * 處理交易選項模板
-   * @param {MerchantOffer} template - 交易選項模板
-   * @param {Merchant} merchant - 商人物件
-   * @returns {MerchantOffer} 處理後的交易選項
-   */
-  processOfferTemplate(template, merchant) {
-    /** @type {MerchantOffer} */
-    const offer = { ...template };
-
-    // 基於商人狀態調整價格
-    if (offer.priceRange) {
-      offer.price =
-        Math.floor(
-          Math.random() * (offer.priceRange.max - offer.priceRange.min + 1)
-        ) + offer.priceRange.min;
-    }
-
-    // 基於商人狀態調整數量
-    if (offer.amountRange && offer.amount !== undefined) {
-      offer.amount =
-        Math.floor(
-          Math.random() * (offer.amountRange.max - offer.amountRange.min + 1)
-        ) + offer.amountRange.min;
-    }
-
-    return offer;
-  }
-
   // ==========================================
   // 3. 商隊交易系統
   // ==========================================
+
+  /**
+   * 生成今日可用的商隊交易選項（智慧選擇3-5個合理組合）
+   * @returns {Object.<string, CaravanOffer>} 今日可用的商隊交易選項
+   */
+  generateTodaysCaravanOffers() {
+    const allOffers = this.caravanOffers || this.getDefaultCaravanOffers();
+    const offerKeys = Object.keys(allOffers);
+
+    // 隨機選擇3-5個選項
+    const targetCount = Math.floor(Math.random() * 3) + 3; // 3-5個
+    /** @type {Object.<string, CaravanOffer>} */
+    const selectedOffers = {};
+    const selectedKeys = [];
+
+    // 使用智慧選擇避免衝突
+    const compatibleGroups = this.categorizeCompatibleOffers(allOffers);
+
+    // 從每個相容群組中最多選擇1-2個
+    const groupKeys = Object.keys(compatibleGroups);
+    const shuffledGroups = this.shuffleArray([...groupKeys]);
+
+    for (const groupName of shuffledGroups) {
+      if (selectedKeys.length >= targetCount) break;
+
+      const groupOffers = compatibleGroups[groupName];
+      const groupKeys = Object.keys(groupOffers);
+      const shuffledGroupKeys = this.shuffleArray([...groupKeys]);
+
+      // 從此群組選擇1個（特殊群組可選2個）
+      const maxFromGroup = groupName === "special" ? 2 : 1;
+      const selectCount = Math.min(
+        maxFromGroup,
+        groupKeys.length,
+        targetCount - selectedKeys.length
+      );
+
+      for (let i = 0; i < selectCount; i++) {
+        const key = shuffledGroupKeys[i];
+        selectedOffers[key] = groupOffers[key];
+        selectedKeys.push(key);
+      }
+    }
+
+    // 如果還沒選夠，從剩餘選項中隨機補充（確保無衝突）
+    while (
+      selectedKeys.length < targetCount &&
+      selectedKeys.length < offerKeys.length
+    ) {
+      const remainingKeys = offerKeys.filter(
+        (key) => !selectedKeys.includes(key)
+      );
+      if (remainingKeys.length === 0) break;
+
+      const randomKey =
+        remainingKeys[Math.floor(Math.random() * remainingKeys.length)];
+
+      // 檢查是否與已選選項產生衝突
+      if (!this.hasTradeConflict(selectedOffers, allOffers[randomKey])) {
+        selectedOffers[randomKey] = allOffers[randomKey];
+        selectedKeys.push(randomKey);
+      } else {
+        // 如果產生衝突，就停止添加
+        break;
+      }
+    }
+
+    this.logSuccess(
+      `生成今日商隊選項：${selectedKeys.length}個 (${selectedKeys.join(", ")})`
+    );
+    return selectedOffers;
+  }
+
+  /**
+   * 將交易選項按相容性分組
+   * @param {Object} allOffers - 所有交易選項
+   * @returns {Object} 分組後的交易選項
+   */
+  categorizeCompatibleOffers(allOffers) {
+    return {
+      // 食物主導群組（食物流出）
+      food_out: {
+        food_for_materials: allOffers.food_for_materials,
+        luxury_trade: allOffers.luxury_trade,
+        resource_exchange: allOffers.resource_exchange,
+        emergency_supplies: allOffers.emergency_supplies,
+        food_caravan: allOffers.food_caravan,
+      },
+
+      // 食物獲取群組（食物流入）
+      food_in: {
+        fuel_for_food: allOffers.fuel_for_food,
+        medical_for_food: allOffers.medical_for_food,
+        cash_for_food: allOffers.cash_for_food,
+        survival_bundle: allOffers.survival_bundle,
+      },
+
+      // 建材主導群組
+      materials_focused: {
+        materials_for_cash: allOffers.materials_for_cash,
+        materials_for_medical: allOffers.materials_for_medical,
+        materials_for_fuel: allOffers.materials_for_fuel,
+        cash_for_materials: allOffers.cash_for_materials,
+        building_bundle: allOffers.building_bundle,
+        military_surplus: allOffers.military_surplus,
+        scrap_dealer: allOffers.scrap_dealer,
+      },
+
+      // 醫療主導群組
+      medical_focused: {
+        cash_for_medical: allOffers.cash_for_medical,
+        medical_for_cash: allOffers.medical_for_cash,
+        medical_for_fuel: allOffers.medical_for_fuel,
+        medical_convoy: allOffers.medical_convoy,
+      },
+
+      // 燃料主導群組
+      fuel_focused: {
+        cash_for_fuel: allOffers.cash_for_fuel,
+        fuel_for_cash: allOffers.fuel_for_cash,
+        fuel_for_materials: allOffers.fuel_for_materials,
+        fuel_depot: allOffers.fuel_depot,
+      },
+
+      // 特殊組合（可與多數群組相容）
+      special: {
+        survival_bundle: allOffers.survival_bundle,
+        building_bundle: allOffers.building_bundle,
+        emergency_supplies: allOffers.emergency_supplies,
+      },
+    };
+  }
+
+  /**
+   * 檢查交易是否與已選交易產生衝突
+   * @param {Object} selectedOffers - 已選擇的交易
+   * @param {CaravanOffer} newOffer - 新的交易選項
+   * @returns {boolean} 是否產生衝突
+   */
+  hasTradeConflict(selectedOffers, newOffer) {
+    // 計算新交易的資源隱含價格
+    const newPrices = this.calculateImpliedPrices(newOffer);
+
+    // 檢查與每個已選交易的價格衝突
+    for (const [key, existingOffer] of Object.entries(selectedOffers)) {
+      const existingPrices = this.calculateImpliedPrices(existingOffer);
+
+      // 檢查同一資源的價格衝突（容忍20%差異）
+      for (const resource of ["food", "materials", "medical", "fuel"]) {
+        if (newPrices[resource] && existingPrices[resource]) {
+          const priceDiff = Math.abs(
+            newPrices[resource] - existingPrices[resource]
+          );
+          const avgPrice = (newPrices[resource] + existingPrices[resource]) / 2;
+          const diffPercentage = priceDiff / avgPrice;
+
+          // 如果價格差異超過30%，認為有衝突
+          if (diffPercentage > 0.3) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 計算交易中各資源的隱含價格
+   * @param {CaravanOffer} offer - 交易選項
+   * @returns {Object.<ResourceType, number>} 各資源的隱含價格
+   */
+  calculateImpliedPrices(offer) {
+    const prices = {};
+    const exchangeRates = this.exchangeRates || {
+      food: 1.5,
+      materials: 3,
+      medical: 4,
+      fuel: 3,
+      cash: 1,
+    };
+
+    // 計算付出資源的總價值
+    let totalGiveValue = 0;
+    for (const [resource, amount] of Object.entries(offer.give)) {
+      totalGiveValue += amount * (exchangeRates[resource] || 1);
+    }
+
+    // 計算接收資源的總價值
+    let totalReceiveValue = 0;
+    for (const [resource, amount] of Object.entries(offer.receive)) {
+      totalReceiveValue += amount * (exchangeRates[resource] || 1);
+    }
+
+    // 計算各資源的隱含價格（基於總價值比例）
+    for (const [resource, amount] of Object.entries(offer.receive)) {
+      prices[resource] = totalGiveValue / amount;
+    }
+
+    return prices;
+  }
+
+  /**
+   * 洗牌陣列（Fisher-Yates演算法）
+   * @param {Array} array - 要洗牌的陣列
+   * @returns {Array} 洗牌後的陣列
+   */
+  shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
 
   /**
    * 處理商隊交易
@@ -1368,16 +1441,22 @@ export class TradeManager {
    * @throws {Error} 當系統未初始化或交易處理失敗時
    */
   async processCaravanTrade(tradeType) {
-    if (!this.initialized) {
+    if (!this.isInitialized()) {
       return { success: false, error: "系統未初始化" };
     }
 
-    console.log(`🚛 處理商隊交易: ${tradeType}`);
+    this.logSuccess(`處理商隊交易: ${tradeType}`);
 
     try {
-      const tradeOffer = this.caravanOffers && this.caravanOffers[tradeType];
+      // 使用今日可用選項而非全部選項
+      const todaysOffers = this.generateTodaysCaravanOffers();
+      const tradeOffer = todaysOffers[tradeType];
+
       if (!tradeOffer) {
-        return { success: false, error: `未知的商隊交易類型: ${tradeType}` };
+        return {
+          success: false,
+          error: `今日商隊未提供此交易類型: ${tradeType}`,
+        };
       }
 
       // 驗證交易條件
@@ -1408,7 +1487,7 @@ export class TradeManager {
 
       return result;
     } catch (error) {
-      console.error("❌ 商隊交易處理失敗:", error);
+      this.logError("商隊交易處理失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -1434,20 +1513,6 @@ export class TradeManager {
         error: "交易選項不完整",
         suggestion: "確認交易選項包含 give 和 receive 屬性",
       };
-    }
-
-    // 使用 validators.js 的交易驗證
-    const tradeOperation = {
-      type: "caravan",
-      from: "player",
-      to: "caravan",
-      cost: offer.give,
-    };
-
-    const tradeValidation =
-      this.tradeValidator.validateTradeOperation(tradeOperation);
-    if (!tradeValidation.valid) {
-      return tradeValidation;
     }
 
     // 檢查是否有足夠的資源
@@ -1585,11 +1650,11 @@ export class TradeManager {
    * @throws {Error} 當系統未初始化或處理失敗時
    */
   async processMutualAid() {
-    if (!this.initialized) {
+    if (!this.isInitialized()) {
       return { success: false, error: "系統未初始化" };
     }
 
-    console.log("🤝 處理租客互助系統");
+    this.logSuccess("處理租客互助系統");
 
     try {
       /** @type {Object} */
@@ -1621,7 +1686,7 @@ export class TradeManager {
 
       return { success: true, results: results };
     } catch (error) {
-      console.error("❌ 互助系統處理失敗:", error);
+      this.logError("互助系統處理失敗", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -1644,14 +1709,12 @@ export class TradeManager {
       return results;
     }
 
-    const tenants = this.gameState.rooms
+    const rooms = this.gameState.getStateValue("rooms", []);
+    const tenants = rooms
       .filter(
-        /** @type {function(Room): boolean} */ (room) =>
-          room.tenant !== null &&
-          room.tenant.personalResources !== null &&
-          room.tenant.personalResources !== undefined
+        (room) => room.tenant !== null && room.tenant.personalResources !== null
       )
-      .map(/** @type {function(Room): Tenant} */ (room) => room.tenant);
+      .map((room) => room.tenant);
 
     if (tenants.length < 2) {
       return results;
@@ -1790,14 +1853,12 @@ export class TradeManager {
       return results;
     }
 
-    const tenants = this.gameState.rooms
+    const rooms = this.gameState.getStateValue("rooms", []);
+    const tenants = rooms
       .filter(
-        /** @type {function(Room): boolean} */ (room) =>
-          room.tenant !== null &&
-          room.tenant.personalResources !== null &&
-          room.tenant.personalResources !== undefined
+        (room) => room.tenant !== null && room.tenant.personalResources !== null
       )
-      .map(/** @type {function(Room): Tenant} */ (room) => room.tenant);
+      .map((room) => room.tenant);
 
     for (const tenant of tenants) {
       const tradeResult = this.attemptLandlordTenantTrade(tenant);
@@ -1956,7 +2017,7 @@ export class TradeManager {
    */
   resetDailyStats() {
     this.tradeStats.dailyStats = {
-      day: this.gameState.day,
+      day: this.gameState.getStateValue("day", 1),
       rentCollected: 0,
       merchantTrades: 0,
       caravanTrades: 0,
@@ -1966,8 +2027,50 @@ export class TradeManager {
   }
 
   /**
+   * 驗證系統健康狀態
+   * @returns {{healthy: boolean, issues: string[], stats: Object}} 系統健康狀態物件
+   */
+  validateSystemHealth() {
+    const issues = [];
+
+    if (!this.configLoaded) {
+      issues.push("配置未正確載入");
+    }
+
+    if (!this.exchangeRates) {
+      issues.push("交易匯率未載入");
+    }
+
+    if (!this.merchantTemplates) {
+      issues.push("商人模板未載入");
+    }
+
+    if (!this.caravanOffers) {
+      issues.push("商隊選項未載入");
+    }
+
+    if (!this.tradeValidator) {
+      issues.push("TradeValidator 不可用");
+    }
+
+    return {
+      healthy: issues.length === 0,
+      issues: issues,
+      stats: {
+        totalTransactions:
+          this.tradeStats.rentTransactions +
+          this.tradeStats.merchantTransactions +
+          this.tradeStats.caravanTransactions +
+          this.tradeStats.mutualAidTransactions,
+        totalValue: this.tradeStats.totalValue,
+        dailyValue: this.tradeStats.dailyStats.totalDailyValue,
+      },
+    };
+  }
+
+  /**
    * 取得預設商人模板
-   * @returns {MerchantTemplates} 預設商人模板集合
+   * @returns {Object} 預設商人模板集合
    */
   getDefaultMerchantTemplates() {
     return {
@@ -2083,234 +2186,142 @@ export class TradeManager {
 
   /**
    * 取得預設商隊交易選項
-   * @returns {CaravanOffers} 預設商隊交易選項集合
+   * @returns {Object} 預設商隊交易選項集合
    */
   getDefaultCaravanOffers() {
     return {
+      // ===== 食物相關交易 =====
       fuel_for_food: {
         give: { fuel: 3 },
         receive: { food: 10 },
         description: "用燃料換食物",
       },
-      cash_for_medical: {
-        give: { cash: 15 },
-        receive: { medical: 4 },
-        description: "用現金買醫療用品",
+      medical_for_food: {
+        give: { medical: 2 },
+        receive: { food: 8 },
+        description: "用醫療用品換食物",
       },
+      cash_for_food: {
+        give: { cash: 12 },
+        receive: { food: 9 },
+        description: "用現金購買食物",
+      },
+      food_for_materials: {
+        give: { food: 8 },
+        receive: { materials: 3 },
+        description: "用食物換建材",
+      },
+
+      // ===== 建材相關交易 =====
       materials_for_cash: {
         give: { materials: 6 },
         receive: { cash: 20 },
         description: "出售建材換現金",
       },
-    };
-  }
+      cash_for_materials: {
+        give: { cash: 18 },
+        receive: { materials: 5 },
+        description: "用現金購買建材",
+      },
+      fuel_for_materials: {
+        give: { fuel: 4 },
+        receive: { materials: 4 },
+        description: "用燃料換建材",
+      },
+      materials_for_medical: {
+        give: { materials: 4 },
+        receive: { medical: 3 },
+        description: "用建材換醫療用品",
+      },
 
-  /**
-   * 取得預設商人交易選項（後備）
-   * @param {TenantType} tenantType - 租客類型
-   * @returns {MerchantOffer[]} 預設交易選項
-   */
-  getDefaultMerchantOffers(tenantType) {
-    const templates = this.getDefaultMerchantTemplates();
-    const template = templates[tenantType];
+      // ===== 醫療用品相關交易 =====
+      cash_for_medical: {
+        give: { cash: 15 },
+        receive: { medical: 4 },
+        description: "用現金買醫療用品",
+      },
+      medical_for_cash: {
+        give: { medical: 3 },
+        receive: { cash: 14 },
+        description: "出售醫療用品換現金",
+      },
+      medical_for_fuel: {
+        give: { medical: 2 },
+        receive: { fuel: 3 },
+        description: "用醫療用品換燃料",
+      },
 
-    if (!template) {
-      return [
-        {
-          type: "buy",
-          item: "food",
-          amount: 2,
-          price: 5,
-          description: "購買食物",
-        },
-      ];
-    }
+      // ===== 燃料相關交易 =====
+      cash_for_fuel: {
+        give: { cash: 12 },
+        receive: { fuel: 4 },
+        description: "用現金購買燃料",
+      },
+      materials_for_fuel: {
+        give: { materials: 3 },
+        receive: { fuel: 4 },
+        description: "用建材換燃料",
+      },
+      fuel_for_cash: {
+        give: { fuel: 4 },
+        receive: { cash: 13 },
+        description: "出售燃料換現金",
+      },
 
-    return template.offers.slice(0, 2); // 返回前兩個選項
-  }
+      // ===== 特殊組合交易 =====
+      survival_bundle: {
+        give: { cash: 25 },
+        receive: { food: 6, medical: 2, fuel: 2 },
+        description: "購買生存套餐",
+      },
+      building_bundle: {
+        give: { cash: 30 },
+        receive: { materials: 8, fuel: 3 },
+        description: "購買建設套餐",
+      },
+      emergency_supplies: {
+        give: { materials: 5, fuel: 2 },
+        receive: { food: 8, medical: 3 },
+        description: "緊急物資交換",
+      },
+      luxury_trade: {
+        give: { food: 12, materials: 4 },
+        receive: { cash: 35 },
+        description: "奢侈品交易",
+      },
+      resource_exchange: {
+        give: { food: 4, medical: 1 },
+        receive: { materials: 3, fuel: 2 },
+        description: "綜合資源互換",
+      },
 
-  /**
-   * 事件監聽器註冊
-   * @param {string} eventName - 事件名稱
-   * @param {EventListener} callback - 回調函數
-   * @returns {void}
-   */
-  on(eventName, callback) {
-    if (!this.eventListeners.has(eventName)) {
-      this.eventListeners.set(eventName, []);
-    }
-    const listeners = this.eventListeners.get(eventName);
-    if (listeners) {
-      listeners.push(callback);
-    }
-  }
-
-  /**
-   * 發送事件
-   * @param {string} eventName - 事件名稱
-   * @param {Object} data - 事件資料
-   * @returns {void}
-   */
-  emitEvent(eventName, data) {
-    const listeners = this.eventListeners.get(eventName);
-    if (listeners) {
-      listeners.forEach((callback) => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error(`❌ 交易事件處理器錯誤 (${eventName}):`, error);
-        }
-      });
-    }
-
-    // 同時透過 EventBus 發送事件
-    if (this.eventBus) {
-      this.eventBus.emit(`trade_${eventName}`, data);
-    }
-  }
-
-  /**
-   * 添加遊戲日誌 - 透過 GameState 統一管理
-   * @param {string} message - 日誌訊息
-   * @param {LogType} [type='event'] - 日誌類型
-   * @returns {void}
-   */
-  addLog(message, type = "event") {
-    // 優先使用 GameState 的 addLog 方法
-    if (this.gameState && typeof this.gameState.addLog === "function") {
-      this.gameState.addLog(message, type);
-    } else {
-      // 後備方案：直接輸出到控制台
-      console.log(`[${type.toUpperCase()}] ${message}`);
-    }
-
-    // 同時透過 EventBus 發送日誌事件（供其他模組監聽）
-    if (this.eventBus) {
-      this.eventBus.emit("trade_log_added", {
-        source: "TradeManager",
-        message,
-        type,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }
-
-  /**
-   * 取得系統狀態
-   * @returns {TradeManagerStatus} 系統狀態物件
-   */
-  getStatus() {
-    return {
-      initialized: this.initialized,
-      configLoaded: this.configLoaded,
-      tradeStats: { ...this.tradeStats },
-      exchangeRatesLoaded: !!this.exchangeRates,
-      merchantTemplatesLoaded: !!this.merchantTemplates,
-      caravanOffersLoaded: !!this.caravanOffers,
-      systemHealth: this.validateSystemHealth(),
-    };
-  }
-
-  /**
-   * 驗證系統健康狀態
-   * @returns {SystemHealth} 系統健康狀態物件
-   */
-  validateSystemHealth() {
-    const issues = [];
-
-    if (!this.configLoaded) {
-      issues.push("配置未正確載入");
-    }
-
-    if (!this.exchangeRates) {
-      issues.push("交易匯率未載入");
-    }
-
-    if (!this.merchantTemplates) {
-      issues.push("商人模板未載入");
-    }
-
-    if (!this.caravanOffers) {
-      issues.push("商隊選項未載入");
-    }
-
-    if (!this.tradeValidator) {
-      issues.push("TradeValidator 不可用");
-    }
-
-    return {
-      healthy: issues.length === 0,
-      issues: issues,
-      stats: {
-        totalTransactions:
-          this.tradeStats.rentTransactions +
-          this.tradeStats.merchantTransactions +
-          this.tradeStats.caravanTransactions +
-          this.tradeStats.mutualAidTransactions,
-        totalValue: this.tradeStats.totalValue,
-        dailyValue: this.tradeStats.dailyStats.totalDailyValue,
+      // ===== 季節性/特殊商隊 =====
+      military_surplus: {
+        give: { cash: 40 },
+        receive: { materials: 10, medical: 3 },
+        description: "軍用物資批發",
+      },
+      medical_convoy: {
+        give: { food: 15, fuel: 3 },
+        receive: { medical: 8 },
+        description: "醫療商隊特供",
+      },
+      fuel_depot: {
+        give: { materials: 8, cash: 10 },
+        receive: { fuel: 12 },
+        description: "燃料補給站",
+      },
+      food_caravan: {
+        give: { medical: 4, cash: 15 },
+        receive: { food: 20 },
+        description: "食物商隊大宗交易",
+      },
+      scrap_dealer: {
+        give: { fuel: 6, food: 8 },
+        receive: { materials: 12 },
+        description: "廢料回收商",
       },
     };
-  }
-
-  /**
-   * 取得交易報告
-   * @returns {TradeReport} 完整交易報告
-   */
-  getTradeReport() {
-    return {
-      stats: this.tradeStats,
-      systemHealth: this.validateSystemHealth(),
-      configuration: {
-        exchangeRates: this.exchangeRates || {},
-        tradeConfig: this.tradeConfig || {
-          rentBonusRate: 0.2,
-          mutualAidProbability: 0.3,
-          landlordTradeProbability: 0.25,
-        },
-      },
-      recommendations: this.generateTradeRecommendations(),
-    };
-  }
-
-  /**
-   * 生成交易建議
-   * @returns {TradeRecommendation[]} 交易建議列表
-   */
-  generateTradeRecommendations() {
-    /** @type {TradeRecommendation[]} */
-    const recommendations = [];
-    const dailyStats = this.tradeStats.dailyStats;
-
-    if (dailyStats.rentCollected === 0) {
-      recommendations.push({
-        type: "warning",
-        message: "今日尚未收取房租",
-        priority: 3,
-      });
-    }
-
-    if (
-      dailyStats.merchantTrades === 0 &&
-      this.gameState.visitors &&
-      this.gameState.visitors.length > 0
-    ) {
-      recommendations.push({
-        type: "suggestion",
-        message: "考慮與訪客進行交易",
-        priority: 2,
-      });
-    }
-
-    if (dailyStats.totalDailyValue < 50) {
-      recommendations.push({
-        type: "economic",
-        message: "今日交易價值偏低，考慮提升經濟活動",
-        priority: 1,
-      });
-    }
-
-    return recommendations.sort((a, b) => b.priority - a.priority);
   }
 }
 

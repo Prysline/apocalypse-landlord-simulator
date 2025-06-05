@@ -1,12 +1,11 @@
 // @ts-check
 
 /**
- * @fileoverview ResourceManager.js - 資源流轉控制核心
+ * @fileoverview ResourceManager.js v2.0 - 資源流轉控制核心（BaseManager 繼承版）
  * 職責：統一管理所有資源流轉、閾值監控、驗證控制、稀缺性分析
  */
 
-import GameState from "../core/GameState.js";
-import EventBus from "../core/EventBus.js";
+import BaseManager from "./BaseManager.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
@@ -107,30 +106,21 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  */
 
 /**
- * 資源流轉控制管理器
+ * 資源流轉控制管理器 v2.0（BaseManager 繼承版）
  * 統一管理所有資源相關操作，提供閾值監控、驗證控制和稀缺性分析
+ * 核心改進：統一事件命名，簡化重複邏輯，完全繼承 BaseManager 能力
  * @class
+ * @extends {BaseManager}
  */
-export class ResourceManager {
+export class ResourceManager extends BaseManager {
   /**
    * 建立 ResourceManager 實例
-   * @param {GameState} gameState - 遊戲狀態管理器
-   * @param {EventBus} eventBus - 事件通信系統
+   * @param {Object} gameState - 遊戲狀態管理器
+   * @param {Object} eventBus - 事件通信系統
    */
   constructor(gameState, eventBus) {
-    /**
-     * 遊戲狀態管理器
-     * @type {GameState}
-     * @private
-     */
-    this.gameState = gameState;
-
-    /**
-     * 事件通信系統
-     * @type {EventBus}
-     * @private
-     */
-    this.eventBus = eventBus;
+    // 調用 BaseManager 建構函數
+    super(gameState, eventBus, "ResourceManager");
 
     /**
      * 資源閾值配置
@@ -173,16 +163,88 @@ export class ResourceManager {
      */
     this.transferHistory = [];
 
-    /**
-     * 管理器啟用狀態
-     * @type {boolean}
-     * @private
-     */
-    this.isActive = true;
-
+    // 初始化資源管理器
     this._initialize();
-    console.log("ResourceManager 初始化完成");
+
+    // 標記初始化完成
+    this.markInitialized();
+
+    console.log("✅ ResourceManager v2.0 (BaseManager 繼承版) 初始化完成");
   }
+
+  // ==========================================
+  // BaseManager 抽象方法實作
+  // ==========================================
+
+  /**
+   * 取得模組事件前綴（BaseManager 要求實作）
+   * @returns {string} 模組前綴 "resource"
+   */
+  getModulePrefix() {
+    return "resource";
+  }
+
+  /**
+   * 設置事件監聽器（BaseManager 要求實作）
+   * 整合原有的事件監聽邏輯，使用 BaseManager 的統一介面
+   * @returns {void}
+   */
+  setupEventListeners() {
+    // 監聽每日推進（系統級事件，直接使用）
+    this.onEvent("day_advanced", () => {
+      this._updateConsumptionStats();
+      this._checkAllResourceThresholds();
+      this.resetDailyHarvestStatus();
+    });
+
+    // 監聽院子採集請求（業務級事件，使用 harvest_ 前綴）
+    this.onEvent("harvest_request", () => {
+      const result = this.harvestYard();
+      this.emitEvent("harvest_result", { success: result });
+    });
+
+    // 監聽租客變更，更新消費基準（模組級事件，自動添加 tenant_ 前綴）
+    this.onEvent("tenant_hired", () => this._recalculateBaselines());
+    this.onEvent("tenant_evicted", () => this._recalculateBaselines());
+
+    // 監聽技能使用，記錄消費（跨模組事件，需指定完整名稱）
+    this.onEvent(
+      "skill_used",
+      (eventObj) => {
+        const data = eventObj.data;
+        if (this._isValidEventData(data) && data.resourceCost) {
+          this._recordConsumption(data.resourceCost, "skill_usage");
+        }
+      },
+      { skipPrefix: true }
+    ); // 跳過前綴處理，使用完整事件名
+  }
+
+  /**
+   * 取得擴展狀態資訊（BaseManager 擴展點）
+   * 提供 ResourceManager 特有的狀態資訊
+   * @protected
+   * @returns {Object} 擴展狀態物件
+   */
+  getExtendedStatus() {
+    return {
+      // ResourceManager 特有狀態
+      thresholdCount: this.thresholds.size,
+      modificationHistory: this.modificationHistory.length,
+      transferHistory: this.transferHistory.length,
+      consumptionStats: Object.fromEntries(this.consumptionStats),
+
+      // 院子採集狀態
+      harvestStatus: this.getHarvestStatus(),
+
+      // 資源評估摘要
+      resourceSummary: this._getResourceSummary(),
+    };
+  }
+
+  // ==========================================
+  // 初始化與配置載入
+  // ==========================================
 
   /**
    * 初始化資源管理器
@@ -190,17 +252,24 @@ export class ResourceManager {
    * @returns {void}
    */
   _initialize() {
-    // 載入閾值配置
-    this._loadThresholds();
+    try {
+      // 載入閾值配置
+      this._loadThresholds();
 
-    // 載入資源價值配置
-    this._loadResourceValues();
+      // 載入資源價值配置
+      this._loadResourceValues();
 
-    // 設定事件監聽器
-    this._setupEventListeners();
+      // 設定事件監聽器（使用 BaseManager 統一介面）
+      this.setupEventListeners();
 
-    // 初始化消費統計
-    this._initializeConsumptionStats();
+      // 初始化消費統計
+      this._initializeConsumptionStats();
+
+      this.logSuccess("資源管理器核心功能初始化完成");
+    } catch (error) {
+      this.logError("資源管理器初始化失敗", error);
+      throw error;
+    }
   }
 
   /**
@@ -232,9 +301,9 @@ export class ResourceManager {
         this.thresholds.set(/** @type {ResourceType} */ (resourceType), config);
       });
 
-      console.log("資源閾值配置載入完成");
+      this.logSuccess("資源閾值配置載入完成");
     } catch (error) {
-      console.error("載入閾值配置失敗，使用預設值:", error);
+      this.logError("載入閾值配置失敗，使用預設值", error);
       this._setDefaultThresholds();
     }
   }
@@ -252,9 +321,9 @@ export class ResourceManager {
       // 合併配置，保留預設值作為後備
       this.resourceValues = { ...this.resourceValues, ...valueConfig };
 
-      console.log("資源價值配置載入完成");
+      this.logSuccess("資源價值配置載入完成");
     } catch (error) {
-      console.error("載入資源價值配置失敗，使用預設值:", error);
+      this.logError("載入資源價值配置失敗，使用預設值", error);
     }
   }
 
@@ -278,49 +347,6 @@ export class ResourceManager {
   }
 
   /**
-   * 設定事件監聽器
-   * @private
-   * @returns {void}
-   */
-  _setupEventListeners() {
-    // 監聽每日推進，觸發資源分析、重置採集狀態
-    this.eventBus.on("day_advanced", () => {
-      this._updateConsumptionStats();
-      this._checkAllResourceThresholds();
-      this.resetDailyHarvestStatus();
-    });
-
-    // 監聽院子採集請求
-    this.eventBus.on("request_harvest", () => {
-      const result = this.harvestYard();
-      this.eventBus.emit("harvest_result", { success: result });
-    });
-
-    // 監聽租客變更，更新消費基準
-    this.eventBus.on("tenant_hired", () => this._recalculateBaselines());
-    this.eventBus.on("tenant_evicted", () => this._recalculateBaselines());
-
-    // 監聽技能使用，記錄消費
-    this.eventBus.on("skill_used", (eventObj) => {
-      const data = eventObj.data;
-      if (this._isValidEventData(data) && data.resourceCost) {
-        // ✅ 型別安全
-        this._recordConsumption(data.resourceCost, "skill_usage");
-      }
-    });
-  }
-
-  /**
-   * 驗證事件資料是否有效
-   * @param {any} data - 要驗證的事件資料
-   * @private
-   * @returns {boolean} 是否為有效的事件資料物件
-   */
-  _isValidEventData(data) {
-    return data && typeof data === "object" && data !== null;
-  }
-
-  /**
    * 初始化消費統計
    * @private
    * @returns {void}
@@ -338,6 +364,10 @@ export class ResourceManager {
     });
   }
 
+  // ==========================================
+  // 資源修改核心功能
+  // ==========================================
+
   /**
    * 修改單一資源數量
    * @param {ResourceType} resourceType - 資源類型
@@ -348,18 +378,18 @@ export class ResourceManager {
    */
   modifyResource(resourceType, amount, reason = "資源修改", source = "system") {
     if (!this.isActive) {
-      console.warn("ResourceManager 已停用，無法修改資源");
+      this.logWarning("ResourceManager 已停用，無法修改資源");
       return false;
     }
 
     // 驗證輸入參數
     if (!this._isValidResourceType(resourceType)) {
-      console.error(`無效的資源類型: ${resourceType}`);
+      this.logError(`無效的資源類型: ${resourceType}`);
       return false;
     }
 
     if (!this._isValidNumber(amount)) {
-      console.error(`無效的數量: ${amount}`);
+      this.logError(`無效的數量: ${amount}`);
       return false;
     }
 
@@ -392,8 +422,8 @@ export class ResourceManager {
         // 檢查閾值
         this._checkResourceThreshold(resourceType, newValue);
 
-        // 發送事件通知
-        this.eventBus.emit("resource_modified", {
+        // 發送事件通知（使用 BaseManager 統一介面）
+        this.emitEvent("modified", {
           resourceType,
           oldValue,
           newValue,
@@ -407,7 +437,7 @@ export class ResourceManager {
 
       return false;
     } catch (error) {
-      console.error(`修改資源失敗 (${resourceType}):`, error);
+      this.logError(`修改資源失敗 (${resourceType})`, error);
       return false;
     }
   }
@@ -426,7 +456,7 @@ export class ResourceManager {
     } = modification;
 
     if (!this.isActive) {
-      console.warn("ResourceManager 已停用，無法批量修改資源");
+      this.logWarning("ResourceManager 已停用，無法批量修改資源");
       return false;
     }
 
@@ -440,7 +470,7 @@ export class ResourceManager {
           !this._isValidResourceType(resourceType) ||
           !this._isValidNumber(amount)
         ) {
-          console.error(`無效的批量修改參數: ${resourceType}=${amount}`);
+          this.logError(`無效的批量修改參數: ${resourceType}=${amount}`);
           return false;
         }
 
@@ -482,9 +512,9 @@ export class ResourceManager {
         }
       }
 
-      // 發送批量修改事件
+      // 發送批量修改事件（使用 BaseManager 統一介面）
       if (allSuccessful) {
-        this.eventBus.emit("resources_bulk_modified", {
+        this.emitEvent("bulk_modified", {
           changes: modifications,
           reason,
           source,
@@ -493,7 +523,7 @@ export class ResourceManager {
 
       return allSuccessful;
     } catch (error) {
-      console.error("批量修改資源失敗:", error);
+      this.logError("批量修改資源失敗", error);
       return false;
     }
   }
@@ -508,7 +538,7 @@ export class ResourceManager {
    */
   transferResource(from, to, resources, reason) {
     if (!this.isActive) {
-      console.warn("ResourceManager 已停用，無法轉移資源");
+      this.logWarning("ResourceManager 已停用，無法轉移資源");
       return false;
     }
 
@@ -524,7 +554,7 @@ export class ResourceManager {
             amount
           )
         ) {
-          console.warn(`${from} 的 ${resourceType} 不足，需要 ${amount}`);
+          this.logWarning(`${from} 的 ${resourceType} 不足，需要 ${amount}`);
           success = false;
           break;
         }
@@ -573,8 +603,8 @@ export class ResourceManager {
         timestamp: new Date().toISOString(),
       });
 
-      // 發送轉移完成事件
-      this.eventBus.emit("resource_transfer_completed", {
+      // 發送轉移完成事件（使用 BaseManager 統一介面）
+      this.emitEvent("transfer_completed", {
         from,
         to,
         resources,
@@ -583,10 +613,14 @@ export class ResourceManager {
 
       return true;
     } catch (error) {
-      console.error("資源轉移失敗:", error);
+      this.logError("資源轉移失敗", error);
       return false;
     }
   }
+
+  // ==========================================
+  // 資源檢查與驗證
+  // ==========================================
 
   /**
    * 檢查資源是否足夠
@@ -619,6 +653,10 @@ export class ResourceManager {
       this.hasEnoughResource(/** @type {ResourceType} */ (type), amount)
     );
   }
+
+  // ==========================================
+  // 資源狀態分析
+  // ==========================================
 
   /**
    * 取得資源狀態評估
@@ -728,6 +766,10 @@ export class ResourceManager {
     };
   }
 
+  // ==========================================
+  // 資源價值與交易
+  // ==========================================
+
   /**
    * 取得資源市場價值
    * @param {ResourceType} resourceType - 資源類型
@@ -766,6 +808,145 @@ export class ResourceManager {
 
     return Math.floor(fromValue / toUnitValue);
   }
+
+  // ==========================================
+  // 院子採集系統（統一 harvest_ 業務事件命名）
+  // ==========================================
+
+  /**
+   * 院子採集 - 主要入口點
+   * @returns {boolean} 採集是否成功
+   */
+  harvestYard() {
+    if (!this.isActive) {
+      this.logWarning("ResourceManager 已停用，無法進行院子採集");
+      return false;
+    }
+
+    try {
+      // 檢查採集條件
+      if (!this.canHarvest()) {
+        return false;
+      }
+
+      // 取得基礎採集量（純基礎功能，不計算技能加成）
+      const harvestConfig = this._getHarvestConfig();
+      const baseAmount = harvestConfig.baseAmount || 2;
+
+      // 執行資源修改
+      const success = this.modifyResource("food", baseAmount, "院子採集");
+
+      if (success) {
+        // 更新採集狀態
+        this._updateHarvestState();
+
+        // 發送採集完成事件（使用 harvest_ 業務前綴，BaseManager 自動處理）
+        this.emitEvent("harvest_completed", {
+          baseAmount: baseAmount,
+          finalAmount: baseAmount, // 當前階段等於基礎值
+          source: "yard_harvest",
+          timestamp: new Date().toISOString(),
+        });
+
+        this.addLog(`院子採集獲得 ${baseAmount} 食物`, "event");
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      this.logError("院子採集失敗", error);
+      return false;
+    }
+  }
+
+  /**
+   * 檢查是否可以進行院子採集
+   * @returns {boolean} 是否可以採集
+   */
+  canHarvest() {
+    try {
+      // 檢查是否已使用每日採集
+      const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+      if (harvestUsed) {
+        this.addLog("今日已進行過院子採集", "event");
+        return false;
+      }
+
+      // 檢查採集冷卻時間
+      const harvestCooldown = this.gameState.getStateValue(
+        "harvestCooldown",
+        0
+      );
+      if (harvestCooldown > 0) {
+        this.addLog(`院子採集冷卻中，剩餘 ${harvestCooldown} 天`, "event");
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logError("檢查採集條件失敗", error);
+      return false;
+    }
+  }
+
+  /**
+   * 檢查採集冷卻狀態
+   * @returns {Object} 採集狀態資訊
+   */
+  getHarvestStatus() {
+    const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+    const harvestCooldown = this.gameState.getStateValue("harvestCooldown", 0);
+    const config = this._getHarvestConfig();
+
+    return {
+      canHarvest: this.canHarvest(),
+      usedToday: harvestUsed,
+      cooldownRemaining: harvestCooldown,
+      cooldownDays: config.cooldownDays || 2,
+      baseAmount: config.baseAmount || 2,
+    };
+  }
+
+  /**
+   * 重置每日採集狀態（由日夜循環調用）
+   * @returns {void}
+   */
+  resetDailyHarvestStatus() {
+    try {
+      // 重置每日採集標記
+      this.gameState.setStateValue(
+        "dailyActions.harvestUsed",
+        false,
+        "daily_reset"
+      );
+
+      // 減少採集冷卻
+      const currentCooldown = this.gameState.getStateValue(
+        "dailyActions.harvestCooldown",
+        0
+      );
+      if (currentCooldown > 0) {
+        const newCooldown = Math.max(0, currentCooldown - 1);
+        this.gameState.setStateValue(
+          "dailyActions.harvestCooldown",
+          newCooldown,
+          "cooldown_decrease"
+        );
+
+        if (newCooldown === 0) {
+          this.logSuccess("院子採集冷卻完成，明日可再次採集");
+        } else {
+          this.addLog(`院子採集冷卻剩餘 ${newCooldown} 天`, "event");
+        }
+      }
+    } catch (error) {
+      this.logError("重置每日採集狀態失敗", error);
+    }
+  }
+
+  // ==========================================
+  // 閾值檢查與警告系統
+  // ==========================================
 
   /**
    * 檢查所有資源閾值
@@ -811,7 +992,8 @@ export class ResourceManager {
     }
 
     if (alertLevel) {
-      this.eventBus.emit("resource_threshold_warning", {
+      // 使用 BaseManager 統一事件介面發送閾值警告
+      this.emitEvent("threshold_warning", {
         resourceType,
         currentValue,
         warningLevel: alertLevel,
@@ -820,7 +1002,7 @@ export class ResourceManager {
       });
 
       if (alertLevel === "critical" || alertLevel === "emergency") {
-        this.eventBus.emit("resource_critical_low", {
+        this.emitEvent("critical_low", {
           resourceType,
           currentValue,
           criticalLevel: alertLevel,
@@ -829,47 +1011,40 @@ export class ResourceManager {
     }
   }
 
-  /**
-   * 預估資源剩餘天數
-   * @param {ResourceType} resourceType - 資源類型
-   * @param {number} currentValue - 當前數值
-   * @private
-   * @returns {number} 預估剩餘天數
-   */
-  _estimateDaysRemaining(resourceType, currentValue) {
-    const stats = this.consumptionStats.get(resourceType);
-    if (!stats || stats.dailyConsumption <= 0) {
-      return 999; // 無消耗或未知
-    }
+  // ==========================================
+  // 歷史記錄與統計
+  // ==========================================
 
-    return Math.floor(currentValue / stats.dailyConsumption);
+  /**
+   * 取得資源修改歷史
+   * @param {number} [limit=20] - 返回記錄數量限制
+   * @returns {ResourceModification[]} 資源修改歷史
+   */
+  getModificationHistory(limit = 20) {
+    return this.modificationHistory.slice(-limit);
   }
 
   /**
-   * 生成資源建議
-   * @param {ResourceType} resourceType - 資源類型
-   * @param {string} level - 狀態等級
-   * @param {number} daysRemaining - 剩餘天數
-   * @private
-   * @returns {string[]} 建議列表
+   * 取得資源轉移歷史
+   * @param {number} [limit=20] - 返回記錄數量限制
+   * @returns {ResourceTransfer[]} 資源轉移歷史
    */
-  _generateRecommendations(resourceType, level, daysRemaining) {
-    const recommendations = [];
+  getTransferHistory(limit = 20) {
+    return this.transferHistory.slice(-limit);
+  }
 
-    if (level === "emergency") {
-      recommendations.push(`🚨 ${resourceType} 極度短缺！立即尋找補給來源`);
-      recommendations.push(`考慮使用其他資源與商人交易獲得 ${resourceType}`);
-    } else if (level === "critical") {
-      recommendations.push(
-        `⚠️ ${resourceType} 嚴重不足，剩餘約 ${daysRemaining} 天`
-      );
-      recommendations.push(`優先派遣租客搜刮 ${resourceType}`);
-    } else if (level === "warning") {
-      recommendations.push(`📋 ${resourceType} 存量偏低，建議補充`);
-      recommendations.push(`檢查是否有租客技能可生產 ${resourceType}`);
-    }
+  // ==========================================
+  // 私有輔助方法
+  // ==========================================
 
-    return recommendations;
+  /**
+   * 驗證事件資料是否有效
+   * @param {any} data - 要驗證的事件資料
+   * @private
+   * @returns {boolean} 是否為有效的事件資料物件
+   */
+  _isValidEventData(data) {
+    return data && typeof data === "object" && data !== null;
   }
 
   /**
@@ -913,7 +1088,7 @@ export class ResourceManager {
    */
   _recalculateBaselines() {
     this._updateConsumptionStats();
-    console.log("重新計算資源消費基準線");
+    this.logSuccess("重新計算資源消費基準線");
   }
 
   /**
@@ -979,7 +1154,7 @@ export class ResourceManager {
       const tenant = tenants.find((t) => t.name === owner);
 
       if (!tenant) {
-        console.error(`找不到租客: ${owner}`);
+        this.logError(`找不到租客: ${owner}`);
         return false;
       }
 
@@ -1043,6 +1218,122 @@ export class ResourceManager {
   }
 
   /**
+   * 取得採集配置
+   * @private
+   * @returns {Object} 採集配置
+   */
+  _getHarvestConfig() {
+    try {
+      const rules = this.gameState.getStateValue("system.gameRules") || {};
+      return (
+        rules.mechanics?.harvest || {
+          baseAmount: 2,
+          cooldownDays: 2,
+        }
+      );
+    } catch (error) {
+      this.logWarning("載入採集配置失敗，使用預設值");
+      return {
+        baseAmount: 2,
+        cooldownDays: 2,
+      };
+    }
+  }
+
+  /**
+   * 更新採集狀態
+   * @private
+   * @returns {void}
+   */
+  _updateHarvestState() {
+    try {
+      const config = this._getHarvestConfig();
+
+      // 標記今日已使用採集
+      this.gameState.setStateValue(
+        "dailyActions.harvestUsed",
+        true,
+        "yard_harvest_used"
+      );
+
+      // 設定採集冷卻
+      this.gameState.setStateValue(
+        "dailyActions.harvestCooldown",
+        config.cooldownDays || 2,
+        "harvest_cooldown_set"
+      );
+
+      this.addLog(`院子採集冷卻 ${config.cooldownDays || 2} 天已設定`, "event");
+    } catch (error) {
+      this.logError("更新採集狀態失敗", error);
+    }
+  }
+
+  /**
+   * 預估資源剩餘天數
+   * @param {ResourceType} resourceType - 資源類型
+   * @param {number} currentValue - 當前數值
+   * @private
+   * @returns {number} 預估剩餘天數
+   */
+  _estimateDaysRemaining(resourceType, currentValue) {
+    const stats = this.consumptionStats.get(resourceType);
+    if (!stats || stats.dailyConsumption <= 0) {
+      return 999; // 無消耗或未知
+    }
+
+    return Math.floor(currentValue / stats.dailyConsumption);
+  }
+
+  /**
+   * 生成資源建議
+   * @param {ResourceType} resourceType - 資源類型
+   * @param {string} level - 狀態等級
+   * @param {number} daysRemaining - 剩餘天數
+   * @private
+   * @returns {string[]} 建議列表
+   */
+  _generateRecommendations(resourceType, level, daysRemaining) {
+    const recommendations = [];
+
+    if (level === "emergency") {
+      recommendations.push(`🚨 ${resourceType} 極度短缺！立即尋找補給來源`);
+      recommendations.push(`考慮使用其他資源與商人交易獲得 ${resourceType}`);
+    } else if (level === "critical") {
+      recommendations.push(
+        `⚠️ ${resourceType} 嚴重不足，剩餘約 ${daysRemaining} 天`
+      );
+      recommendations.push(`優先派遣租客搜刮 ${resourceType}`);
+    } else if (level === "warning") {
+      recommendations.push(`📋 ${resourceType} 存量偏低，建議補充`);
+      recommendations.push(`檢查是否有租客技能可生產 ${resourceType}`);
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * 取得資源摘要
+   * @private
+   * @returns {Object} 資源摘要
+   */
+  _getResourceSummary() {
+    const resources = this.gameState.getStateValue("resources", {});
+    const summary = {};
+
+    Object.entries(resources).forEach(([type, value]) => {
+      const status = this.getResourceStatus(/** @type {ResourceType} */ (type));
+      summary[type] = {
+        current: value,
+        level: status.level,
+        daysRemaining: status.daysRemaining,
+      };
+    });
+
+    return summary;
+  }
+
+  /**
    * 驗證資源類型是否有效
    * @param {string} resourceType - 要驗證的資源類型
    * @private
@@ -1064,58 +1355,12 @@ export class ResourceManager {
     return typeof value === "number" && !isNaN(value) && isFinite(value);
   }
 
-  /**
-   * 取得資源修改歷史
-   * @param {number} [limit=20] - 返回記錄數量限制
-   * @returns {ResourceModification[]} 資源修改歷史
-   */
-  getModificationHistory(limit = 20) {
-    return this.modificationHistory.slice(-limit);
-  }
+  // ==========================================
+  // 清理與維護
+  // ==========================================
 
   /**
-   * 取得資源轉移歷史
-   * @param {number} [limit=20] - 返回記錄數量限制
-   * @returns {ResourceTransfer[]} 資源轉移歷史
-   */
-  getTransferHistory(limit = 20) {
-    return this.transferHistory.slice(-limit);
-  }
-
-  /**
-   * 取得系統統計資訊
-   * @returns {Object} 系統統計資訊
-   */
-  getStatus() {
-    return {
-      isActive: this.isActive,
-      thresholdCount: this.thresholds.size,
-      modificationHistory: this.modificationHistory.length,
-      transferHistory: this.transferHistory.length,
-      consumptionStats: Object.fromEntries(this.consumptionStats),
-    };
-  }
-
-  /**
-   * 暫停資源管理器
-   * @returns {void}
-   */
-  pause() {
-    this.isActive = false;
-    console.log("ResourceManager 已暫停");
-  }
-
-  /**
-   * 恢復資源管理器
-   * @returns {void}
-   */
-  resume() {
-    this.isActive = true;
-    console.log("ResourceManager 已恢復");
-  }
-
-  /**
-   * 清理資源管理器
+   * 清理資源管理器（覆寫 BaseManager 方法）
    * @returns {void}
    */
   cleanup() {
@@ -1123,187 +1368,11 @@ export class ResourceManager {
     this.consumptionStats.clear();
     this.modificationHistory = [];
     this.transferHistory = [];
-    this.isActive = false;
-    console.log("ResourceManager 已清理");
-  }
 
-  // ==========================================
-  // 院子採集系統
-  // ==========================================
+    // 調用父類清理方法
+    super.cleanup();
 
-  /**
-   * 院子採集 - 主要入口點
-   * @returns {boolean} 採集是否成功
-   */
-  harvestYard() {
-    if (!this.isActive) {
-      console.warn("ResourceManager 已停用，無法進行院子採集");
-      return false;
-    }
-
-    try {
-      // 檢查採集條件
-      if (!this.canHarvest()) {
-        return false;
-      }
-
-      // 取得基礎採集量（純基礎功能，不計算技能加成）
-      const harvestConfig = this._getHarvestConfig();
-      const baseAmount = harvestConfig.baseAmount || 2;
-
-      // 執行資源修改
-      const success = this.modifyResource("food", baseAmount, "院子採集");
-
-      if (success) {
-        // 更新採集狀態
-        this._updateHarvestState();
-
-        // 發送採集完成事件（供未來技能系統監聽）
-        this.eventBus.emit("harvest_completed", {
-          baseAmount: baseAmount,
-          finalAmount: baseAmount, // 當前階段等於基礎值
-          source: "yard_harvest",
-          timestamp: new Date().toISOString(),
-        });
-
-        console.log(`🌱 院子採集獲得 ${baseAmount} 食物`);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("院子採集失敗:", error);
-      return false;
-    }
-  }
-
-  /**
-   * 檢查是否可以進行院子採集
-   * @returns {boolean} 是否可以採集
-   */
-  canHarvest() {
-    try {
-      // 檢查是否已使用每日採集
-      const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
-      if (harvestUsed) {
-        console.log("❌ 今日已進行過院子採集");
-        return false;
-      }
-
-      // 檢查採集冷卻時間
-      const harvestCooldown = this.gameState.getStateValue(
-        "harvestCooldown",
-        0
-      );
-      if (harvestCooldown > 0) {
-        console.log(`❌ 院子採集冷卻中，剩餘 ${harvestCooldown} 天`);
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error("檢查採集條件失敗:", error);
-      return false;
-    }
-  }
-
-  /**
-   * 檢查採集冷卻狀態
-   * @returns {Object} 採集狀態資訊
-   */
-  getHarvestStatus() {
-    const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
-    const harvestCooldown = this.gameState.getStateValue("harvestCooldown", 0);
-    const config = this._getHarvestConfig();
-
-    return {
-      canHarvest: this.canHarvest(),
-      usedToday: harvestUsed,
-      cooldownRemaining: harvestCooldown,
-      cooldownDays: config.cooldownDays || 2,
-      baseAmount: config.baseAmount || 2,
-    };
-  }
-
-  /**
-   * 取得採集配置
-   * @private
-   * @returns {Object} 採集配置
-   */
-  _getHarvestConfig() {
-    try {
-      const rules = this.gameState.getStateValue("system.gameRules") || {};
-      return (
-        rules.mechanics?.harvest || {
-          baseAmount: 2,
-          cooldownDays: 2,
-        }
-      );
-    } catch (error) {
-      console.warn("載入採集配置失敗，使用預設值:", error);
-      return {
-        baseAmount: 2,
-        cooldownDays: 2,
-      };
-    }
-  }
-
-  /**
-   * 更新採集狀態
-   * @private
-   * @returns {void}
-   */
-  _updateHarvestState() {
-    try {
-      const config = this._getHarvestConfig();
-
-      // 標記今日已使用採集
-      this.gameState.setStateValue("harvestUsed", true, "yard_harvest_used");
-
-      // 設定採集冷卻
-      this.gameState.setStateValue(
-        "harvestCooldown",
-        config.cooldownDays || 2,
-        "harvest_cooldown_set"
-      );
-
-      console.log(`⏰ 院子採集冷卻 ${config.cooldownDays || 2} 天已設定`);
-    } catch (error) {
-      console.error("更新採集狀態失敗:", error);
-    }
-  }
-
-  /**
-   * 重置每日採集狀態（由日夜循環調用）
-   * @returns {void}
-   */
-  resetDailyHarvestStatus() {
-    try {
-      // 重置每日採集標記
-      this.gameState.setStateValue("harvestUsed", false, "daily_reset");
-
-      // 減少採集冷卻
-      const currentCooldown = this.gameState.getStateValue(
-        "harvestCooldown",
-        0
-      );
-      if (currentCooldown > 0) {
-        const newCooldown = Math.max(0, currentCooldown - 1);
-        this.gameState.setStateValue(
-          "harvestCooldown",
-          newCooldown,
-          "cooldown_decrease"
-        );
-
-        if (newCooldown === 0) {
-          console.log("✅ 院子採集冷卻完成，明日可再次採集");
-        } else {
-          console.log(`⏰ 院子採集冷卻剩餘 ${newCooldown} 天`);
-        }
-      }
-    } catch (error) {
-      console.error("重置每日採集狀態失敗:", error);
-    }
+    this.logSuccess("ResourceManager 已清理");
   }
 }
 
