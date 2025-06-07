@@ -6,6 +6,7 @@
  */
 
 import { ERROR_CODES, MESSAGE_TEMPLATES } from "../utils/constants.js";
+import { getNestedValue } from "../utils/helpers.js";
 
 /**
  * 資料載入結果
@@ -427,24 +428,7 @@ export class DataManager {
    */
   getRuleValue(path, defaultValue = null) {
     const rules = this.getGameRules();
-    return this._getNestedValue(rules, path) || defaultValue;
-  }
-
-  /**
-   * 取得嵌套物件的值
-   * @param {Object} obj - 目標物件
-   * @param {string} path - 屬性路徑
-   * @returns {*} 查詢到的值或undefined
-   * @private
-   */
-  _getNestedValue(obj, path) {
-    return path
-      .split(".")
-      .reduce(
-        (current, key) =>
-          current && typeof current === "object" ? current[key] : undefined,
-        obj
-      );
+    return getNestedValue(rules, path, defaultValue);
   }
 
   /**

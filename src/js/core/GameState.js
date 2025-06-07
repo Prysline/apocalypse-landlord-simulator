@@ -6,6 +6,8 @@
  * @fileoverview 完整的遊戲狀態管理系統，支援訂閱機制和型別安全
  */
 
+import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.js';
+
 /**
  * 資源類型聯合型別
  * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
@@ -367,7 +369,7 @@ export class GameState {
    * @returns {GameStateData} 完整的遊戲狀態深度複製
    */
   getState() {
-    return this._deepClone(this.state);
+    return deepClone(this.state);
   }
 
   /**
@@ -378,7 +380,7 @@ export class GameState {
    */
   getStateValue(path, defaultValue = null) {
     try {
-      const value = this._getNestedValue(this.state, path);
+      const value = getNestedValue(this.state, path, defaultValue);
       return value !== undefined ? value : defaultValue;
     } catch (error) {
       console.warn(`取得狀態值失敗: ${path}`, error);
@@ -403,7 +405,7 @@ export class GameState {
       this.isLocked = true;
 
       // 記錄變更前狀態
-      const previousState = this._deepClone(this.state);
+      const previousState = deepClone(this.state);
 
       // 應用更新
       this._applyUpdates(this.state, updates);
@@ -435,7 +437,7 @@ export class GameState {
    * @returns {boolean} 設定是否成功
    */
   setStateValue(path, value, reason = "設定狀態值") {
-    const updates = this._createNestedUpdate(path, value);
+    const updates = createNestedUpdate(path, value);
     return this.setState(updates, reason);
   }
 
@@ -497,7 +499,7 @@ export class GameState {
    */
   getRoom(roomId) {
     const room = this.state.rooms.find((r) => r.id === roomId);
-    return room ? this._deepClone(room) : null;
+    return room ? deepClone(room) : null;
   }
 
   /**
@@ -667,62 +669,6 @@ export class GameState {
   }
 
   /**
-   * 建立嵌套更新物件
-   * @param {string} path - 路徑字串
-   * @param {*} value - 要設定的值
-   * @returns {Object} 嵌套更新物件
-   * @private
-   */
-  _createNestedUpdate(path, value) {
-    const keys = path.split(".");
-    const result = {};
-    let current = result;
-
-    for (let i = 0; i < keys.length - 1; i++) {
-      current[keys[i]] = {};
-      current = current[keys[i]];
-    }
-
-    current[keys[keys.length - 1]] = value;
-    return result;
-  }
-
-  /**
-   * 取得嵌套值
-   * @param {Object} obj - 來源物件
-   * @param {string} path - 路徑字串
-   * @returns {*} 嵌套值或undefined
-   * @private
-   */
-  _getNestedValue(obj, path) {
-    return path
-      .split(".")
-      .reduce(
-        (current, key) =>
-          current && typeof current === "object" ? current[key] : undefined,
-        obj
-      );
-  }
-
-  /**
-   * 深度複製
-   * @param {*} obj - 要複製的物件
-   * @returns {*} 深度複製的物件
-   * @private
-   */
-  _deepClone(obj) {
-    if (obj === null || typeof obj !== "object") return obj;
-    if (obj instanceof Date) return new Date(obj);
-    if (Array.isArray(obj)) return obj.map((item) => this._deepClone(item));
-
-    const cloned = {};
-    Object.keys(obj).forEach((key) => {
-      cloned[key] = this._deepClone(obj[key]);
-    });
-    return cloned;
-  }
-
-  /**
    * 記錄狀態變更歷史
    * @param {GameStateData} previousState - 變更前狀態
    * @param {Object} updates - 更新內容
@@ -736,7 +682,7 @@ export class GameState {
       timestamp: new Date().toISOString(),
       day: this.state.day,
       reason,
-      updates: this._deepClone(updates),
+      updates: deepClone(updates),
     };
 
     this.changeHistory.push(change);
@@ -835,7 +781,7 @@ export class GameState {
       throw new Error("無效的存檔資料");
     }
 
-    this.state = this._deepClone(exportedData.state);
+    this.state = deepClone(exportedData.state);
     this.changeHistory = [];
     this._notifySubscribers("state_imported", {
       importedState: this.getState(),
