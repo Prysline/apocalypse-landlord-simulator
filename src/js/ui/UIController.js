@@ -1,9 +1,9 @@
 // @ts-check
 
 /**
- * @fileoverview UIController.js - 純粹UI控制器 v2.3 (TypeScript類型修正版)
+ * @fileoverview UIController.js - 純粹UI控制器
  * 職責：僅負責UI狀態更新、事件綁定、模態框控制
- * 依賴：完全依賴 gameApp，不包含任何業務邏輯實作
+ * 依賴路徑：rules.json → DataManager → gameApp → UIController
  */
 
 /**
@@ -27,6 +27,28 @@
 /**
  * 點擊事件處理函數類型
  * @typedef {(event: MouseEvent) => void} ClickHandler
+ */
+
+/**
+ * 資源閾值類型定義
+ * @typedef {Object} ResourceThresholds
+ * @property {number} food - 食物閾值
+ * @property {number} materials - 建材閾值
+ * @property {number} medical - 醫療閾值
+ * @property {number} fuel - 燃料閾值
+ * @property {number} cash - 現金閾值
+ */
+
+/**
+ * 閾值配置類型定義
+ * @typedef {Object} ThresholdConfig
+ * @property {Object} resources - 資源閾值
+ * @property {ResourceThresholds} resources.warning - 警告閾值
+ * @property {ResourceThresholds} resources.critical - 危險閾值
+ * @property {Object} satisfaction - 滿意度閾值
+ * @property {Array<Object>} satisfaction.levels - 滿意度等級
+ * @property {Object} building - 建築防禦閾值
+ * @property {Object} hunger - 飢餓狀態閾值
  */
 
 /**
@@ -74,7 +96,11 @@ export default class UIController {
      */
     this.confirmCallback = null;
 
-    console.log("🎨 UIController v2.3 - TypeScript類型修正版");
+    // 快取閾值配置
+    /** @type {ThresholdConfig|null} */
+    this.thresholdConfig = null;
+
+    console.log("🎨 UIController 已初始化");
   }
 
   /**
@@ -87,6 +113,9 @@ export default class UIController {
 
       // 等待 gameApp 完全初始化
       await this._waitForGameApp();
+
+      // 載入閾值配置
+      this.loadThresholdConfig();
 
       // 綁定事件監聽器
       this.bindEventListeners();
@@ -121,6 +150,7 @@ export default class UIController {
     if (!this.gameApp.isInitialized) {
       console.log("⏳ 等待 gameApp 初始化完成...");
       let attempts = 0;
+      
       while (!this.gameApp.isInitialized && attempts < 100) {
         await new Promise((resolve) => setTimeout(resolve, 50));
         attempts++;
@@ -139,6 +169,341 @@ export default class UIController {
    */
   _isSystemAvailable() {
     return this.gameApp && this.gameApp.isInitialized;
+  }
+
+  /**
+   * 載入閾值配置
+   * 從 gameApp 取得 rules.json 中的閾值設定
+   * @returns {void}
+   */
+  loadThresholdConfig() {
+    try {
+      // 通過 gameApp 取得遊戲規則配置
+      const gameRules = this.gameApp.dataManager?.getGameRules();
+
+      if (!gameRules) {
+        console.warn("⚠️ 無法取得遊戲規則配置，使用預設閾值");
+        this.thresholdConfig = this.getDefaultThresholdConfig();
+        return;
+      }
+
+      // 整合各種閾值配置
+      this.thresholdConfig = {
+        resources: {
+          warning: gameRules.gameDefaults?.resources?.warningThresholds || {
+            food: 5,
+            materials: 3,
+            medical: 2,
+            fuel: 2,
+            cash: 15,
+          },
+          critical: gameRules.gameDefaults?.resources?.criticalThresholds || {
+            food: 2,
+            materials: 1,
+            medical: 1,
+            fuel: 1,
+            cash: 5,
+          },
+        },
+        satisfaction: {
+          levels: gameRules.gameBalance?.tenants?.satisfactionSystem?.display
+            ?.levels || [
+            {
+              threshold: 80,
+              name: "非常滿意",
+              emoji: "😁",
+              severity: "excellent",
+            },
+            { threshold: 60, name: "滿意", emoji: "😊", severity: "good" },
+            { threshold: 40, name: "普通", emoji: "😐", severity: "normal" },
+            { threshold: 20, name: "不滿", emoji: "😞", severity: "warning" },
+            {
+              threshold: 0,
+              name: "極度不滿",
+              emoji: "😡",
+              severity: "critical",
+            },
+          ],
+        },
+        building: {
+          defense: gameRules.gameBalance?.building?.defense || {
+            levels: [
+              { threshold: 0, name: "脆弱", severity: "critical" },
+              { threshold: 10, name: "基礎", severity: "warning" },
+              { threshold: 30, name: "加固", severity: "good" },
+              { threshold: 50, name: "堅固", severity: "excellent" },
+            ],
+          },
+        },
+        hunger: {
+          levels: gameRules.gameBalance?.player?.hunger || {
+            levels: [
+              { threshold: 0, name: "飽足", severity: "excellent" },
+              { threshold: 20, name: "微餓", severity: "good" },
+              { threshold: 50, name: "飢餓", severity: "warning" },
+              { threshold: 80, name: "極餓", severity: "critical" },
+            ],
+          },
+        },
+      };
+
+      console.log("📊 閾值配置載入完成:", this.thresholdConfig);
+    } catch (error) {
+      console.error("❌ 載入閾值配置失敗:", error);
+      this.thresholdConfig = this.getDefaultThresholdConfig();
+    }
+  }
+
+  /**
+   * 取得預設閾值配置
+   * 當無法從 rules.json 載入時的後備配置
+   * @returns {ThresholdConfig}
+   */
+  getDefaultThresholdConfig() {
+    return {
+      resources: {
+        warning: { food: 5, materials: 3, medical: 2, fuel: 2, cash: 15 },
+        critical: { food: 2, materials: 1, medical: 1, fuel: 1, cash: 5 },
+      },
+      satisfaction: {
+        levels: [
+          {
+            threshold: 80,
+            name: "非常滿意",
+            emoji: "😁",
+            severity: "excellent",
+          },
+          { threshold: 60, name: "滿意", emoji: "😊", severity: "good" },
+          { threshold: 40, name: "普通", emoji: "😐", severity: "normal" },
+          { threshold: 20, name: "不滿", emoji: "😞", severity: "warning" },
+          { threshold: 0, name: "極度不滿", emoji: "😡", severity: "critical" },
+        ],
+      },
+      building: {
+        defense: {
+          levels: [
+            { threshold: 0, name: "脆弱", severity: "critical" },
+            { threshold: 10, name: "基礎", severity: "warning" },
+            { threshold: 30, name: "加固", severity: "good" },
+            { threshold: 50, name: "堅固", severity: "excellent" },
+          ],
+        },
+      },
+      hunger: {
+        levels: [
+          { threshold: 0, name: "飽足", severity: "excellent" },
+          { threshold: 20, name: "微餓", severity: "good" },
+          { threshold: 50, name: "飢餓", severity: "warning" },
+          { threshold: 80, name: "極餓", severity: "critical" },
+        ],
+      },
+    };
+  }
+
+  /**
+   * 根據數值取得資源狀態
+   * @param {string} resourceType - 資源類型
+   * @param {number} value - 當前數值
+   * @returns {Object} 狀態資訊
+   */
+  getResourceStatus(resourceType, value) {
+    if (!this.thresholdConfig) {
+      return { severity: "normal", message: "狀態未知" };
+    }
+
+    const { warning, critical } = this.thresholdConfig.resources;
+
+    if (value <= (critical[resourceType] || 0)) {
+      return { severity: "critical", message: "緊急" };
+    } else if (value <= (warning[resourceType] || 0)) {
+      return { severity: "warning", message: "警告" };
+    } else {
+      return { severity: "good", message: "充足" };
+    }
+  }
+
+  /**
+   * 根據數值取得滿意度狀態
+   * @param {number} satisfaction - 滿意度數值 (0-100)
+   * @returns {Object} 滿意度狀態
+   */
+  getSatisfactionStatus(satisfaction) {
+    if (!this.thresholdConfig) {
+      return { name: "未知", emoji: "❓", severity: "normal" };
+    }
+
+    const levels = this.thresholdConfig.satisfaction.levels;
+
+    for (const level of levels) {
+      if (satisfaction >= level.threshold) {
+        return {
+          name: level.name,
+          emoji: level.emoji,
+          severity: level.severity,
+        };
+      }
+    }
+
+    // 預設回傳最低等級
+    return levels[levels.length - 1];
+  }
+
+  /**
+   * 根據數值取得建築防禦狀態
+   * @param {number} defense - 防禦數值
+   * @returns {Object} 防禦狀態
+   */
+  getBuildingDefenseStatus(defense) {
+    if (!this.thresholdConfig) {
+      return { name: "未知", severity: "normal" };
+    }
+
+    const levels = this.thresholdConfig.building.defense.levels;
+
+    for (let i = levels.length - 1; i >= 0; i--) {
+      if (defense >= levels[i].threshold) {
+        return {
+          name: levels[i].name,
+          severity: levels[i].severity,
+        };
+      }
+    }
+
+    return levels[0];
+  }
+
+  /**
+   * 根據數值取得飢餓狀態
+   * @param {number} hunger - 飢餓數值
+   * @returns {Object} 飢餓狀態
+   */
+  getHungerStatus(hunger) {
+    if (!this.thresholdConfig) {
+      return { name: "未知", severity: "normal" };
+    }
+
+    const levels = this.thresholdConfig.hunger.levels;
+
+    for (const level of levels) {
+      if (hunger >= level.threshold) {
+        return {
+          name: level.name,
+          severity: level.severity,
+        };
+      }
+    }
+
+    return levels[levels.length - 1];
+  }
+
+  /**
+   * 更新狀態列顯示
+   * 使用新的閾值配置來顯示狀態
+   */
+  updateStatusBar() {
+    try {
+      // 基本遊戲資訊
+      const gameState = this.gameApp.gameState;
+      const day = gameState.getStateValue("day") || 1;
+      const timeOfDay = gameState.getStateValue("timeOfDay") || "白天";
+
+      // 更新基本資訊
+      this.updateElement("day", day);
+      this.updateElement("time", timeOfDay);
+
+      // 使用閾值配置更新資源顯示
+      const resources = gameState.getStateValue("resources") || {};
+      this.updateElement("cash", resources.cash || 0);
+
+      // 使用新方法更新建築防禦狀態
+      const buildingDefense = gameState.getStateValue("building.defense") || 0;
+      const defenseStatus = this.getBuildingDefenseStatus(buildingDefense);
+      this.updateElement(
+        "buildingDefenseText",
+        `${defenseStatus.name}(${buildingDefense})`
+      );
+
+      // 使用新方法更新飢餓狀態
+      const landlordHunger = gameState.getStateValue("landlord.hunger") || 0;
+      const hungerStatus = this.getHungerStatus(landlordHunger);
+      this.updateElement(
+        "landlordHungerText",
+        `${hungerStatus.name}(${landlordHunger})`
+      );
+    } catch (error) {
+      console.error("❌ 更新狀態列失敗:", error);
+    }
+  }
+
+  /**
+   * 更新資源顯示
+   * 使用新的閾值配置來顯示資源狀態
+   */
+  updateResources() {
+    try {
+      const resources = this.gameApp.gameState.getStateValue("resources") || {};
+
+      // 為每個資源添加狀態指示
+      ["food", "materials", "medical", "fuel"].forEach((resourceType) => {
+        const value = resources[resourceType] || 0;
+        const status = this.getResourceStatus(resourceType, value);
+
+        // 更新數值
+        this.updateElement(resourceType, value);
+
+        // 添加狀態顏色類別（可選）
+        const element = document.getElementById(resourceType);
+        if (element && element.parentElement) {
+          const parent = element.parentElement;
+          // 移除舊的狀態類別
+          parent.classList.remove(
+            "status-critical",
+            "status-warning",
+            "status-good"
+          );
+          // 添加新的狀態類別
+          parent.classList.add(`status-${status.severity}`);
+        }
+      });
+    } catch (error) {
+      console.error("❌ 更新資源顯示失敗:", error);
+    }
+  }
+
+  /**
+   * 重新載入閾值配置
+   * 當遊戲規則更新時可以調用此方法
+   * @returns {void}
+   */
+  reloadThresholdConfig() {
+    console.log("🔄 重新載入閾值配置");
+    this.loadThresholdConfig();
+    this.updateAllDisplays(); // 重新更新所有顯示
+  }
+
+  /**
+   * 取得閾值配置狀態
+   * 用於除錯和驗證
+   * @returns {Object} 閾值配置狀態
+   */
+  getThresholdConfigStatus() {
+    return {
+      loaded: !!this.thresholdConfig,
+      config: this.thresholdConfig,
+      source: this.thresholdConfig ? "rules.json" : "default",
+    };
+  }
+
+  /**
+   * 更新DOM元素內容
+   * @param {string} id - 元素ID
+   * @param {string|number} value - 新數值
+   */
+  updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = String(value);
+    }
   }
 
   /**
