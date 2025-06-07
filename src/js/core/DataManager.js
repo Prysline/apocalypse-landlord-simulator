@@ -37,6 +37,33 @@ import { ERROR_CODES, MESSAGE_TEMPLATES } from "../utils/constants.js";
  * @property {Object} gameBalance.resources - 資源相關設定
  * @property {Object} gameBalance.resources.dailyConsumption - 每日消耗
  * @property {number} gameBalance.resources.dailyConsumption.fuel - 每日燃料消耗
+ * @property {CharacterGeneration} [characterGeneration] - 角色生成配置
+ */
+
+/**
+ * 角色生成配置
+ * @typedef {Object} CharacterGeneration
+ * @property {string[]} names - 可用姓名列表
+ * @property {AppearanceConfig} appearances - 外觀描述配置
+ */
+
+/**
+ * 外觀描述配置
+ * @typedef {Object} AppearanceConfig
+ * @property {string[]} normal - 正常外觀描述列表
+ * @property {string[]} infected - 感染者外觀描述列表
+ */
+
+/**
+ * 角色生成統計資訊
+ * @typedef {Object} CharacterGenerationStats
+ * @property {boolean} valid - 配置是否有效
+ * @property {number} [nameCount] - 姓名數量
+ * @property {number} [normalAppearanceCount] - 正常外觀描述數量
+ * @property {number} [infectedAppearanceCount] - 感染者外觀描述數量
+ * @property {number} [totalDescriptions] - 總描述數量
+ * @property {string} [message] - 狀態訊息
+ * @property {Error} [error] - 錯誤物件
  */
 
 /**
@@ -441,6 +468,46 @@ export class DataManager {
         landlord: { dailyFoodConsumption: 2 },
         tenants: { dailyFoodConsumption: 2 },
         resources: { dailyConsumption: { fuel: 1 } },
+      },
+      characterGeneration: {
+        names: [
+          "小明",
+          "小華",
+          "小李",
+          "老王",
+          "阿強",
+          "小美",
+          "阿珍",
+          "大雄",
+          "靜香",
+          "胖虎",
+          "小張",
+          "阿陳",
+          "小林",
+          "老劉",
+          "阿花",
+          "小玉",
+          "阿寶",
+          "小鳳",
+          "阿義",
+          "小雲",
+        ],
+        appearances: {
+          normal: [
+            "看起來精神狀態不錯",
+            "衣著整潔，談吐得體",
+            "眼神清澈，反應靈敏",
+            "握手時手掌溫暖有力",
+            "說話條理清晰，很有條理",
+          ],
+          infected: [
+            "眼神有點呆滯，反應遲鈍",
+            "皮膚蒼白，手有輕微顫抖",
+            "說話時偶爾停頓，像在想什麼",
+            "衣服有些血跡，說是意外受傷",
+            "體溫似乎偏低，一直在發抖",
+          ],
+        },
       },
     };
   }

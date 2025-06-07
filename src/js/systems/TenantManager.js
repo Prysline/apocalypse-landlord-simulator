@@ -1647,11 +1647,96 @@ export class TenantManager extends BaseManager {
   }
 
   /**
-   * 生成隨機姓名
+   * 生成隨機姓名 (從配置檔案讀取)
    * @returns {string} 隨機姓名
    */
   generateRandomName() {
-    const names = [
+    try {
+      // 從配置中獲取名字列表
+      const rules = this.dataManager.getGameRules();
+      const names = rules.characterGeneration?.names;
+
+      if (!names || !Array.isArray(names) || names.length === 0) {
+        this.logWarning("名字配置不存在或為空，使用後備名字列表");
+        return this._getFallbackName();
+      }
+
+      const randomIndex = Math.floor(Math.random() * names.length);
+      return names[randomIndex];
+    } catch (error) {
+      this.logError("生成隨機姓名失敗，使用後備方案", error);
+      return this._getFallbackName();
+    }
+  }
+
+  /**
+   * 取得感染者外觀描述 (從配置檔案讀取)
+   * @returns {string} 外觀描述
+   */
+  getInfectedAppearance() {
+    try {
+      // 從配置中獲取感染者外觀描述列表
+      const rules = this.dataManager.getGameRules();
+      const infectedAppearances =
+        rules.characterGeneration?.appearances?.infected;
+
+      if (
+        !infectedAppearances ||
+        !Array.isArray(infectedAppearances) ||
+        infectedAppearances.length === 0
+      ) {
+        this.logWarning("感染者外觀配置不存在或為空，使用後備描述");
+        return this._getFallbackInfectedAppearance();
+      }
+
+      const randomIndex = Math.floor(
+        Math.random() * infectedAppearances.length
+      );
+      return infectedAppearances[randomIndex];
+    } catch (error) {
+      this.logError("取得感染者外觀描述失敗，使用後備方案", error);
+      return this._getFallbackInfectedAppearance();
+    }
+  }
+
+  /**
+   * 取得正常外觀描述 (從配置檔案讀取)
+   * @returns {string} 外觀描述
+   */
+  getNormalAppearance() {
+    try {
+      // 從配置中獲取正常外觀描述列表
+      const rules = this.dataManager.getGameRules();
+      const normalAppearances = rules.characterGeneration?.appearances?.normal;
+
+      if (
+        !normalAppearances ||
+        !Array.isArray(normalAppearances) ||
+        normalAppearances.length === 0
+      ) {
+        this.logWarning("正常外觀配置不存在或為空，使用後備描述");
+        return this._getFallbackNormalAppearance();
+      }
+
+      const randomIndex = Math.floor(Math.random() * normalAppearances.length);
+      return normalAppearances[randomIndex];
+    } catch (error) {
+      this.logError("取得正常外觀描述失敗，使用後備方案", error);
+      return this._getFallbackNormalAppearance();
+    }
+  }
+
+  // ==========================================
+  // 後備方案方法 (確保向下相容性)
+  // ==========================================
+
+  /**
+   * 後備姓名生成 (當配置載入失敗時使用)
+   * @returns {string} 後備姓名
+   * @private
+   */
+  _getFallbackName() {
+    const fallbackNames = [
       "小明",
       "小華",
       "小李",
@@ -1672,65 +1757,135 @@ export class TenantManager extends BaseManager {
       "小鳳",
       "阿義",
       "小雲",
-      "志明",
-      "春嬌",
-      "建國",
-      "淑芬",
-      "家豪",
-      "怡君",
-      "俊傑",
-      "雅婷",
-      "明哲",
-      "佳蓉",
-      "宗翰",
-      "麗娟",
     ];
 
-    return names[Math.floor(Math.random() * names.length)];
+    const randomIndex = Math.floor(Math.random() * fallbackNames.length);
+    return fallbackNames[randomIndex];
   }
 
   /**
-   * 取得感染者外觀描述
-   * @returns {string} 外觀描述
+   * 後備感染者外觀描述 (當配置載入失敗時使用)
+   * @returns {string} 後備感染者外觀描述
+   * @private
    */
-  getInfectedAppearance() {
-    const suspiciousTraits = [
+  _getFallbackInfectedAppearance() {
+    const fallbackTraits = [
       "眼神有點呆滯，反應遲鈍",
       "皮膚蒼白，手有輕微顫抖",
       "說話時偶爾停頓，像在想什麼",
       "衣服有些血跡，說是意外受傷",
       "體溫似乎偏低，一直在發抖",
-      "有股奇怪的味道，像是腐肉",
-      "走路姿勢略顯僵硬",
-      "避免眼神接觸，顯得很緊張",
-      "臉色灰敗，沒有血色",
-      "呼吸聲有些異常，帶著喘息",
     ];
 
-    return suspiciousTraits[
-      Math.floor(Math.random() * suspiciousTraits.length)
-    ];
+    const randomIndex = Math.floor(Math.random() * fallbackTraits.length);
+    return fallbackTraits[randomIndex];
   }
 
   /**
-   * 取得正常外觀描述
-   * @returns {string} 外觀描述
+   * 後備正常外觀描述 (當配置載入失敗時使用)
+   * @returns {string} 後備正常外觀描述
+   * @private
    */
-  getNormalAppearance() {
-    const normalTraits = [
+  _getFallbackNormalAppearance() {
+    const fallbackTraits = [
       "看起來精神狀態不錯",
       "衣著整潔，談吐得體",
       "眼神清澈，反應靈敏",
       "握手時手掌溫暖有力",
       "說話條理清晰，很有條理",
-      "看起來很健康，氣色不錯",
-      "動作自然流暢",
-      "笑容真誠，讓人感到舒適",
-      "舉止得宜，顯得有教養",
-      "聲音宏亮，中氣十足",
     ];
 
-    return normalTraits[Math.floor(Math.random() * normalTraits.length)];
+    const randomIndex = Math.floor(Math.random() * fallbackTraits.length);
+    return fallbackTraits[randomIndex];
+  }
+
+  /**
+   * 驗證角色生成配置的完整性
+   * @returns {boolean} 配置是否完整
+   */
+  validateCharacterGenerationConfig() {
+    try {
+      const rules = this.dataManager.getGameRules();
+      const charGenConfig = rules.characterGeneration;
+
+      if (!charGenConfig) {
+        this.logWarning("角色生成配置區塊不存在");
+        return false;
+      }
+
+      // 檢查名字配置
+      if (
+        !charGenConfig.names ||
+        !Array.isArray(charGenConfig.names) ||
+        charGenConfig.names.length === 0
+      ) {
+        this.logWarning("名字配置無效");
+        return false;
+      }
+
+      // 檢查外觀配置
+      if (!charGenConfig.appearances) {
+        this.logWarning("外觀配置區塊不存在");
+        return false;
+      }
+
+      if (
+        !charGenConfig.appearances.normal ||
+        !Array.isArray(charGenConfig.appearances.normal)
+      ) {
+        this.logWarning("正常外觀配置無效");
+        return false;
+      }
+
+      if (
+        !charGenConfig.appearances.infected ||
+        !Array.isArray(charGenConfig.appearances.infected)
+      ) {
+        this.logWarning("感染者外觀配置無效");
+        return false;
+      }
+
+      this.logSuccess("角色生成配置驗證通過");
+      return true;
+    } catch (error) {
+      this.logError("驗證角色生成配置時發生錯誤", error);
+      return false;
+    }
+  }
+
+  /**
+   * 取得角色生成配置統計資訊
+   * @returns {Object} 配置統計資訊
+   */
+  getCharacterGenerationStats() {
+    try {
+      const rules = this.dataManager.getGameRules();
+      const charGenConfig = rules.characterGeneration;
+
+      if (!charGenConfig) {
+        return {
+          valid: false,
+          message: "配置不存在",
+        };
+      }
+
+      return {
+        valid: true,
+        nameCount: charGenConfig.names?.length || 0,
+        normalAppearanceCount: charGenConfig.appearances?.normal?.length || 0,
+        infectedAppearanceCount:
+          charGenConfig.appearances?.infected?.length || 0,
+        totalDescriptions:
+          (charGenConfig.appearances?.normal?.length || 0) +
+          (charGenConfig.appearances?.infected?.length || 0),
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        message: error.message,
+        error: error,
+      };
+    }
   }
 
   /**
