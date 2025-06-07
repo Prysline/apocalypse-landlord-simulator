@@ -315,16 +315,22 @@ export class BaseManager {
         ? eventName
         : this._resolveEventName(eventName);
 
-      // 標準化事件資料格式（相容 main.js 期望格式）
-      /** @type {EventData} */
-      const eventData = {
+      // 準備事件選項，包含管理器元資料
+      // 透過 options 傳遞元資料，避免包裝 data 造成嵌套
+      const eventOptions = {
+        ...options,
+        // 管理器身份識別
         source: this.managerType,
-        timestamp: Date.now(),
-        data: data,
+        managerTimestamp: Date.now(),
+        // 事件分類資訊
+        eventCategory: this._getEventCategory(finalEventName),
+        crossModule: this._isCrossModuleEvent(finalEventName),
       };
 
-      // 發送事件
-      this.eventBus.emit(finalEventName, eventData);
+      // 直接發送實際業務資料，元資料通過 options 傳遞
+      // EventBus 會將 options 合併到最終事件物件中
+      // 結果：{ type, data: actualData, source, timestamp, managerTimestamp, ... }
+      this.eventBus.emit(finalEventName, data, eventOptions);
 
       // 除錯日誌（僅在除錯模式下）
       if (!options.skipLog && this._isDebugMode()) {
@@ -334,7 +340,7 @@ export class BaseManager {
         console.debug(
           `📡 ${this.managerType} 發送事件: ${finalEventName}`,
           `[${category}${crossModule ? " | 跨模組" : ""}]`,
-          eventData
+          { data, metadata: eventOptions }
         );
       }
 
@@ -418,12 +424,16 @@ export class BaseManager {
    * @param {boolean} [options.skipGameLog=false] - 是否跳過遊戲日誌
    * @param {boolean} [options.skipEvent=false] - 是否跳過事件發送
    * @param {boolean} [options.forceConsole=false] - 是否強制控制台輸出
+   * @param {boolean} [options.forceSource=false] - 是否強制顯示來源標識（無視debug模式）
    * @returns {void}
    */
   addLog(message, type = "event", options = {}) {
     try {
-      // 添加管理器來源標識
-      const sourceMessage = `[${this.managerType}] ${message}`;
+      // 根據除錯模式決定是否添加管理器來源標識
+      const shouldShowSource = this._isDebugMode() || options.forceSource;
+      const displayMessage = shouldShowSource
+        ? `[${this.managerType}] ${message}`
+        : message;
 
       // 記錄到遊戲日誌系統
       if (
@@ -431,10 +441,10 @@ export class BaseManager {
         this.gameState &&
         typeof this.gameState.addLog === "function"
       ) {
-        this.gameState.addLog(sourceMessage, type);
+        this.gameState.addLog(displayMessage, type);
       } else if (options.forceConsole || !this.gameState) {
         // 後備方案：控制台輸出
-        console.log(`[${type.toUpperCase()}] ${sourceMessage}`);
+        console.log(`[${type.toUpperCase()}] ${displayMessage}`);
       }
 
       // 發送日誌事件（供其他模組監聽）
@@ -442,9 +452,11 @@ export class BaseManager {
         this.emitEvent(
           "log_added",
           {
-            message: sourceMessage,
+            message: displayMessage, // 實際顯示的訊息
             type: type,
-            originalMessage: message,
+            originalMessage: message, // 保留原始訊息
+            managerType: this.managerType, // 明確提供來源資訊
+            debugMode: this._isDebugMode(), // 提供模式資訊
             timestamp: new Date().toISOString(),
           },
           { skipLog: true }
