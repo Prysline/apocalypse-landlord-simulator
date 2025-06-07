@@ -1,244 +1,718 @@
 /**
- * main.css - 基礎樣式系統
- * 職責：整體布局、顏色系統、字體系統、基礎動畫
+ * 末日房東模擬器 v2.0 - 主樣式檔案
+ * 基於經典遊戲風格，擴展現代化設計
  */
 
-/* === CSS 變數系統 === */
-:root {
-    /* 色彩系統 */
-    --color-bg-primary: #2a2a2a;
-    --color-bg-secondary: #1a1a1a;
-    --color-bg-tertiary: #333;
-    --color-text-primary: #e0e0e0;
-    --color-text-secondary: #aaa;
-    --color-text-muted: #666;
+/* ===========================================
+   基礎設定與重置
+   =========================================== */
 
-    /* 邊框和分隔線 */
-    --color-border-default: #555;
-    --color-border-hover: #888;
-    --color-border-focus: #aaa;
-
-    /* 狀態顏色 */
-    --color-success: #66ff66;
-    --color-warning: #ffcc66;
-    --color-danger: #ff6666;
-    --color-info: #66ccff;
-    --color-muted: #999;
-
-    /* 特殊狀態顏色 */
-    --color-good: #66ff66;
-    --color-concern: #ff9966;
-    --color-critical: #ff6666;
-
-    /* 租客類型顏色 */
-    --color-doctor: #66cc66;
-    --color-worker: #cc8866;
-    --color-soldier: #cc6666;
-    --color-farmer: #66aa44;
-    --color-elder: #cc66cc;
-
-    /* 間距系統 */
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 10px;
-    --spacing-lg: 15px;
-    --spacing-xl: 20px;
-
-    /* 字體系統 */
-    --font-family-mono: "Courier New", monospace;
-    --font-size-xs: 11px;
-    --font-size-sm: 12px;
-    --font-size-md: 14px;
-    --line-height-compact: 1.2;
-    --line-height-normal: 1.4;
-
-    /* 布局系統 */
-    --container-max-width: 1200px;
-    --sidebar-width: 300px;
-    --border-radius-sm: 4px;
-    --border-radius-md: 8px;
-
-    /* 動畫系統 */
-    --animation-duration-fast: 0.15s;
-    --animation-duration-normal: 0.3s;
-    --animation-duration-slow: 0.5s;
-    --animation-pulse: pulse 2s infinite;
-}
-
-/* === 基礎重置和全域樣式 === */
 * {
     box-sizing: border-box;
 }
 
 body {
-    font-family: var(--font-family-mono);
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
+    font-family: "Courier New", "Consolas", monospace;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    color: #e0e0e0;
     margin: 0;
-    padding: var(--spacing-xl);
-    line-height: var(--line-height-normal);
-    font-size: var(--font-size-sm);
+    padding: 20px;
+    line-height: 1.4;
+    min-height: 100vh;
+    overflow-x: auto;
 }
 
-/* === 主要布局系統 === */
+/* ===========================================
+   佈局容器
+   =========================================== */
+
 .game-container {
-    max-width: var(--container-max-width);
+    max-width: 1200px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1fr var(--sidebar-width);
-    gap: var(--spacing-xl);
+    grid-template-columns: 1fr 300px;
+    gap: 15px;
+    animation: fadeIn 0.5s ease-in;
 }
 
 .main-area {
-    background: var(--color-bg-secondary);
-    border: 2px solid var(--color-border-default);
-    border-radius: var(--border-radius-md);
-    padding: var(--spacing-xl);
+    background: linear-gradient(145deg, #1e1e1e, #1a1a1a);
+    border: 2px solid #555;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.main-area::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #ff6b35, #f7931e, #ff6b35);
+    animation: shimmer 3s ease-in-out infinite;
 }
 
 .sidebar {
-    background: var(--color-bg-secondary);
-    border: 2px solid var(--color-border-default);
-    border-radius: var(--border-radius-md);
-    padding: var(--spacing-lg);
+    background: linear-gradient(145deg, #1e1e1e, #1a1a1a);
+    border: 2px solid #555;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-/* === 狀態列 === */
+/* ===========================================
+   系統狀態指示器
+   =========================================== */
+
+.system-status {
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    padding: 8px 15px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 13px;
+    border-radius: 12px 12px 0 0;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.status-loading {
+    background: linear-gradient(90deg, #666644, #777755);
+    color: #fff;
+    animation: pulse 2s infinite;
+}
+
+.status-ready {
+    background: linear-gradient(90deg, #446644, #559955);
+    color: #fff;
+}
+
+.status-error {
+    background: linear-gradient(90deg, #664444, #885555);
+    color: #fff;
+    animation: shake 0.5s ease-in-out;
+}
+
+/* ===========================================
+   標題與基本元素
+   =========================================== */
+
+.game-title {
+    margin: 20px 0 5px 0;
+    font-size: 28px;
+    text-align: center;
+    background: linear-gradient(45deg, #ff6b35, #f7931e, #ffaa44);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.game-title:hover {
+    filter: brightness(1.2);
+}
+
+.game-subtitle {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+/* ===========================================
+   狀態列
+   =========================================== */
+
 .status-bar {
     display: flex;
     justify-content: space-between;
-    margin-bottom: var(--spacing-xl);
-    font-size: var(--font-size-md);
+    margin-bottom: 15px;
     flex-wrap: wrap;
-    gap: var(--spacing-sm);
+    gap: 8px;
 }
 
-.status-bar>div {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--color-border-default);
-    white-space: nowrap;
+.status-item {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 6px 10px;
+    backdrop-filter: blur(10px);
+    min-width: 100px;
+    text-align: center;
 }
 
-/* === 狀態指示器樣式 === */
-#buildingDefenseText {
-    color: var(--color-info);
+.status-label {
+    color: #ccc;
+    font-size: 0.9em;
 }
 
-#landlordHungerText {
-    color: var(--color-warning);
+.status-value {
+    color: #fff;
+    font-weight: bold;
+    margin-left: 4px;
 }
 
-.danger-status {
-    color: var(--color-danger) !important;
-    animation: var(--animation-pulse);
+/* 資源狀態顏色 */
+.resource-critical {
+    color: #ff6666 !important;
+    animation: pulse 2s infinite;
 }
 
-.good-status {
-    color: var(--color-good) !important;
+.resource-warning {
+    color: #ffaa66 !important;
 }
 
-/* === 資源區域 === */
-.resources {
+.resource-good {
+    color: #66ff66 !important;
+}
+
+/* ===========================================
+   房屋佈局
+   =========================================== */
+
+.house-layout {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-xl);
+    gap: 10px;
+    margin-bottom: 15px;
 }
 
-.resource {
-    background: var(--color-bg-tertiary);
-    padding: var(--spacing-md);
-    border-radius: var(--border-radius-sm);
+.room {
+    aspect-ratio: 1.2;
+    border: 2px solid #666;
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.room::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.1) 100%);
+    pointer-events: none;
+}
+
+.room:hover {
+    border-color: #888;
+    background: linear-gradient(145deg, #444, #333);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.room.occupied {
+    background: linear-gradient(145deg, #2d4a2d, #254a25);
+    border-color: #4a7c59;
+}
+
+.room.occupied:hover {
+    background: linear-gradient(145deg, #3d5a3d, #2d4a2d);
+}
+
+.room.needs-repair {
+    background: linear-gradient(145deg, #4a2d2d, #3a2a2a);
+    border-color: #7c4a4a;
+    animation: repairPulse 3s ease-in-out infinite;
+}
+
+.room.infected {
+    background: linear-gradient(145deg, #4a2d2d, #3a2a2a);
+    border-color: #cc4444;
+    animation: infectedPulse 2s ease-in-out infinite;
+}
+
+.room.infected:hover {
+    background: linear-gradient(145deg, #533030, #3a2d2d);
+}
+
+.room.reinforced {
+    border-color: #4a7c9a;
+    box-shadow: inset 0 0 15px rgba(74, 124, 154, 0.4);
+}
+
+.room.reinforced::after {
+    content: '🛡️';
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.room-info {
+    font-size: 13px;
     text-align: center;
-    font-size: var(--font-size-sm);
+    padding: 5px;
+    z-index: 1;
 }
 
-/* === 控制按鈕區域 === */
+/* ===========================================
+   資源顯示
+   =========================================== */
+
+.resources-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.resource-item {
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.resource-icon {
+    font-size: 1.2em;
+    margin-right: 6px;
+}
+
+.resource-label {
+    color: #ccc;
+    font-size: 0.9em;
+}
+
+.resource-value {
+    color: #fff;
+    font-weight: bold;
+    margin-left: 4px;
+}
+
+/* ===========================================
+   控制按鈕
+   =========================================== */
+
 .controls {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-xl);
+    gap: 8px;
+    margin-bottom: 15px;
 }
 
-/* === 遊戲記錄 === */
+.btn {
+    background: linear-gradient(145deg, #4a4a4a, #3a3a3a);
+    border: 1px solid #666;
+    color: #e0e0e0;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+    min-width: 100px;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.3s ease;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+.btn:hover {
+    background: linear-gradient(145deg, #555, #444);
+    border-color: #888;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn:disabled {
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    color: #666;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn:disabled::before {
+    display: none;
+}
+
+/* 按鈕變體 */
+.btn-primary {
+    background: linear-gradient(145deg, #4a6644, #3a5534);
+    border-color: #66aa66;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(145deg, #5a7754, #4a6644);
+}
+
+.btn-success {
+    background: linear-gradient(145deg, #446644, #335533);
+    border-color: #66aa66;
+}
+
+.btn-success:hover {
+    background: linear-gradient(145deg, #557755, #446644);
+}
+
+.btn-warning {
+    background: linear-gradient(145deg, #666644, #555533);
+    border-color: #aaaa66;
+}
+
+.btn-warning:hover {
+    background: linear-gradient(145deg, #777755, #666644);
+}
+
+.btn-danger {
+    background: linear-gradient(145deg, #664444, #553333);
+    border-color: #aa6666;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(145deg, #775555, #664444);
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: 70px;
+}
+
+/* ===========================================
+   日誌系統
+   =========================================== */
+
+.log-section h3 {
+    color: #66ccff;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+}
+
 .log {
-    background: #222;
+    background: linear-gradient(145deg, #222, #1a1a1a);
     border: 1px solid #444;
-    height: 150px;
+    border-radius: 8px;
+    height: 180px;
     overflow-y: auto;
-    padding: var(--spacing-md);
-    font-size: var(--font-size-sm);
-    border-radius: var(--border-radius-sm);
+    padding: 12px;
+    font-size: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #222;
+}
+
+.log::-webkit-scrollbar {
+    width: 6px;
+}
+
+.log::-webkit-scrollbar-track {
+    background: #222;
+}
+
+.log::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+.log::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 .log-entry {
-    margin-bottom: 5px;
-    padding: 2px 0;
-    line-height: var(--line-height-compact);
+    margin-bottom: 6px;
+    padding: 3px 0;
+    border-left: 3px solid transparent;
+    padding-left: 8px;
+    transition: all 0.2s ease;
+    border-radius: 0 4px 4px 0;
+}
+
+.log-entry:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .log-entry.event {
-    color: var(--color-warning);
+    color: #ffcc66;
+    border-left-color: #ffcc66;
 }
 
 .log-entry.rent {
-    color: var(--color-success);
+    color: #66ff66;
+    border-left-color: #66ff66;
 }
 
 .log-entry.danger {
-    color: var(--color-danger);
+    color: #ff6666;
+    border-left-color: #ff6666;
+    animation: dangerGlow 2s ease-in-out infinite;
 }
 
 .log-entry.skill {
-    color: var(--color-info);
+    color: #66ccff;
+    border-left-color: #66ccff;
 }
 
-/* === 系統狀態指示器 === */
-.system-status {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: var(--spacing-sm) var(--spacing-sm);
-    border-radius: var(--border-radius-sm);
-    font-size: var(--font-size-xs);
-    z-index: 2000;
-    backdrop-filter: blur(4px);
+/* ===========================================
+   側邊欄內容
+   =========================================== */
+
+.sidebar h3 {
+    color: #66ccff;
+    margin-bottom: 12px;
+    font-size: 1.1em;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
 }
 
-.system-status.modular {
-    color: var(--color-success);
+.tenant-list {
+    margin-bottom: 20px;
+    max-height: 250px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #222;
 }
 
-.system-status.error {
-    color: var(--color-danger);
+.tenant-item {
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    margin: 8px 2px 8px 0;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    border-left: 3px solid #666;
+    transition: all 0.3s ease;
 }
 
-/* === 系統狀態詳細資訊 === */
-.system-status-details {
-    font-size: var(--font-size-xs);
+.tenant-item:hover {
+    background: linear-gradient(145deg, #444, #333);
+    transform: translateX(2px);
+}
+
+.tenant-item.infected {
+    background: linear-gradient(145deg, #663333, #552222);
+    border-left-color: #cc4444;
+}
+
+.tenant-item.doctor {
+    border-left-color: #66cc66;
+}
+
+.tenant-item.worker {
+    border-left-color: #cc8866;
+}
+
+.tenant-item.soldier {
+    border-left-color: #cc6666;
+}
+
+.tenant-item.farmer {
+    border-left-color: #66aa44;
+}
+
+.tenant-item.elder {
+    border-left-color: #cc66cc;
+}
+
+/* 滿意度長條圖樣式 - 目前使用表情符號顯示，暫時保留供未來使用 */
+/*
+.satisfaction-bar {
+    width: 100%;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.satisfaction-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6666, #ffaa66, #66ff66);
+    transition: width 0.3s ease;
+    border-radius: 2px;
+}
+*/
+
+.game-help {
+    font-size: 11px;
     line-height: 1.4;
-    margin-bottom: var(--spacing-lg);
+    color: #ccc;
 }
 
-.system-status-details>div {
-    margin-bottom: var(--spacing-xs);
-    padding: 2px 0;
+.game-help p {
+    margin: 6px 0;
+    padding-left: 4px;
 }
 
-/* === 標題樣式 === */
-h3 {
-    color: var(--color-text-primary);
-    font-size: var(--font-size-md);
-    margin: 0 0 var(--spacing-md) 0;
-    font-weight: bold;
+/* ===========================================
+   除錯面板
+   =========================================== */
+
+.debug-panel {
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-/* === 基礎動畫 === */
+.debug-section {
+    margin-bottom: 12px;
+}
+
+.debug-section h4,
+.debug-section h5 {
+    margin: 0 0 6px 0;
+    color: #66ccff;
+    font-size: 13px;
+}
+
+.debug-info {
+    font-size: 11px;
+    color: #ccc;
+    font-family: "Consolas", monospace;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 6px;
+    border-radius: 4px;
+    border-left: 2px solid #66ccff;
+}
+
+.debug-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ===========================================
+   模態框系統
+   =========================================== */
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+    border: 2px solid #666;
+    border-radius: 12px;
+    padding: 25px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    color: #66ccff;
+    border-bottom: 1px solid #444;
+    padding-bottom: 8px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #444;
+}
+
+.applicant {
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 3px solid #666;
+    transition: all 0.3s ease;
+}
+
+.applicant:hover {
+    background: linear-gradient(145deg, #444, #333);
+    border-left-color: #888;
+}
+
+.applicant.infected {
+    background: linear-gradient(145deg, #663333, #552222);
+    border-left-color: #cc4444;
+}
+
+.applicant.trader {
+    background: linear-gradient(145deg, #334466, #223355);
+    border-left-color: #6688aa;
+}
+
+/* ===========================================
+   動畫效果
+   =========================================== */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200px 0;
+    }
+
+    100% {
+        background-position: 200px 0;
+    }
+}
+
 @keyframes pulse {
 
     0%,
@@ -251,69 +725,231 @@ h3 {
     }
 }
 
-/* === 響應式設計 === */
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+@keyframes repairPulse {
+
+    0%,
+    100% {
+        border-color: #7c4a4a;
+    }
+
+    50% {
+        border-color: #aa6666;
+    }
+}
+
+@keyframes infectedPulse {
+
+    0%,
+    100% {
+        border-color: #cc4444;
+        box-shadow: 0 0 5px rgba(204, 68, 68, 0.3);
+    }
+
+    50% {
+        border-color: #ff6666;
+        box-shadow: 0 0 15px rgba(255, 102, 102, 0.5);
+    }
+}
+
+@keyframes dangerGlow {
+
+    0%,
+    100% {
+        color: #ff6666;
+        text-shadow: none;
+    }
+
+    50% {
+        color: #ff8888;
+        text-shadow: 0 0 5px rgba(255, 102, 102, 0.5);
+    }
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* ===========================================
+   響應式設計
+   =========================================== */
+
 @media (max-width: 768px) {
-    :root {
-        --sidebar-width: 100%;
+    body {
+        padding: 8px;
     }
 
     .game-container {
         grid-template-columns: 1fr;
-        gap: var(--spacing-lg);
+        gap: 10px;
     }
 
-    body {
-        padding: var(--spacing-md);
+    .main-area,
+    .sidebar {
+        padding: 12px;
+    }
+
+    .game-title {
+        font-size: 24px;
     }
 
     .status-bar {
-        font-size: var(--font-size-sm);
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .status-item {
+        min-width: auto;
+    }
+
+    .house-layout {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .resources-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
     }
 
     .controls {
-        gap: var(--spacing-sm);
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .btn {
+        width: 100%;
+        min-width: auto;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 8px;
+        padding: 15px;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+        gap: 6px;
     }
 }
 
-/* === 可訪問性支援 === */
-@media (prefers-reduced-motion: reduce) {
+@media (max-width: 480px) {
 
-    *,
-    *::before,
-    *::after {
+    .main-area,
+    .sidebar {
+        padding: 10px;
+    }
+
+    .game-title {
+        font-size: 20px;
+    }
+
+    .status-bar {
+        font-size: 12px;
+    }
+
+    .log {
+        height: 100px;
+        font-size: 11px;
+    }
+
+    .tenant-item {
+        font-size: 11px;
+        padding: 6px;
+    }
+
+    .game-help {
+        font-size: 10px;
+    }
+}
+
+/* ===========================================
+   深色模式優化
+   =========================================== */
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+    }
+
+    .main-area,
+    .sidebar {
+        background: linear-gradient(145deg, #1a1a1a, #141414);
+        border-color: #444;
+    }
+
+    .status-item,
+    .resource-item,
+    .room {
+        background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+        border-color: #444;
+    }
+}
+
+/* ===========================================
+   高對比度模式
+   =========================================== */
+
+@media (prefers-contrast: high) {
+    .btn {
+        border-width: 2px;
+    }
+
+    .room {
+        border-width: 3px;
+    }
+
+    .log-entry {
+        border-left-width: 4px;
+    }
+
+    .tenant-item {
+        border-left-width: 4px;
+    }
+}
+
+/* ===========================================
+   減少動畫模式
+   =========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    * {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
 }
-
-/* === 高對比度模式支援 === */
-@media (prefers-contrast: high) {
-    :root {
-        --color-border-default: #999;
-        --color-text-primary: #ffffff;
-        --color-bg-secondary: #000000;
-    }
-}
-
-/* === 深色模式優化（預設已是深色） === */
-@media (prefers-color-scheme: light) {
-    /* 如果需要支援淺色模式，可在此添加 */
-}
-
-/* === 列印樣式 === */
-@media print {
-
-    .system-status,
-    .controls {
-        display: none;
-    }
-
-    body {
-        background: white;
-        color: black;
-    }
-
-    .game-container {
-        display: block;
-    } }

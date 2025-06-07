@@ -247,6 +247,7 @@ class GameApplication {
         this.dataManager,
         this.eventBus
       );
+      this.tradeManager.initialize()
       console.log("✅ TradeManager 初始化完成");
 
       // 初始化租客管理器
@@ -412,14 +413,6 @@ class GameApplication {
       (/** @type {StateChangeData} */ data) => {
         console.debug("狀態變更:", data.reason);
         this.eventBus.emit("game_state_changed", data);
-      }
-    );
-
-    // 監聽日誌新增
-    this.gameState.subscribe(
-      "log_added",
-      (/** @type {{logEntry: LogEntry}} */ data) => {
-        this._updateGameLogUI(data.logEntry);
       }
     );
 
