@@ -109,13 +109,6 @@ export class EventBus {
     this.listeners = new Map();
 
     /**
-     * 一次性監聽器映射
-     * @type {Map<string, Set<EventListener>>}
-     * @private
-     */
-    this.onceListeners = new Map();
-
-    /**
      * 事件歷史記錄
      * @type {EventRecord[]}
      * @private
@@ -201,15 +194,33 @@ export class EventBus {
       return null;
     }
 
+    let hasExecuted = false;
+
     // 建立一次性監聽器
     const onceWrapper = (/** @type {EventObject} */ eventObj) => {
+      if (hasExecuted) {
+        console.debug(
+          `[EventBus] 一次性監聽器已執行，忽略重複調用: ${eventType}`
+        );
+        return;
+      }
+
+      // 🎯 關鍵修復：立即設置標記，阻止後續執行
+      hasExecuted = true;
+
       try {
-        listener(eventObj);
-      } finally {
+        // 先移除監聽器，再執行回調（避免回調中的錯誤影響清理）
         this.off(eventType, onceWrapper);
+
+        // 執行原始監聽器
+        return listener(eventObj);
+      } catch (error) {
+        console.error(`[EventBus] 一次性監聽器執行錯誤 (${eventType}):`, error);
+        throw error;
       }
     };
 
+    // 添加到普通監聽器列表
     return this.on(eventType, onceWrapper, { ...options, once: true });
   }
 
@@ -625,7 +636,6 @@ export class EventBus {
   destroy() {
     this.isActive = false;
     this.listeners.clear();
-    this.onceListeners.clear();
     this.eventHistory = [];
     this.eventStats.clear();
     console.log("EventBus 已銷毀");
