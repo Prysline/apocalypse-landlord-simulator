@@ -81,13 +81,12 @@
  */
 
 /**
- * 資源閾值類型定義
+ * 資源閾值配置
  * @typedef {Object} ResourceThresholds
- * @property {number} food - 食物閾值
- * @property {number} materials - 建材閾值
- * @property {number} medical - 醫療閾值
- * @property {number} fuel - 燃料閾值
- * @property {number} cash - 現金閾值
+ * @property {number} warning - 警告線
+ * @property {number} critical - 危險線
+ * @property {number} emergency - 緊急線
+ * @property {number} [maximum] - 最大值（可選）
  */
 
 /**
@@ -316,10 +315,10 @@
 /**
  * 日誌條目類型
  * @typedef {Object} LogEntry
- * @property {LogType} type - 日誌類型
  * @property {string} message - 日誌訊息
- * @property {string} timestamp - 時間戳記
- * @property {Object} [data] - 附加資料
+ * @property {LogType} type - 日誌類型
+ * @property {number} day - 遊戲天數
+ * @property {string} timestamp - 時間戳
  */
 
 // ==================== 函數類型 ====================

@@ -12,7 +12,16 @@
  * @typedef {import('../Type.js').LogType} LogType
  * @typedef {import('../Type.js').EventHandler} EventHandler
  * @typedef {import('../Type.js').ClickHandler} ClickHandler
- * @typedef {import('../Type.js').ResourceThresholds} ResourceThresholds
+ */
+
+/**
+ * 資源閾值類型定義
+ * @typedef {Object} ResourceThresholds
+ * @property {number} food - 食物閾值
+ * @property {number} materials - 建材閾值
+ * @property {number} medical - 醫療閾值
+ * @property {number} fuel - 燃料閾值
+ * @property {number} cash - 現金閾值
  */
 
 /**

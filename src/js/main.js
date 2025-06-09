@@ -14,6 +14,12 @@ import TenantManager from "./systems/TenantManager.js";
 import SkillManager from "./systems/SkillManager.js";
 
 /**
+ * @see {@link ./Type.js} 完整類型定義
+ * @typedef {import('./Type.js').LogType} LogType
+ * @typedef {import('./Type.js').LogEntry} LogEntry
+ */
+
+/**
  * 系統運行模式
  * @typedef {'normal'|'fallback'|'minimal'} SystemMode
  */
@@ -51,20 +57,6 @@ import SkillManager from "./systems/SkillManager.js";
  * @typedef {Object} StatusConfig
  * @property {string} text - 狀態顯示文字
  * @property {string} class - CSS 類名
- */
-
-/**
- * 日誌型別定義（與 GameState 保持一致）
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
- */
-
-/**
- * 遊戲日誌條目
- * @typedef {Object} LogEntry
- * @property {string} message - 日誌訊息
- * @property {LogType} type - 日誌類型
- * @property {number} day - 遊戲天數
- * @property {string} timestamp - 時間戳
  */
 
 /**
