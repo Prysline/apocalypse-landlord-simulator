@@ -47,8 +47,10 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 /**
  * 租客物件
  * @typedef {Object} Tenant
+ * @property {number} [id] - 統一個人ID
  * @property {string} name - 租客姓名
  * @property {TenantType} type - 租客類型
+ * @property {string} typeName - 類型顯示名稱
  * @property {string} skill - 技能描述
  * @property {number} rent - 房租金額
  * @property {boolean} [infected] - 是否感染
@@ -56,27 +58,19 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {PersonalResources} [personalResources] - 個人資源
  * @property {string} [appearance] - 外觀描述
  * @property {number} [infectionRisk] - 感染風險
- * @property {number} [id] - 唯一識別碼
  * @property {string} [moveInDate] - 入住日期
  * @property {Object} [preferences] - 偏好設定
  * @property {Object} [skillHistory] - 技能使用歷史
  */
 
-/**
- * 房間物件
- * @typedef {Object} Room
- * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
- * @property {boolean} needsRepair - 是否需要維修
- * @property {boolean} reinforced - 是否已加固
- */
 
 /**
  * 申請者物件
  * @typedef {Object} Applicant
- * @property {number} id - 申請者ID
+ * @property {number} id - 統一個人ID
  * @property {string} name - 姓名
  * @property {TenantType} type - 類型
+ * @property {string} typeName - 類型顯示名稱
  * @property {string} skill - 技能
  * @property {number} rent - 房租
  * @property {boolean} infected - 是否感染（隱藏）
@@ -85,6 +79,16 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {number} infectionRisk - 感染風險
  * @property {PersonalResources} personalResources - 個人資源
  * @property {string} description - 技能描述
+ */
+
+
+/**
+ * 房間物件
+ * @typedef {Object} Room
+ * @property {number} id - 房間ID
+ * @property {Tenant|null} tenant - 入住的租客
+ * @property {boolean} needsRepair - 是否需要維修
+ * @property {boolean} reinforced - 是否已加固
  */
 
 /**
@@ -117,8 +121,8 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 /**
  * 租客關係
  * @typedef {Object} TenantRelationship
- * @property {string} tenant1 - 租客1姓名
- * @property {string} tenant2 - 租客2姓名
+ * @property {number} tenant1Id - 租客1ID
+ * @property {number} tenant2Id - 租客2ID
  * @property {number} relationship - 關係值 (-100 到 100)
  * @property {string} lastInteraction - 最後互動日期
  * @property {string[]} interactionHistory - 互動歷史
@@ -129,7 +133,7 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @typedef {Object} ConflictEvent
  * @property {string} id - 衝突ID
  * @property {string} type - 衝突類型
- * @property {string[]} involvedTenants - 涉及的租客
+ * @property {number[]} involvedTenants - 涉及的租客ID
  * @property {string} description - 衝突描述
  * @property {number} severity - 嚴重程度 (1-5)
  * @property {string} timestamp - 發生時間
@@ -180,7 +184,7 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 /**
  * 滿意度歷史記錄
  * @typedef {Object} SatisfactionHistory
- * @property {string} tenantName - 租客姓名
+ * @property {number} tenantId - 租客ID
  * @property {number} day - 遊戲天數
  * @property {number} oldValue - 舊滿意度
  * @property {number} newValue - 新滿意度
@@ -262,8 +266,15 @@ export class TenantManager extends BaseManager {
     /** @type {Object|null} 滿意度配置 */
     this.satisfactionConfig = null;
 
+    // === 統一ID管理系統 ===
+    /** @type {number} 統一個人ID計數器 */
+    this.nextPersonId = 1;
+
+    /** @type {Map<number, Object>} 個人註冊表 - 統一管理所有個人 */
+    this.personRegistry = new Map();
+
     // 運行時數據
-    /** @type {Map<string, number>} 租客滿意度 */
+    /** @type {Map<number, number>} 租客滿意度 */
     this.tenantSatisfaction = new Map();
 
     /** @type {TenantRelationship[]} 租客關係記錄 */
@@ -282,13 +293,7 @@ export class TenantManager extends BaseManager {
     /** @type {Object|null} 驗證器實例 */
     this.validator = null;
 
-    /** @type {number} 下一個租客ID */
-    this.nextTenantId = 1000;
-
-    /** @type {number} 下一個申請者ID */
-    this.nextApplicantId = 2000;
-
-    console.log("🏘️ TenantManager v2.1 (BaseManager 整合版) 初始化中...");
+    console.log("🏘️ TenantManager v2.0 (BaseManager 整合版) 初始化中...");
   }
 
   // ==========================================
@@ -343,8 +348,8 @@ export class TenantManager extends BaseManager {
       "scavenge_request",
       async (eventObj) => {
         const data = eventObj.data;
-        if (data && data.tenantName) {
-          const result = await this.sendTenantScavenging(data.tenantName);
+        if (data && data.tenantId) {
+          const result = await this.sendTenantScavenging(data.tenantId);
           this.emitEvent("scavenge_result", result, { skipPrefix: true }); // 業務領域事件
         }
       },
@@ -532,15 +537,15 @@ export class TenantManager extends BaseManager {
         // 檢查是否已存在關係記錄
         const existingRelation = this.tenantRelationships.find(
           (rel) =>
-            (rel.tenant1 === tenant1.name && rel.tenant2 === tenant2.name) ||
-            (rel.tenant1 === tenant2.name && rel.tenant2 === tenant1.name)
+            (rel.tenant1Id === tenant1.id && rel.tenant2Id === tenant2.id) ||
+            (rel.tenant1Id === tenant2.id && rel.tenant2Id === tenant1.id)
         );
 
         if (!existingRelation) {
           /** @type {TenantRelationship} */
           const relationship = {
-            tenant1: tenant1.name,
-            tenant2: tenant2.name,
+            tenant1Id: tenant1.id,
+            tenant2Id: tenant2.id,
             relationship: 50, // 中性關係
             lastInteraction: new Date().toISOString(),
             interactionHistory: [],
@@ -561,11 +566,65 @@ export class TenantManager extends BaseManager {
       {}
     );
 
-    Object.entries(existingSatisfaction).forEach(([name, value]) => {
+    Object.entries(existingSatisfaction).forEach(([id, value]) => {
       if (typeof value === "number") {
-        this.tenantSatisfaction.set(name, value);
+        this.tenantSatisfaction.set(Number(id), value);
       }
     });
+  }
+
+  // ==========================================
+  // 統一ID管理方法
+  // ==========================================
+
+  /**
+   * 生成統一個人ID
+   * @returns {number} 新的個人ID
+   */
+  generatePersonId() {
+    return this.nextPersonId++;
+  }
+
+  /**
+   * 註冊個人到系統
+   * @param {number} id - 個人ID
+   * @param {Object} person - 個人物件
+   * @param {string} role - 角色標識 ('tenant', 'applicant', 'visitor')
+   */
+  registerPerson(id, person, role) {
+    this.personRegistry.set(id, {
+      ...person,
+      _systemRole: role,
+      _registeredAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * 根據ID取得個人
+   * @param {number} id - 個人ID
+   * @returns {Object|null} 個人物件
+   */
+  getPersonById(id) {
+    return this.personRegistry.get(id) || null;
+  }
+
+  /**
+   * 移除個人註冊
+   * @param {number} id - 個人ID
+   */
+  unregisterPerson(id) {
+    this.personRegistry.delete(id);
+  }
+
+  /**
+   * 從配置檔案取得類型顯示名稱
+   * @param {string} typeId - 類型ID
+   * @returns {string} 中文顯示名稱
+   */
+  getTypeName(typeId) {
+    // 從 tenants.json 配置中取得顯示名稱
+    const tenantType = this.tenantTypes.find((t) => t.typeId === typeId);
+    return tenantType ? tenantType.typeName : typeId;
   }
 
   // ==========================================
@@ -845,9 +904,10 @@ export class TenantManager extends BaseManager {
   createTenantFromApplicant(applicant) {
     /** @type {Tenant} */
     const tenant = {
-      id: this.nextTenantId++,
+      id: applicant.id,
       name: applicant.name,
       type: applicant.type,
+      typeName: applicant.typeName,
       skill: applicant.skill,
       rent: applicant.rent,
       infected: applicant.infected || false,
@@ -859,6 +919,9 @@ export class TenantManager extends BaseManager {
       preferences: {},
       skillHistory: {},
     };
+
+    // 更新註冊角色（從申請者變為租客）
+    this.registerPerson(applicant.id, tenant, "tenant");
 
     return tenant;
   }
@@ -887,10 +950,7 @@ export class TenantManager extends BaseManager {
       }
 
       // 初始化租客滿意度
-      this.tenantSatisfaction.set(
-        tenant.name,
-        this.satisfactionConfig.baseValue
-      );
+      this.tenantSatisfaction.set(tenant.id, this.satisfactionConfig.baseValue);
 
       // 建立與其他租客的關係
       this.establishTenantRelationships(tenant);
@@ -925,13 +985,13 @@ export class TenantManager extends BaseManager {
   establishTenantRelationships(newTenant) {
     const existingTenants = this.gameState
       .getAllTenants()
-      .filter((t) => t.name !== newTenant.name);
+      .filter((t) => t.id !== newTenant.id);
 
     existingTenants.forEach((tenant) => {
       /** @type {TenantRelationship} */
       const relationship = {
-        tenant1: newTenant.name,
-        tenant2: tenant.name,
+        tenant1Id: newTenant.id,
+        tenant2Id: tenant.id,
         relationship: this.calculateInitialRelationship(newTenant, tenant),
         lastInteraction: new Date().toISOString(),
         interactionHistory: [`${newTenant.name} 入住`],
@@ -975,22 +1035,22 @@ export class TenantManager extends BaseManager {
 
   /**
    * 驅逐租客 - 主要入口點
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @param {boolean} [isInfected=false] - 是否因感染驅逐
    * @param {string} [reason="正常退租"] - 驅逐原因
    * @returns {Promise<EvictionResult>} 驅逐結果
    * @throws {Error} 當系統未初始化或驅逐過程失敗時
    */
-  async evictTenant(tenantName, isInfected = false, reason = "正常退租") {
+  async evictTenant(tenantId, isInfected = false, reason = "正常退租") {
     if (!this.initialized) {
       return { success: false, reason: "系統未初始化", error: "系統未初始化" };
     }
 
-    console.log(`🚪 開始驅逐租客: ${tenantName} (原因: ${reason})`);
+    console.log(`🚪 開始驅逐租客ID: ${tenantId} (原因: ${reason})`);
 
     try {
       // 尋找租客和房間
-      const tenantInfo = this.findTenantAndRoom(tenantName);
+      const tenantInfo = this.findTenantAndRoom(tenantId);
       if (!tenantInfo) {
         return {
           success: false,
@@ -1049,19 +1109,39 @@ export class TenantManager extends BaseManager {
 
   /**
    * 尋找租客和房間
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @returns {{tenant: Tenant, room: Room}|null} 租客和房間信息
    */
-  findTenantAndRoom(tenantName) {
+  findTenantAndRoom(tenantId) {
     const rooms = this.gameState.getStateValue("rooms", []);
 
     for (const room of rooms) {
-      if (room.tenant && room.tenant.name === tenantName) {
+      if (room.tenant && room.tenant.id === tenantId) {
         return { tenant: room.tenant, room: room };
       }
     }
 
     return null;
+  }
+
+  /**
+   * 根據申請者ID尋找申請者
+   * @param {number} applicantId - 申請者ID
+   * @returns {Applicant|null} 申請者物件
+   */
+  findApplicantById(applicantId) {
+    const applicants = this.gameState.getStateValue("applicants", []);
+    return applicants.find((applicant) => applicant.id === applicantId) || null;
+  }
+
+  /**
+   * 根據訪客ID尋找訪客
+   * @param {number} visitorId - 訪客ID
+   * @returns {Object|null} 訪客物件
+   */
+  findVisitorById(visitorId) {
+    const visitors = this.gameState.getStateValue("visitors", []);
+    return visitors.find((visitor) => visitor.id === visitorId) || null;
   }
 
   /**
@@ -1189,7 +1269,7 @@ export class TenantManager extends BaseManager {
       }
 
       // 清理租客相關數據
-      this.cleanupTenantData(tenant.name);
+      this.cleanupTenantData(tenant.id);
 
       // 更新統計
       this.updateTenantStats();
@@ -1206,21 +1286,24 @@ export class TenantManager extends BaseManager {
 
   /**
    * 清理租客數據
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客姓名
    * @returns {void}
    */
-  cleanupTenantData(tenantName) {
+  cleanupTenantData(tenantId) {
     // 移除滿意度記錄
-    this.tenantSatisfaction.delete(tenantName);
+    this.tenantSatisfaction.delete(tenantId);
+
+    // 移除個人註冊
+    this.unregisterPerson(tenantId);
 
     // 移除關係記錄
     this.tenantRelationships = this.tenantRelationships.filter(
-      (rel) => rel.tenant1 !== tenantName && rel.tenant2 !== tenantName
+      (rel) => rel.tenant1Id !== tenantId && rel.tenant2Id !== tenantId
     );
 
     // 清理滿意度歷史（保留記錄但標記為已離開）
     this.satisfactionHistory.forEach((record) => {
-      if (record.tenantName === tenantName) {
+      if (record.tenantId === tenantId) {
         record.reason = `${record.reason} (已離開)`;
       }
     });
@@ -1230,7 +1313,7 @@ export class TenantManager extends BaseManager {
       "tenantSatisfaction",
       {}
     );
-    delete currentSatisfaction[tenantName];
+    delete currentSatisfaction[tenantId];
     this.gameState.setStateValue(
       "tenantSatisfaction",
       currentSatisfaction,
@@ -1244,17 +1327,17 @@ export class TenantManager extends BaseManager {
 
   /**
    * 更新租客滿意度 - 主要入口點
-   * @param {string} [tenantName] - 特定租客姓名，不提供則更新所有租客
+   * @param {number} [tenantId] - 特定租客ID，不提供則更新所有租客
    * @returns {void}
    */
-  updateTenantSatisfaction(tenantName) {
+  updateTenantSatisfaction(tenantId) {
     if (!this.initialized) {
       this.logWarning("系統未初始化，無法更新滿意度");
       return;
     }
 
-    if (tenantName) {
-      this.updateIndividualSatisfaction(tenantName);
+    if (tenantId) {
+      this.updateIndividualSatisfaction(tenantId);
     } else {
       this.updateAllTenantsatisfaction();
     }
@@ -1265,28 +1348,28 @@ export class TenantManager extends BaseManager {
 
   /**
    * 更新個別租客滿意度
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @returns {void}
    */
-  updateIndividualSatisfaction(tenantName) {
-    const tenantInfo = this.findTenantAndRoom(tenantName);
+  updateIndividualSatisfaction(tenantId) {
+    const tenantInfo = this.findTenantAndRoom(tenantId);
     if (!tenantInfo) {
-      console.warn(`找不到租客: ${tenantName}`);
+      console.warn(`找不到租客: ${tenantId}`);
       return;
     }
 
     const { tenant, room } = tenantInfo;
     const oldSatisfaction =
-      this.tenantSatisfaction.get(tenantName) ||
+      this.tenantSatisfaction.get(tenantId) ||
       this.satisfactionConfig.baseValue;
     const newSatisfaction = this.calculateSatisfaction(tenant, room);
 
-    this.tenantSatisfaction.set(tenantName, newSatisfaction);
+    this.tenantSatisfaction.set(tenantId, newSatisfaction);
 
     // 記錄變更歷史
     if (Math.abs(newSatisfaction - oldSatisfaction) >= 1) {
       this.recordSatisfactionChange(
-        tenantName,
+        tenantId,
         oldSatisfaction,
         newSatisfaction,
         "daily_update"
@@ -1294,7 +1377,7 @@ export class TenantManager extends BaseManager {
     }
 
     // 檢查滿意度警告
-    this.checkSatisfactionWarnings(tenantName, newSatisfaction);
+    this.checkSatisfactionWarnings(tenantId, newSatisfaction);
   }
 
   /**
@@ -1305,7 +1388,7 @@ export class TenantManager extends BaseManager {
     const tenants = this.gameState.getAllTenants();
 
     tenants.forEach((tenant) => {
-      this.updateIndividualSatisfaction(tenant.name);
+      this.updateIndividualSatisfaction(tenant.id);
     });
   }
 
@@ -1368,7 +1451,7 @@ export class TenantManager extends BaseManager {
     satisfaction += elderCount * factors.elderHarmonyBonus;
 
     // 關係影響
-    satisfaction += this.calculateRelationshipBonus(tenant.name);
+    satisfaction += this.calculateRelationshipBonus(tenant.id);
 
     // 確保在有效範圍內
     return Math.max(
@@ -1379,12 +1462,12 @@ export class TenantManager extends BaseManager {
 
   /**
    * 計算關係加成
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @returns {number} 關係加成值
    */
-  calculateRelationshipBonus(tenantName) {
+  calculateRelationshipBonus(tenantId) {
     const relationships = this.tenantRelationships.filter(
-      (rel) => rel.tenant1 === tenantName || rel.tenant2 === tenantName
+      (rel) => rel.tenant1Id === tenantId || rel.tenant2Id === tenantId
     );
 
     if (relationships.length === 0) return 0;
@@ -1399,16 +1482,16 @@ export class TenantManager extends BaseManager {
 
   /**
    * 記錄滿意度變更歷史
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @param {number} oldValue - 舊滿意度
    * @param {number} newValue - 新滿意度
    * @param {string} reason - 變更原因
    * @returns {void}
    */
-  recordSatisfactionChange(tenantName, oldValue, newValue, reason) {
+  recordSatisfactionChange(tenantId, oldValue, newValue, reason) {
     /** @type {SatisfactionHistory} */
     const record = {
-      tenantName: tenantName,
+      tenantId: tenantId,
       day: this.gameState.getStateValue("day", 1),
       oldValue: oldValue,
       newValue: newValue,
@@ -1429,27 +1512,28 @@ export class TenantManager extends BaseManager {
 
   /**
    * 檢查滿意度警告
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @param {number} satisfaction - 滿意度值
    * @returns {void}
    */
-  checkSatisfactionWarnings(tenantName, satisfaction) {
+  checkSatisfactionWarnings(tenantId, satisfaction) {
     const status = this.getSatisfactionStatus(satisfaction);
+    const tenant = this.findTenantAndRoom(tenantId).tenant;
 
     if (status.level === "critical") {
       this.emitEvent("satisfactionCritical", {
-        tenantName: tenantName,
+        tenantId: tenantId,
         satisfaction: satisfaction,
         status: status,
       });
 
       this.addLog(
-        `⚠️ ${tenantName} 滿意度極低 (${satisfaction})，可能搬離`,
+        `⚠️ ${tenant.name} 滿意度極低 (${satisfaction})，可能搬離`,
         "danger"
       );
     } else if (status.level === "warning") {
       this.emitEvent("satisfactionWarning", {
-        tenantName: tenantName,
+        tenantId: tenantId,
         satisfaction: satisfaction,
         status: status,
       });
@@ -1594,12 +1678,14 @@ export class TenantManager extends BaseManager {
     // 從租客類型配置中隨機選擇
     const tenantType = this.getRandomTenantType();
     const name = this.generateRandomName();
+    const personId = this.generatePersonId();
 
     /** @type {Applicant} */
     const applicant = {
-      id: this.nextApplicantId++,
+      id: personId,
       name: name,
       type: tenantType.typeId,
+      typeName: tenantType.typeName,
       skill: tenantType.skill,
       rent: tenantType.rent,
       infected: Math.random() < tenantType.infectionRisk,
@@ -1609,6 +1695,9 @@ export class TenantManager extends BaseManager {
       personalResources: { ...tenantType.personalResources },
       description: tenantType.description,
     };
+
+    // 註冊到統一系統
+    this.registerPerson(personId, applicant, "applicant");
 
     // 生成外觀描述
     applicant.appearance = applicant.infected
@@ -1950,9 +2039,9 @@ export class TenantManager extends BaseManager {
   checkSatisfactionBasedConflicts() {
     const lowSatisfactionTenants = [];
 
-    this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
+    this.tenantSatisfaction.forEach((satisfaction, tenantId) => {
       if (satisfaction < (this.config?.conflictThreshold || 40)) {
-        lowSatisfactionTenants.push(tenantName);
+        lowSatisfactionTenants.push(tenantId);
       }
     });
 
@@ -2000,7 +2089,7 @@ export class TenantManager extends BaseManager {
 
   /**
    * 觸發滿意度衝突
-   * @param {string[]} involvedTenants - 涉及的租客
+   * @param {number[]} involvedTenants - 涉及的租客
    * @returns {void}
    */
   triggerSatisfactionConflict(involvedTenants) {
@@ -2035,7 +2124,7 @@ export class TenantManager extends BaseManager {
     const tenants = this.gameState.getAllTenants();
     if (tenants.length < 2) return;
 
-    const involvedTenants = tenants.slice(0, 2).map((t) => t.name);
+    const involvedTenants = tenants.slice(0, 2).map((t) => t.id);
 
     /** @type {ConflictEvent} */
     const conflict = {
@@ -2060,12 +2149,14 @@ export class TenantManager extends BaseManager {
    * @returns {void}
    */
   triggerRelationshipConflict(relationship) {
+    const tenant1 = this.findTenantAndRoom(relationship.tenant1Id).tenant;
+    const tenant2 = this.findTenantAndRoom(relationship.tenant2Id).tenant;
     /** @type {ConflictEvent} */
     const conflict = {
       id: `conflict_${Date.now()}`,
       type: "interpersonal_conflict",
-      involvedTenants: [relationship.tenant1, relationship.tenant2],
-      description: `${relationship.tenant1} 和 ${relationship.tenant2} 之間關係惡化`,
+      involvedTenants: [tenant1.id, tenant2.id],
+      description: `${tenant1.name} 和 ${tenant2.name} 之間關係惡化`,
       severity: 2,
       timestamp: new Date().toISOString(),
       resolved: false,
@@ -2074,10 +2165,7 @@ export class TenantManager extends BaseManager {
     this.conflictHistory.push(conflict);
     this.emitEvent("conflictTriggered", conflict);
 
-    this.addLog(
-      `💥 ${relationship.tenant1} 和 ${relationship.tenant2} 發生爭執`,
-      "danger"
-    );
+    this.addLog(`💥 ${tenant1.name} 和 ${tenant2.name} 發生爭執`, "danger");
   }
 
   /**
@@ -2097,15 +2185,15 @@ export class TenantManager extends BaseManager {
     conflict.description += ` | 解決方案: ${resolution}`;
 
     // 提升涉及租客的滿意度
-    conflict.involvedTenants.forEach((tenantName) => {
+    conflict.involvedTenants.forEach((tenantId) => {
       const currentSatisfaction =
-        this.tenantSatisfaction.get(tenantName) ||
+        this.tenantSatisfaction.get(tenantId) ||
         this.satisfactionConfig.baseValue;
       const newSatisfaction = Math.min(100, currentSatisfaction + 10);
-      this.tenantSatisfaction.set(tenantName, newSatisfaction);
+      this.tenantSatisfaction.set(tenantId, newSatisfaction);
 
       this.recordSatisfactionChange(
-        tenantName,
+        tenantId,
         currentSatisfaction,
         newSatisfaction,
         "conflict_resolved"
@@ -2124,15 +2212,15 @@ export class TenantManager extends BaseManager {
 
   /**
    * 派遣租客進行搜刮 - 主要入口點
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @returns {Promise<Object>} 搜刮結果
    */
-  async sendTenantScavenging(tenantName) {
+  async sendTenantScavenging(tenantId) {
     if (!this.initialized) {
       return { success: false, error: "系統未初始化" };
     }
 
-    console.log(`🚶 派遣租客搜刮: ${tenantName}`);
+    console.log(`🚶 派遣租客搜刮ID: ${tenantId}`);
 
     try {
       // 檢查搜刮條件
@@ -2146,7 +2234,7 @@ export class TenantManager extends BaseManager {
       }
 
       // 尋找租客
-      const tenantInfo = this.findTenantAndRoom(tenantName);
+      const tenantInfo = this.findTenantAndRoom(tenantId);
       if (!tenantInfo) {
         return { success: false, error: "找不到指定租客" };
       }
@@ -2352,7 +2440,7 @@ export class TenantManager extends BaseManager {
       /** @type {Object} */
       const result = {
         success: isSuccess,
-        tenantName: tenant.name,
+        tenantId: tenant.id,
         tenantType: tenant.type,
         successRate: successRate,
         rewards: {},
@@ -2391,7 +2479,7 @@ export class TenantManager extends BaseManager {
       this.logError("執行搜刮結果失敗", error);
       return {
         success: false,
-        tenantName: tenant.name,
+        tenantId: tenant.id,
         error: error instanceof Error ? error.message : String(error),
         message: "搜刮過程發生錯誤",
       };
@@ -2556,7 +2644,7 @@ export class TenantManager extends BaseManager {
       maxPerDay: scavengeResult.maxPerDay,
       availableScavengers: availableScavengers.length,
       scavengerList: availableScavengers.map((t) => ({
-        name: t.name,
+        id: t.id,
         type: t.type,
         successRate: this.calculateScavengeSuccessRate(t),
       })),
@@ -2597,7 +2685,7 @@ export class TenantManager extends BaseManager {
 
   /**
    * 取得所有租客的滿意度
-   * @returns {Map<string, number>} 租客滿意度映射
+   * @returns {Map<number, number>} 租客滿意度映射
    */
   getAllSatisfaction() {
     return new Map(this.tenantSatisfaction);
@@ -2654,9 +2742,9 @@ export class TenantManager extends BaseManager {
     if (data.resourceType === "food" && data.changeAmount > 0) {
       // 這裡需要確定是哪個租客進行了購買
       // 暫時提升所有租客滿意度
-      this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
+      this.tenantSatisfaction.forEach((satisfaction, tenantId) => {
         const newSatisfaction = Math.min(100, satisfaction + 2);
-        this.tenantSatisfaction.set(tenantName, newSatisfaction);
+        this.tenantSatisfaction.set(tenantId, newSatisfaction);
       });
     }
   }
@@ -2667,9 +2755,9 @@ export class TenantManager extends BaseManager {
    */
   updateSatisfactionFromDefenseChange() {
     // 建築防禦提升時，所有租客滿意度微幅上升
-    this.tenantSatisfaction.forEach((satisfaction, tenantName) => {
+    this.tenantSatisfaction.forEach((satisfaction, tenantId) => {
       const newSatisfaction = Math.min(100, satisfaction + 1);
-      this.tenantSatisfaction.set(tenantName, newSatisfaction);
+      this.tenantSatisfaction.set(tenantId, newSatisfaction);
     });
   }
 
@@ -2697,6 +2785,77 @@ export class TenantManager extends BaseManager {
    */
   getTenantRelationships() {
     return [...this.tenantRelationships];
+  }
+
+  /**
+   * 取得ID使用統計
+   * @returns {Object} ID統計資料
+   */
+  getIDStats() {
+    const roleStats = {};
+    for (const [id, person] of this.personRegistry) {
+      const role = person._systemRole;
+      roleStats[role] = (roleStats[role] || 0) + 1;
+    }
+
+    return {
+      nextPersonId: this.nextPersonId,
+      totalPersons: this.personRegistry.size,
+      roleDistribution: roleStats,
+      satisfactionMappings: this.tenantSatisfaction.size,
+    };
+  }
+
+  /**
+   * 驗證ID系統完整性
+   * @returns {Object} 驗證結果
+   */
+  validateIDSystemIntegrity() {
+    const issues = [];
+    const warnings = [];
+
+    // 檢查房間中的租客是否都有ID
+    const rooms = this.gameState.getStateValue("rooms", []);
+    const tenantsWithoutID = rooms
+      .filter((r) => r.tenant && !r.tenant.id)
+      .map((r) => r.tenant.name);
+
+    if (tenantsWithoutID.length > 0) {
+      issues.push(`房間租客缺少ID: ${tenantsWithoutID.join(", ")}`);
+    }
+
+    // 檢查申請者是否都有ID
+    const applicants = this.gameState.getStateValue("applicants", []);
+    const applicantsWithoutID = applicants
+      .filter((a) => !a.id)
+      .map((a) => a.name);
+
+    if (applicantsWithoutID.length > 0) {
+      issues.push(`申請者缺少ID: ${applicantsWithoutID.join(", ")}`);
+    }
+
+    // 檢查滿意度映射的一致性
+    const tenantIds = rooms
+      .filter((r) => r.tenant && r.tenant.id)
+      .map((r) => r.tenant.id);
+
+    const satisfactionIds = Array.from(this.tenantSatisfaction.keys());
+    const unmappedSatisfactions = satisfactionIds.filter(
+      (id) => !tenantIds.includes(id)
+    );
+
+    if (unmappedSatisfactions.length > 0) {
+      warnings.push(
+        `存在無對應租客的滿意度記錄: ${unmappedSatisfactions.join(", ")}`
+      );
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues: issues,
+      warnings: warnings,
+      stats: this.getIDStats(),
+    };
   }
 
   /**

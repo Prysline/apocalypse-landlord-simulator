@@ -1117,7 +1117,7 @@
             // 執行搜刮派遣
             if (gameApp.tenantManager.sendTenantScavenging) {
               gameApp.tenantManager
-                .sendTenantScavenging(targetTenant.name)
+                .sendTenantScavenging(targetTenant.id)
                 .then((result) => {
                   if (result.success) {
                     addLog(`搜刮成功！`, "success");
@@ -1188,7 +1188,8 @@
           const satisfactionMap = gameApp.tenantManager.getAllSatisfaction();
           if (satisfactionMap && satisfactionMap.size > 0) {
             addLog(`個別滿意度:`, "info");
-            satisfactionMap.forEach((satisfaction, tenantName) => {
+            satisfactionMap.forEach((satisfaction, tenantId) => {
+              const tenant = this.tenantManager.findTenantAndRoom(tenantId).tenant
               const level =
                 satisfaction >= 80
                   ? "😁極好"
@@ -1199,7 +1200,7 @@
                   : satisfaction >= 20
                   ? "😟不滿"
                   : "😠憤怒";
-              addLog(`  ${tenantName}: ${satisfaction} ${level}`, "info");
+              addLog(`  ${tenant.name}: ${satisfaction} ${level}`, "info");
             });
           }
 

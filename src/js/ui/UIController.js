@@ -844,9 +844,9 @@ export default class UIController {
 
         return `
               <div class="tenant-item ${tenant.infected ? "infected" : ""} ${
-          tenant.type
+          tenant.typeName
         }">
-                  ${tenant.name} (${tenant.type})<br>
+                  ${tenant.name} (${tenant.typeName})<br>
                   <small>房租: ${tenant.rent} | ${tenant.skill}</small>
                   ${resourceStatus}
                   <small>滿意度: ${satisfaction}% ${satisfactionEmoji}</small>
@@ -1216,7 +1216,7 @@ export default class UIController {
         const successRate = this._getTenantScavengeRate(tenant);
         return `
               <div class="applicant">
-                  <strong>${tenant.name}</strong> - ${tenant.type}<br>
+                  <strong>${tenant.name}</strong> - ${tenant.typeName}<br>
                   <small>技能: ${tenant.skill}</small><br>
                   <small>成功率: ${successRate}%</small><br>
                   <button class="btn btn-primary" onclick="uiController.sendTenantScavenge('${tenant.name}')">
@@ -1253,7 +1253,7 @@ export default class UIController {
 
     content.innerHTML = `
           <p><strong>姓名：</strong>${tenant.name}</p>
-          <p><strong>類型：</strong>${tenant.type}</p>
+          <p><strong>類型：</strong>${tenant.typeName}</p>
           <p><strong>技能：</strong>${tenant.skill}</p>
           <p><strong>房租：</strong>${tenant.rent} / 天</p>
           <p><strong>滿意度：</strong>${satisfaction}% ${
@@ -1473,10 +1473,10 @@ export default class UIController {
 
   /**
    * 派遣租客搜刮（暫時禁用，保留原有程式碼結構）
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @returns {Promise<void>}
    */
-  async sendTenantScavenge(tenantName) {
+  async sendTenantScavenge(tenantId) {
     // 暫時禁用功能，顯示開發中訊息
     if (this._isSystemAvailable() && this.gameApp.gameState) {
       this.gameApp.gameState.addLog("🚧 搜刮功能暫時禁用中", "danger");
@@ -1494,7 +1494,7 @@ export default class UIController {
      *
      * try {
      *   if (this.gameApp.gameState && typeof this.gameApp.gameState.processScavenge === "function") {
-     *     await this.gameApp.gameState.processScavenge(tenantName);
+     *     await this.gameApp.gameState.processScavenge(tenantId);
      *   } else {
      *     // 暫時的簡化處理...
      *   }
@@ -1507,25 +1507,26 @@ export default class UIController {
 
   /**
    * 驅逐租客（委託給 TenantManager）
-   * @param {string} tenantName - 租客姓名
+   * @param {number} tenantId - 租客ID
    * @param {boolean} isInfected - 是否因感染驅逐
    * @returns {Promise<void>}
    */
-  async evictTenant(tenantName, isInfected) {
+  async evictTenant(tenantId, isInfected) {
     if (!this._isSystemAvailable() || !this.gameApp.tenantManager) {
       console.warn("⚠️ TenantManager 不可用");
       return;
     }
+    const tenant = this.gameApp.tenantManager.findTalentAndRoom(tenantId).tenant
 
     this.showConfirmModal(
       isInfected ? "驅逐感染租客" : "租客退租確認",
-      `確定要${isInfected ? "驅逐感染的" : "讓"}租客 ${tenantName} ${
+      `確定要${isInfected ? "驅逐感染的" : "讓"}租客 ${tenant.name} ${
         isInfected ? "" : "退租"
       }嗎？`,
       async () => {
         try {
           await this.gameApp.tenantManager.evictTenant(
-            tenantName,
+            tenantId,
             isInfected,
             "房東決定"
           );

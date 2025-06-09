@@ -65,6 +65,7 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @typedef {Object} Tenant
  * @property {string} name - 租客姓名
  * @property {TenantType} type - 租客類型
+ * @property {string} typeName - 類型顯示名稱 
  * @property {string} skill - 技能描述
  * @property {number} rent - 房租金額
  * @property {boolean} [infected] - 是否感染

@@ -330,7 +330,7 @@ class GameApplication {
       this.eventBus.on("tenant_satisfactionCritical", (eventObj) => {
         const data = eventObj.data;
         console.warn(
-          `😡 租客滿意度極低: ${data.tenantName} (${data.satisfaction})`
+          `😡 租客滿意度極低: ${tenant.name} (${data.satisfaction})`
         );
       });
 
@@ -355,10 +355,11 @@ class GameApplication {
       this.eventBus.on("tenant_scavengeCompleted", (eventObj) => {
         const data = eventObj.data;
         const result = data.result;
+        const tenant = this.tenantManager.findTenantAndRoom(result.tenantId).tenant
         if (result.success) {
-          console.log(`✅ ${result.tenantName} 搜刮成功！獲得物資`);
+          console.log(`✅ ${tenant.name} 搜刮成功！獲得物資`);
         } else {
-          console.log(`❌ ${result.tenantName} 搜刮失敗`);
+          console.log(`❌ ${tenant.name} 搜刮失敗`);
         }
       });
 
