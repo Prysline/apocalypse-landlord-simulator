@@ -1297,9 +1297,9 @@ export default class UIController {
 
     actions.innerHTML = `
           <button class="btn" onclick="uiController.closeModal()">關閉</button>
-          <button class="btn btn-danger" onclick="uiController.evictTenant('${
-            tenant.name
-          }', ${tenant.infected})">
+          <button class="btn btn-danger" onclick="uiController.evictTenant(${
+            tenant.id
+          }, ${tenant.infected})">
               ${tenant.infected ? "驅逐（感染）" : "要求退租"}
           </button>
       `;
