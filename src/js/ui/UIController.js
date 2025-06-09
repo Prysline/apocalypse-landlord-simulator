@@ -1790,7 +1790,6 @@ export default class UIController {
 
     // 獲取可用技能列表
     const skills = skillManager.getAvailableSkills ? skillManager.getAvailableSkills() : [];
-    console.log(skills)
     if (skills.length === 0) {
       list.innerHTML = '<div class="skill-item">暫無可用技能</div>';
       this.showModal("skillModal");
@@ -1817,7 +1816,6 @@ export default class UIController {
     let htmlContent = '';
 
     Object.values(skillsByTenant).forEach(tenantGroup => {
-      console.log(tenantGroup)
       const {tenant, room} = this.gameApp.tenantManager.findTenantAndRoom(tenantGroup.id)
       htmlContent += `
         <div class="tenant-skill-group">
