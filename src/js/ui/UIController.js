@@ -7,36 +7,12 @@
  */
 
 /**
- * UI狀態
- * @typedef {Object} UIState
- * @property {boolean} debugMode - 是否為除錯模式
- * @property {string|null} activeModal - 當前活躍的模態框
- * @property {boolean} systemReady - 系統是否就緒
- */
-
-/**
- * 日誌類型
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
- */
-
-/**
- * 事件處理函數類型
- * @typedef {(event: Event) => void} EventHandler
- */
-
-/**
- * 點擊事件處理函數類型
- * @typedef {(event: MouseEvent) => void} ClickHandler
- */
-
-/**
- * 資源閾值類型定義
- * @typedef {Object} ResourceThresholds
- * @property {number} food - 食物閾值
- * @property {number} materials - 建材閾值
- * @property {number} medical - 醫療閾值
- * @property {number} fuel - 燃料閾值
- * @property {number} cash - 現金閾值
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').UIState} UIState
+ * @typedef {import('../Type.js').LogType} LogType
+ * @typedef {import('../Type.js').EventHandler} EventHandler
+ * @typedef {import('../Type.js').ClickHandler} ClickHandler
+ * @typedef {import('../Type.js').ResourceThresholds} ResourceThresholds
  */
 
 /**

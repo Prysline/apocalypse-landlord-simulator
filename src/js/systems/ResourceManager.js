@@ -9,8 +9,11 @@ import BaseManager from "./BaseManager.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').ResourceType} ResourceType
+ * @typedef {import('../Type.js').ResourceThresholds} ResourceThresholds
+ * @typedef {import('../Type.js').ResourceStatus} ResourceStatus
+ * @typedef {import('../Type.js').Resources} Resources
  */
 
 /**
@@ -34,25 +37,6 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {string} reason - 轉移原因
  * @property {boolean} success - 轉移是否成功
  * @property {string} timestamp - 轉移時間戳記
- */
-
-/**
- * 資源閾值配置
- * @typedef {Object} ResourceThresholds
- * @property {number} warning - 警告線
- * @property {number} critical - 危險線
- * @property {number} emergency - 緊急線
- * @property {number} [maximum] - 最大值（可選）
- */
-
-/**
- * 資源狀態評估結果
- * @typedef {Object} ResourceStatus
- * @property {ResourceType} resourceType - 資源類型
- * @property {number} currentValue - 當前數值
- * @property {'abundant'|'normal'|'warning'|'critical'|'emergency'} level - 狀態等級
- * @property {number} daysRemaining - 預估剩餘天數
- * @property {string[]} recommendations - 建議操作
  */
 
 /**
@@ -93,16 +77,6 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {string} reason - 修改原因
  * @property {string} [source] - 修改來源
  * @property {boolean} [allowNegative] - 是否允許負數結果
- */
-
-/**
- * 資源物件
- * @typedef {Object} Resources
- * @property {number} food - 食物數量
- * @property {number} materials - 建材數量
- * @property {number} medical - 醫療用品數量
- * @property {number} fuel - 燃料數量
- * @property {number} cash - 現金數量
  */
 
 /**

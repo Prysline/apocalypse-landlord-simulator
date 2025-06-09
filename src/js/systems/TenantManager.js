@@ -10,85 +10,18 @@ import { getValidator } from "../utils/validators.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
- * 租客類型聯合型別
- * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
- */
-
-/**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
- */
-
-/**
- * 日誌類型聯合型別
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
- */
-
-/**
- * 滿意度等級
- * @typedef {'excellent'|'good'|'normal'|'warning'|'critical'} SatisfactionLevel
- */
-
-/**
- * 租客狀態
- * @typedef {'healthy'|'infected'|'on_mission'|'evicted'} TenantStatus
- */
-
-/**
- * 個人資源物件
- * @typedef {Object} PersonalResources
- * @property {number} food - 個人食物
- * @property {number} materials - 個人建材
- * @property {number} medical - 個人醫療用品
- * @property {number} fuel - 個人燃料
- * @property {number} cash - 個人現金
- */
-
-/**
- * 租客物件
- * @typedef {Object} Tenant
- * @property {number} [id] - 統一個人ID
- * @property {string} name - 租客姓名
- * @property {TenantType} type - 租客類型
- * @property {string} typeName - 類型顯示名稱
- * @property {string} skill - 技能描述
- * @property {number} rent - 房租金額
- * @property {boolean} [infected] - 是否感染
- * @property {boolean} [onMission] - 是否執行任務中
- * @property {PersonalResources} [personalResources] - 個人資源
- * @property {string} [appearance] - 外觀描述
- * @property {number} [infectionRisk] - 感染風險
- * @property {string} [moveInDate] - 入住日期
- * @property {Object} [preferences] - 偏好設定
- * @property {Object} [skillHistory] - 技能使用歷史
- */
-
-
-/**
- * 申請者物件
- * @typedef {Object} Applicant
- * @property {number} id - 統一個人ID
- * @property {string} name - 姓名
- * @property {TenantType} type - 類型
- * @property {string} typeName - 類型顯示名稱
- * @property {string} skill - 技能
- * @property {number} rent - 房租
- * @property {boolean} infected - 是否感染（隱藏）
- * @property {boolean} [revealedInfection] - 是否已揭露感染
- * @property {string} appearance - 外觀描述
- * @property {number} infectionRisk - 感染風險
- * @property {PersonalResources} personalResources - 個人資源
- * @property {string} description - 技能描述
- */
-
-
-/**
- * 房間物件
- * @typedef {Object} Room
- * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
- * @property {boolean} needsRepair - 是否需要維修
- * @property {boolean} reinforced - 是否已加固
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').TenantType} TenantType
+ * @typedef {import('../Type.js').ResourceType} ResourceType
+ * @typedef {import('../Type.js').LogType} LogType
+ * @typedef {import('../Type.js').SatisfactionLevel} SatisfactionLevel
+ * @typedef {import('../Type.js').TenantStatus} TenantStatus
+ * @typedef {import('../Type.js').PersonalResources} PersonalResources
+ * @typedef {import('../Type.js').Tenant} Tenant
+ * @typedef {import('../Type.js').Applicant} Applicant
+ * @typedef {import('../Type.js').Room} Room
+ * @typedef {import('../Type.js').TenantRelationship} TenantRelationship
+ * @typedef {import('../Type.js').TenantStats} TenantStats
  */
 
 /**
@@ -116,16 +49,6 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {string} description - 狀態描述
  * @property {string[]} issues - 影響因子清單
  * @property {string[]} positives - 正面因子清單
- */
-
-/**
- * 租客關係
- * @typedef {Object} TenantRelationship
- * @property {number} tenant1Id - 租客1ID
- * @property {number} tenant2Id - 租客2ID
- * @property {number} relationship - 關係值 (-100 到 100)
- * @property {string} lastInteraction - 最後互動日期
- * @property {string[]} interactionHistory - 互動歷史
  */
 
 /**
@@ -190,18 +113,6 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {number} newValue - 新滿意度
  * @property {string} reason - 變更原因
  * @property {string} timestamp - 變更時間戳記
- */
-
-/**
- * 租客統計資料
- * @typedef {Object} TenantStats
- * @property {number} totalTenants - 總租客數
- * @property {number} healthyTenants - 健康租客數
- * @property {number} infectedTenants - 感染租客數
- * @property {number} onMissionTenants - 執行任務租客數
- * @property {number} averageSatisfaction - 平均滿意度
- * @property {number} totalRentIncome - 總租金收入
- * @property {Object.<TenantType, number>} typeDistribution - 類型分布
  */
 
 /**

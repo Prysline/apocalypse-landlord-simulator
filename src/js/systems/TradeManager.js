@@ -10,87 +10,19 @@ import BaseManager from "./BaseManager.js";
 import { getValidator } from "../utils/validators.js";
 
 /**
- * 交易類型聯合型別
- * @typedef {'rent'|'merchant'|'caravan'|'mutual_aid'} TradeType
- */
-
-/**
- * 商人交易類型
- * @typedef {'buy'|'sell'|'service'} MerchantTradeType
- */
-
-/**
- * 商人服務類型
- * @typedef {'healthCheck'|'quickRepair'|'security'|'information'} MerchantServiceType
- */
-
-/**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
- */
-
-/**
- * 租客類型聯合型別
- * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
- */
-
-/**
- * 互助類型
- * @typedef {'food_aid'|'cash_loan'|'medical_aid'|'tenant_purchase'|'landlord_purchase'} MutualAidType
- */
-
-/**
- * 資源物件
- * @typedef {Object} Resources
- * @property {number} food - 食物數量
- * @property {number} materials - 建材數量
- * @property {number} medical - 醫療用品數量
- * @property {number} fuel - 燃料數量
- * @property {number} cash - 現金數量
- */
-
-/**
- * 租客個人資源
- * @typedef {Object} PersonalResources
- * @property {number} food - 個人食物
- * @property {number} materials - 個人建材
- * @property {number} medical - 個人醫療用品
- * @property {number} fuel - 個人燃料
- * @property {number} cash - 個人現金
- */
-
-/**
- * 租客物件
- * @typedef {Object} Tenant
- * @property {string} name - 租客姓名
- * @property {TenantType} type - 租客類型
- * @property {string} skill - 技能描述
- * @property {number} rent - 房租金額
- * @property {boolean} [infected] - 是否感染
- * @property {boolean} [onMission] - 是否執行任務中
- * @property {PersonalResources} [personalResources] - 個人資源
- * @property {string} [appearance] - 外觀描述
- * @property {number} [infectionRisk] - 感染風險
- */
-
-/**
- * 房間物件
- * @typedef {Object} Room
- * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
- * @property {boolean} needsRepair - 是否需要維修
- * @property {boolean} reinforced - 是否已加固
- */
-
-/**
- * 商人交易選項
- * @typedef {Object} MerchantOffer
- * @property {MerchantTradeType} type - 交易類型
- * @property {ResourceType} [item] - 交易物品類型
- * @property {number} [amount] - 交易數量
- * @property {number} price - 交易價格
- * @property {MerchantServiceType} [service] - 服務類型
- * @property {string} description - 交易描述
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').TradeType} TradeType
+ * @typedef {import('../Type.js').MerchantTradeType} MerchantTradeType
+ * @typedef {import('../Type.js').MerchantServiceType} MerchantServiceType
+ * @typedef {import('../Type.js').ResourceType} ResourceType
+ * @typedef {import('../Type.js').TenantType} TenantType
+ * @typedef {import('../Type.js').MutualAidType} MutualAidType
+ * @typedef {import('../Type.js').Resources} Resources
+ * @typedef {import('../Type.js').PersonalResources} PersonalResources
+ * @typedef {import('../Type.js').Tenant} Tenant
+ * @typedef {import('../Type.js').Room} Room
+ * @typedef {import('../Type.js').MerchantOffer} MerchantOffer
+ * @typedef {import('../Type.js').CaravanOffer} CaravanOffer
  */
 
 /**
@@ -101,14 +33,6 @@ import { getValidator } from "../utils/validators.js";
  * @property {boolean} isTrader - 是否為商人
  * @property {MerchantOffer[]} [tradeOffers] - 交易選項
  * @property {boolean} [leavingAfterTrade] - 是否交易後離開
- */
-
-/**
- * 商隊交易選項
- * @typedef {Object} CaravanOffer
- * @property {Object.<ResourceType, number>} give - 付出的資源
- * @property {Object.<ResourceType, number>} receive - 獲得的資源
- * @property {string} description - 交易描述
  */
 
 /**

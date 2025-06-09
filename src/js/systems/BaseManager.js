@@ -7,23 +7,9 @@
  */
 
 /**
- * 日誌類型聯合型別
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
- */
-
-/**
- * 基礎狀態介面
- * @typedef {Object} BaseManagerStatus
- * @property {boolean} initialized - 是否已初始化
- * @property {boolean} configLoaded - 配置是否載入
- * @property {string} managerType - 管理器類型
- * @property {string} version - 版本資訊
- * @property {number} lastUpdated - 最後更新時間戳記
- * @property {number} createdAt - 建立時間戳記
- * @property {number} uptime - 運行時間（毫秒）
- * @property {boolean} hasGameState - 是否有 GameState 依賴
- * @property {boolean} hasEventBus - 是否有 EventBus 依賴
- * @property {string} eventNamingStrategy - 事件命名策略
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').LogType} LogType
+ * @typedef {import('../Type.js').BaseManagerStatus} BaseManagerStatus
  */
 
 /**
