@@ -645,6 +645,25 @@ body {
     overflow-y: auto;
     box-shadow: 0 20px 70px rgba(0, 0, 0, 0.6);
     animation: modalSlideIn 0.3s ease-out;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #222;
+}
+
+.modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #222;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 .modal-content h3 {
@@ -1052,6 +1071,11 @@ body {
 }
 
 @media (max-width: 768px) {
+    .game-container {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
     /* 基本樣式調整 */
     .main-area,
     .sidebar {
@@ -1065,6 +1089,11 @@ body {
 }
 
 @media (max-width: 480px) {
+    .game-container {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
     /* 基本樣式調整 */
     .main-area,
     .sidebar {
