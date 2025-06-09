@@ -11,6 +11,7 @@ import EventBus from "./core/EventBus.js";
 import ResourceManager from "./systems/ResourceManager.js";
 import TradeManager from "./systems/TradeManager.js";
 import TenantManager from "./systems/TenantManager.js";
+import SkillManager from "./systems/SkillManager.js";
 
 /**
  * 系統運行模式
@@ -34,6 +35,10 @@ import TenantManager from "./systems/TenantManager.js";
  * @property {number} systemEvents - 系統事件數量
  * @property {boolean} resourceManagerActive - 資源管理器是否啟用
  * @property {boolean} tenantManagerActive - 租客管理器是否啟用
+ * @property {boolean} skillManagerActive - 技能管理器是否啟用
+ * @property {number} [totalSkillsExecuted] - 總技能執行次數（可選）
+ * @property {number} [successfulSkills] - 成功技能執行次數（可選）
+ * @property {number} [passiveSkillsTriggered] - 被動技能觸發次數（可選）
  */
 
 /**
@@ -145,6 +150,12 @@ class GameApplication {
      * @type {TenantManager|null}
      */
     this.tenantManager = null;
+
+    /**
+     * 技能管理器實例
+     * @type {SkillManager|null}
+     */
+    this.skillManager = null;
 
     /**
      * 系統是否已初始化
@@ -261,6 +272,14 @@ class GameApplication {
       await this.tenantManager.initialize();
       console.log("✅ TenantManager 初始化完成");
 
+      this.skillManager = new SkillManager(
+        this.gameState,
+        this.eventBus,
+        this.dataManager
+      );
+      await this.skillManager.initialize();
+      console.log("✅ SkillManager 初始化完成");
+
       // 設定業務模組間的事件監聽
       this._setupBusinessModuleListeners();
 
@@ -329,6 +348,9 @@ class GameApplication {
 
       this.eventBus.on("tenant_satisfactionCritical", (eventObj) => {
         const data = eventObj.data;
+        const tenant = this.tenantManager.findTenantAndRoom(
+          data.tenantId
+        ).tenant;
         console.warn(
           `😡 租客滿意度極低: ${tenant.name} (${data.satisfaction})`
         );
@@ -444,6 +466,7 @@ class GameApplication {
         this.resourceManager?.getStatus?.()?.isActive || false,
       tenantManagerActive:
         this.tenantManager?.getStatus?.()?.initialized || false,
+      skillManagerActive: this.skillManager?.getStatus().initialized || false,
     };
 
     if (this.gameState) {
@@ -473,6 +496,14 @@ class GameApplication {
         console.warn("無法取得事件統計:", error);
         stats.systemEvents = 0;
       }
+    }
+
+    // 技能系統統計資訊（可選）
+    if (this.skillManager?.getStats) {
+      const skillStats = this.skillManager.getStats();
+      stats.totalSkillsExecuted = skillStats.totalSkillsExecuted || 0;
+      stats.successfulSkills = skillStats.successfulExecutions || 0;
+      stats.passiveSkillsTriggered = skillStats.passiveTriggered || 0;
     }
 
     return stats;

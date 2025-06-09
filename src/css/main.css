@@ -624,8 +624,8 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(5px);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
     z-index: 1000;
     animation: modalFadeIn 0.3s ease-out;
 }
@@ -635,15 +635,15 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
     border: 2px solid #666;
     border-radius: 12px;
     padding: 25px;
-    max-width: 500px;
+    max-width: 600px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
-    box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.6);
     animation: modalSlideIn 0.3s ease-out;
 }
 
@@ -652,6 +652,8 @@ body {
     color: #66ccff;
     border-bottom: 1px solid #444;
     padding-bottom: 8px;
+    font-size: 1.3em;
+    text-shadow: 0 0 10px rgba(102, 204, 255, 0.3);
 }
 
 .modal-actions {
@@ -661,6 +663,143 @@ body {
     margin-top: 20px;
     padding-top: 15px;
     border-top: 1px solid #444;
+}
+
+/* ===========================================
+   技能模態框樣式
+   =========================================== */
+
+.tenant-skill-group {
+    background: linear-gradient(145deg, #333, #2a2a2a);
+    margin: 8px 0;
+    padding: 8px;
+    border-radius: 8px;
+    border-left: 3px solid #4a6644;
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.tenant-skill-group:hover {
+    background: linear-gradient(145deg, #3a3a3a, #2d3d2d);
+    border-left-color: #66aa66;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.tenant-name {
+    color: #66ccff;
+    margin: 0.5rem 0;
+    font-size: 1.1em;
+    border-bottom: 1px solid #444;
+    padding-bottom: 2px;
+    text-shadow: 0 0 8px rgba(102, 204, 255, 0.2);
+}
+
+.tenant-skills {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+
+.skill-item {
+    background: linear-gradient(145deg, #2a2a2a, #1d1d1d);
+    border-left: 3px solid #4a6644;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 8px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    min-height: 60px;
+    justify-content: space-between;
+}
+
+.skill-item:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
+    pointer-events: none;
+}
+
+.skill-item:hover {
+    background: linear-gradient(145deg, #323232, #222222);
+    border-left-color: #66aa66;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(102, 170, 102, 0.2);
+}
+
+.skill-item > div {
+    flex-grow: 1;
+    padding-right: 10px;
+}
+
+.skill-item strong {
+    color: #ffcc66;
+    display: block;
+    margin: 0;
+    font-size: 0.9em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    letter-spacing: 0.3px;
+    padding: 0;
+}
+
+.skill-item small {
+    color: #ccc;
+    display: block;
+    margin: 0;
+    line-height: 1.2;
+    font-size: 0.8em;
+    padding: 2px 0;
+}
+
+.skill-item small:last-of-type {
+    color: #aaddaa;
+    font-weight: 500;
+    margin: 0;
+    padding: 2px 0 0;
+}
+
+.skill-item .btn {
+    margin-left: 10px;
+    width: auto;
+    background: linear-gradient(145deg, #4a6644, #3a5534);
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    padding: 6px 10px;
+    font-size: 0.8em;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.skill-item .btn:hover {
+    background: linear-gradient(145deg, #5a7754, #4a6644);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.skill-item .btn:active {
+    background: linear-gradient(145deg, #3a5534, #4a6644);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.skill-item .btn:disabled {
+    background: linear-gradient(145deg, #444, #333);
+    border: 1px solid #444;
+    color: #888;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    opacity: 0.7;
 }
 
 .applicant {
@@ -865,10 +1004,68 @@ body {
         flex-direction: column;
         gap: 6px;
     }
+
+    /* 技能模態框響應式調整 */
+    .tenant-skills {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 5px;
+    }
+
+    .tenant-skill-group {
+        padding: 6px;
+        margin: 6px 0;
+    }
+
+    .tenant-name {
+        font-size: 0.9em;
+        margin-bottom: 5px;
+        padding-bottom: 3px;
+    }
+
+    .skill-item {
+         padding: 5px;
+     }
+     
+     .skill-item strong {
+         font-size: 0.85em;
+         margin-bottom: 2px;
+         letter-spacing: 0.3px;
+     }
+     
+     .skill-item small {
+         font-size: 0.75em;
+         margin-bottom: 2px;
+         line-height: 1.2;
+     }
+     
+     .skill-item small:last-of-type {
+         margin-bottom: 3px;
+         font-size: 0.75em;
+     }
+     
+     .skill-item .btn {
+         padding: 3px 5px;
+         margin-top: 3px;
+         font-size: 0.75em;
+         letter-spacing: 0.3px;
+     }
+}
+
+@media (max-width: 768px) {
+    /* 基本樣式調整 */
+    .main-area,
+    .sidebar {
+        padding: 15px;
+    }
+    
+    .tenant-skills {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 6px;
+    }
 }
 
 @media (max-width: 480px) {
-
+    /* 基本樣式調整 */
     .main-area,
     .sidebar {
         padding: 10px;
@@ -894,6 +1091,65 @@ body {
 
     .game-help {
         font-size: 10px;
+    }
+
+    /* 技能模態框小屏幕調整 */
+    .modal-content {
+        padding: 8px;
+        max-width: 98%;
+    }
+
+    .btn {
+        padding: 5px 8px;
+        font-size: 0.85em;
+    }
+
+    .modal-content h3 {
+        font-size: 1em;
+        padding-bottom: 4px;
+        margin-bottom: 6px;
+    }
+    
+    .tenant-skills {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 6px;
+    }
+    
+    .tenant-skill-group {
+        padding: 5px;
+        margin: 5px 0;
+    }
+    
+    .tenant-name {
+        font-size: 0.85em;
+        padding-bottom: 3px;
+        margin-bottom: 4px;
+    }
+    
+    .skill-item {
+        min-height: 50px;
+        padding: 6px;
+    }
+    
+    .skill-item strong {
+        font-size: 0.8em;
+        padding: 0;
+        letter-spacing: 0.2px;
+    }
+    
+    .skill-item small {
+        font-size: 0.7em;
+        padding: 2px 0;
+    }
+    
+    .skill-item small:last-of-type {
+        padding: 2px 0 0;
+    }
+    
+    .skill-item .btn {
+        padding: 6px 4px;
+        font-size: 0.7em;
+        letter-spacing: 0.2px;
     }
 }
 

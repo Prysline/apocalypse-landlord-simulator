@@ -91,8 +91,8 @@
                 <button class="btn btn-primary" id="harvestBtn">
                     🌱 院子採集
                 </button>
-                <button class="btn btn-warning" id="skillBtn" disabled title="技能系統開發中">
-                    ⭐ 使用技能 (開發中)
+                <button class="btn btn-primary" id="skillBtn">
+                    ⭐ 使用技能
                 </button>
                 <button class="btn btn-danger" id="nextDayBtn">
                     🌙 下一天
@@ -166,6 +166,17 @@
             <h3 id="tenantModalTitle">租客管理</h3>
             <div id="tenantModalContent"></div>
             <div id="tenantModalActions" class="modal-actions"></div>
+        </div>
+    </div>
+
+    <!-- 技能模態框 -->
+    <div class="modal" id="skillModal">
+        <div class="modal-content">
+            <h3>可使用技能</h3>
+            <div id="skillListContainer"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="uiController?.closeModal('skillModal')">關閉</button>
+            </div>
         </div>
     </div>
 

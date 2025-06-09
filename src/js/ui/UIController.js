@@ -150,7 +150,7 @@ export default class UIController {
     if (!this.gameApp.isInitialized) {
       console.log("⏳ 等待 gameApp 初始化完成...");
       let attempts = 0;
-      
+
       while (!this.gameApp.isInitialized && attempts < 100) {
         await new Promise((resolve) => setTimeout(resolve, 50));
         attempts++;
@@ -525,6 +525,7 @@ export default class UIController {
     this.bindButton("scavengeBtn", () => this.handleShowScavenge());
     this.bindButton("harvestBtn", () => this.handleHarvestYard());
     this.bindButton("nextDayBtn", () => this.handleNextDay());
+    this.bindButton("skillBtn", () => this.showSkillModal());
 
     // 房間點擊事件 - 修正類型問題
     document.querySelectorAll(".room").forEach((room) => {
@@ -1166,7 +1167,7 @@ export default class UIController {
                   房租: ${visitor.rent}/天${infectionStatus}<br>
                   <button class="btn ${
                     visitor.revealedInfection ? "btn-danger" : "btn-primary"
-                  }" 
+                  }"
                           onclick="uiController.hireTenant(${visitor.id})"
                           ${
                             visitor.revealedInfection
@@ -1516,7 +1517,7 @@ export default class UIController {
       console.warn("⚠️ TenantManager 不可用");
       return;
     }
-    const tenant = this.gameApp.tenantManager.findTalentAndRoom(tenantId).tenant
+    const tenant = this.gameApp.tenantManager.findTenantAndRoom(tenantId).tenant
 
     this.showConfirmModal(
       isInfected ? "驅逐感染租客" : "租客退租確認",
@@ -1769,5 +1770,186 @@ export default class UIController {
     this.stopPeriodicUpdates();
     this.uiState.systemReady = false;
     console.log("🎨 UIController 已銷毀");
+  }
+
+
+
+
+  // ...
+
+  /**
+   * 顯示技能模態框
+   * @returns {void}
+   */
+  showSkillModal() {
+    if (!this._isSystemAvailable()) {
+      console.warn("⚠️ 系統不可用");
+      return;
+    }
+
+    const modal = document.getElementById("skillModal");
+    const list = document.getElementById("skillListContainer");
+
+    if (!modal || !list) {
+      console.error("找不到技能模態框或技能列表元素");
+      return;
+    }
+
+    // 從 skillManager 獲取可用技能
+    const skillManager = this.gameApp.skillManager;
+    if (!skillManager) {
+      list.innerHTML = '<div class="skill-item">技能系統未載入</div>';
+      this.showModal("skillModal");
+      return;
+    }
+
+    // 獲取可用技能列表
+    const skills = skillManager.getAvailableSkills ? skillManager.getAvailableSkills() : [];
+    console.log(skills)
+    if (skills.length === 0) {
+      list.innerHTML = '<div class="skill-item">暫無可用技能</div>';
+      this.showModal("skillModal");
+      return;
+    }
+
+    // 按租客分組技能
+    const skillsByTenant = {};
+    skills.forEach(skill => {
+      if (!skill.tenantId || !skill.tenantName) return;
+
+      if (!skillsByTenant[skill.tenantId]) {
+        skillsByTenant[skill.tenantId] = {
+          id: skill.tenantId,
+          name: skill.tenantName,
+          skills: []
+        };
+      }
+
+      skillsByTenant[skill.tenantId].skills.push(skill);
+    });
+
+    // 生成技能列表，按租客分組
+    let htmlContent = '';
+
+    Object.values(skillsByTenant).forEach(tenantGroup => {
+      console.log(tenantGroup)
+      const {tenant, room} = this.gameApp.tenantManager.findTenantAndRoom(tenantGroup.id)
+      htmlContent += `
+        <div class="tenant-skill-group">
+          <h4 class="tenant-name">${tenant.name} (${tenant.typeName}) - 房間${room.id}</h4>
+          <div class="tenant-skills">
+      `;
+
+      tenantGroup.skills.forEach(skill => {
+        const costText = Object.entries(skill.cost || {})
+          .map(([resource, amount]) => `${resource}: ${amount}`)
+          .join(', ');
+
+        htmlContent += `
+          <div class="skill-item">
+            <div>
+              <strong>${skill.name}</strong>
+              <small>${skill.description}</small>
+              <small>消耗: ${costText || '無'}</small>
+            </div>
+            <button class="btn btn-primary"
+                    onclick="uiController.useSkill('${skill.id}')"
+                    ${skill.canUse === false ? 'disabled' : ''}>
+              使用${skill.cooldownRemaining > 0 ? ` (冷卻中: ${skill.cooldownRemaining})` : ''}
+            </button>
+          </div>
+        `;
+      });
+
+      htmlContent += `
+          </div>
+        </div>
+      `;
+    });
+
+    // 如果沒有按租客分組的技能（舊版本兼容），則使用原來的方式顯示
+    if (htmlContent === '') {
+      htmlContent = skills.map(skill => {
+        const costText = Object.entries(skill.cost || {})
+          .map(([resource, amount]) => `${resource}: ${amount}`)
+          .join(', ');
+
+        return `
+          <div class="skill-item">
+            <div>
+              <strong>${skill.name}</strong>
+              <small>${skill.description}</small>
+              <small>消耗: ${costText || '無'}</small>
+            </div>
+            <button class="btn btn-primary"
+                    onclick="uiController.useSkill('${skill.id}')"
+                    ${skill.canUse === false ? 'disabled' : ''}>
+              使用${skill.cooldown > 0 ? ` (冷卻中: ${skill.cooldown})` : ''}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    list.innerHTML = htmlContent;
+    this.showModal("skillModal");
+  }
+
+  /**
+   * 使用技能
+   * @param {string} skillId - 技能ID
+   * @returns {void}
+   */
+  useSkill(skillId) {
+    if (!this._isSystemAvailable()) {
+      console.warn("⚠️ 系統不可用");
+      return;
+    }
+
+    const skillManager = this.gameApp.skillManager;
+    if (!skillManager || typeof skillManager.executeSkill !== 'function') {
+      console.error("技能系統未載入或無法執行技能");
+      if (this.gameApp.gameState) {
+        this.gameApp.gameState.addLog("技能系統未載入", "danger");
+      }
+      return;
+    }
+
+    try {
+      // 從 skillManager 獲取技能和租客ID
+      const allSkills = skillManager.getAvailableSkills();
+      const skillWithTenant = allSkills.find(s => s.id === skillId);
+
+      if (!skillWithTenant || !skillWithTenant.tenantId) {
+        console.error(`無法確定技能的租客: ${skillId}`);
+        if (this.gameApp.gameState) {
+          this.gameApp.gameState.addLog(`無法確定技能的租客`, "danger");
+        }
+        return;
+      }
+
+      // 執行技能
+      const result = skillManager.executeSkill(skillWithTenant.tenantId, skillId);
+
+      // 關閉模態框
+      this.closeModal();
+
+      // 更新顯示
+      this.updateAllDisplays();
+
+      // 添加日誌
+      if (this.gameApp.gameState) {
+        if (result.success) {
+          this.gameApp.gameState.addLog(`成功使用技能: ${result.skillName || skillId}`, "skill");
+        } else {
+          this.gameApp.gameState.addLog(`無法使用技能: ${result.message || '未知錯誤'}`, "danger");
+        }
+      }
+    } catch (error) {
+      console.error("執行技能失敗:", error);
+      if (this.gameApp.gameState) {
+        this.gameApp.gameState.addLog("執行技能失敗", "danger");
+      }
+    }
   }
 }
