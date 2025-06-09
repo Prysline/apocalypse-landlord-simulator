@@ -9,8 +9,14 @@
 import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.js';
 
 /**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').ResourceType} ResourceType - 資源類型
+ * @typedef {import('../Type.js').TenantType} TenantType - 租客類型
+ * @typedef {import('../Type.js').LogType} LogType - 日誌類型
+ * @typedef {import('../Type.js').Resources} Resources - 資源物件
+ * @typedef {import('../Type.js').Tenant} Tenant - 租客物件
+ * @typedef {import('../Type.js').Room} Room - 房間物件
+ * @typedef {import('../Type.js').LogEntry} LogEntry - 日誌條目物件
  */
 
 /**
@@ -19,28 +25,8 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  */
 
 /**
- * 租客類型聯合型別
- * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
- */
-
-/**
- * 日誌類型聯合型別
- * @typedef {'event'|'rent'|'danger'|'skill'|''} LogType
- */
-
-/**
  * 狀態更新事件類型
  * @typedef {'state_changed'|'log_added'|'day_advanced'|'state_reset'|'state_imported'} StateEventType
- */
-
-/**
- * 資源物件
- * @typedef {Object} Resources
- * @property {number} food - 食物數量
- * @property {number} materials - 建材數量
- * @property {number} medical - 醫療用品數量
- * @property {number} fuel - 燃料數量
- * @property {number} cash - 現金數量
  */
 
 /**
@@ -58,30 +44,6 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @property {number} medical - 個人醫療用品
  * @property {number} fuel - 個人燃料
  * @property {number} cash - 個人現金
- */
-
-/**
- * 租客物件
- * @typedef {Object} Tenant
- * @property {string} name - 租客姓名
- * @property {TenantType} type - 租客類型
- * @property {string} typeName - 類型顯示名稱
- * @property {string} skill - 技能描述
- * @property {number} rent - 房租金額
- * @property {boolean} [infected] - 是否感染
- * @property {boolean} [onMission] - 是否執行任務中
- * @property {TenantResources} [personalResources] - 個人資源
- * @property {string} [appearance] - 外觀描述
- * @property {number} [infectionRisk] - 感染風險
- */
-
-/**
- * 房間物件
- * @typedef {Object} Room
- * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
- * @property {boolean} needsRepair - 是否需要維修
- * @property {boolean} reinforced - 是否已加固
  */
 
 /**
@@ -127,16 +89,6 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @property {boolean} fallbackMode - 是否為後備模式
  * @property {string|null} lastSaved - 最後存檔時間
  * @property {Object|null} gameRules - 遊戲規則配置物件
- */
-
-/**
- * 遊戲日誌條目
- * @typedef {Object} LogEntry
- * @property {number} day - 發生天數
- * @property {TimeState} time - 發生時間
- * @property {string} message - 日誌訊息
- * @property {LogType} type - 日誌類型
- * @property {string} timestamp - 時間戳記
  */
 
 /**
@@ -550,7 +502,7 @@ export class GameState {
    * @param {string|null} [timestamp=null] - 自訂時間戳記
    * @returns {void}
    */
-  addLog(message, type = "", timestamp = null) {
+  addLog(message, type = "default", timestamp = null) {
     /** @type {LogEntry} */
     const logEntry = {
       day: this.state.day,

@@ -587,30 +587,6 @@ class GameApplication {
   }
 
   /**
-   * 更新遊戲日誌UI
-   * 將新的日誌條目添加到介面中
-   * @private
-   * @param {LogEntry} logEntry - 要顯示的日誌條目
-   * @returns {void}
-   */
-  _updateGameLogUI(logEntry) {
-    const logElement = document.getElementById("gameLog");
-    if (!logElement) return;
-
-    const entryElement = document.createElement("div");
-    entryElement.className = `log-entry ${logEntry.type}`;
-    entryElement.textContent = `第${logEntry.day}天: ${logEntry.message}`;
-
-    logElement.appendChild(entryElement);
-    logElement.scrollTop = logElement.scrollHeight;
-
-    // 限制日誌顯示數量
-    while (logElement.children.length > 50) {
-      logElement.removeChild(logElement.firstChild);
-    }
-  }
-
-  /**
    * 處理初始化錯誤
    * 當正常初始化失敗時，嘗試最小模式啟動
    * @private

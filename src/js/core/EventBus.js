@@ -5,30 +5,14 @@
  * 職責：提供模組間的事件驅動通信機制
  */
 
-import { EVENT_TYPES, SYSTEM_LIMITS } from "../utils/constants.js";
+import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
- * 事件監聽器函數型別
- * @typedef {function(EventObject): (any|Promise<any>)} EventListener
- */
-
-/**
- * 事件物件結構
- * @typedef {Object} EventObject
- * @property {string} type - 事件類型
- * @property {any} data - 事件資料
- * @property {string} timestamp - 時間戳記（ISO格式）
- * @property {string} id - 事件唯一識別碼
- * @property {Object} [options] - 附加選項
- */
-
-/**
- * 監聽器選項配置
- * @typedef {Object} ListenerOptions
- * @property {number} [priority=0] - 監聽器優先級
- * @property {function(EventObject): boolean} [filter] - 事件過濾器函數
- * @property {number} [throttle=0] - 節流間隔（毫秒）
- * @property {boolean} [once=false] - 是否僅執行一次
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').EventListener} EventListener
+ * @typedef {import('../Type.js').EventObject} EventObject
+ * @typedef {import('../Type.js').ListenerOptions} ListenerOptions
+ * @typedef {import('../Type.js').UnsubscribeFunction} UnsubscribeFunction
  */
 
 /**
@@ -74,11 +58,6 @@ import { EVENT_TYPES, SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {number} dataSize - 資料大小（字節）
  * @property {Object} options - 選項
  * @property {number} listenerCount - 監聽器數量
- */
-
-/**
- * 取消監聽器函數
- * @typedef {function(): boolean} UnsubscribeFunction
  */
 
 /**

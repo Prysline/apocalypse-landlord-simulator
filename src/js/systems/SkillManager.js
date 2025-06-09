@@ -10,18 +10,16 @@ import { getValidator } from "../utils/validators.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('../Type.js').TenantType} TenantType
+ * @typedef {import('../Type.js').ResourceType} ResourceType
+ * @typedef {import('../Type.js').Tenant} Tenant
+ * @typedef {import('../Type.js').Room} Room
+ */
+
+/**
  * 技能類型聯合型別
  * @typedef {'active'|'passive'|'special'} SkillType
- */
-
-/**
- * 租客類型聯合型別
- * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
- */
-
-/**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
  */
 
 /**
@@ -37,33 +35,6 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 /**
  * 驗證失敗原因聯合型別
  * @typedef {'tenant_not_found'|'tenant_infected'|'skill_not_found'|'insufficient_resources'|'on_cooldown'|'requirements_not_met'|'execution_error'} ValidationFailureReason
- */
-
-/**
- * 租客物件
- * @typedef {Object} Tenant
- * @property {string} name - 租客姓名
- * @property {TenantType} type - 租客類型
- * @property {TenantType} [typeId] - 租客類型ID（向後相容）
- * @property {string} skill - 技能描述
- * @property {number} rent - 房租金額
- * @property {boolean} [infected] - 是否感染
- * @property {boolean} [onMission] - 是否執行任務中
- * @property {Object} [personalResources] - 個人資源
- * @property {number} [personalResources.cash] - 個人現金
- * @property {string} [appearance] - 外觀描述
- * @property {number} [infectionRisk] - 感染風險
- * @property {number} [id] - 唯一識別碼
- * @property {string} [moveInDate] - 入住日期
- */
-
-/**
- * 房間物件
- * @typedef {Object} Room
- * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
- * @property {boolean} needsRepair - 是否需要維修
- * @property {boolean} reinforced - 是否已加固
  */
 
 /**
@@ -665,12 +636,12 @@ export class SkillManager extends BaseManager {
     const tenants = rooms
       .filter(room => room.tenant && room.tenant.id)
       .map(room => room.tenant);
-    
+
     if (tenants.length === 0) {
       this.logWarning("沒有可用的租客");
       return [];
     }
-    
+
     // 從所有租客中收集可用技能
     const allSkills = [];
     tenants.forEach(tenant => {
@@ -679,7 +650,7 @@ export class SkillManager extends BaseManager {
         allSkills.push(...tenantSkills);
       }
     });
-    
+
     return allSkills;
   }
 
@@ -701,7 +672,7 @@ export class SkillManager extends BaseManager {
     }
 
     const tenantTypeId = /** @type {TenantType} */ (
-      tenant.typeId || tenant.type
+      tenant.type
     );
     const tenantSkills = this.skillRegistry.get(tenantTypeId) || [];
     const currentDay = this.gameState.getStateValue("day", 1);
@@ -841,7 +812,7 @@ export class SkillManager extends BaseManager {
     const typeCount = rooms.filter(
       (room) =>
         room.tenant &&
-        (room.tenant.typeId === value || room.tenant.type === value)
+        (room.tenant.type === value)
     ).length;
     return typeCount >= count;
   }
@@ -925,7 +896,7 @@ export class SkillManager extends BaseManager {
     rooms.forEach((room) => {
       if (room.tenant && !room.tenant.infected) {
         const tenantTypeId = /** @type {TenantType} */ (
-          room.tenant.typeId || room.tenant.type
+          room.tenant.type
         );
         const tenantSkills = this.skillRegistry.get(tenantTypeId) || [];
         const passives = tenantSkills.filter(

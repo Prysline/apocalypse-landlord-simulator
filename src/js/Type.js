@@ -20,7 +20,7 @@
 
 /**
  * 日誌類型聯合型別
- * @typedef {'event'|'rent'|'danger'|'skill'} LogType
+ * @typedef {'event'|'rent'|'danger'|'skill'|'default'} LogType
  */
 
 /**
@@ -318,6 +318,7 @@
  * @property {string} message - 日誌訊息
  * @property {LogType} type - 日誌類型
  * @property {number} day - 遊戲天數
+ * @property {TimeState} time - 發生時間
  * @property {string} timestamp - 時間戳
  */
 
