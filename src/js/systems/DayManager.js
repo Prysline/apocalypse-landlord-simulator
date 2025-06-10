@@ -213,7 +213,10 @@ class DayManager extends BaseManager {
     const currentDay = this.gameState.getStateValue('day', 0);
     const newDay = currentDay + 1;
 
-    this.addLog(`🌅 開始第 ${newDay} 天的循環`);
+    // 技術日誌：只在 terminal 顯示
+    console.log(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
+    // 遊戲日誌：玩家可見的內容
+    this.addLog(`🌅 第 ${newDay} 天開始`);
 
     try {
       // 檢查必要管理器可用性
@@ -243,7 +246,10 @@ class DayManager extends BaseManager {
         duration: this.lastExecutionTime
       });
 
-      this.logSuccess(`✅ 第 ${newDay} 天循環完成 (${this.lastExecutionTime}ms)`);
+      // 技術日誌：顯示執行時間等技術資訊
+      console.log(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
+      // 遊戲日誌：簡潔的完成訊息
+      this.addLog(`✅ 第 ${newDay} 天結束`);
 
       return {
         success: true,
@@ -351,10 +357,19 @@ class DayManager extends BaseManager {
         ? await manager[methodName]()
         : manager[methodName]();
 
-      this.addLog(`${operationName}完成`);
+      // 技術日誌：只在 terminal 顯示
+      console.log(`✅ DayManager: ${operationName}完成`);
+
+      // Debug 模式下才在遊戲日誌中顯示技術訊息
+      if (this.isDebugMode && typeof this.isDebugMode === 'function' && this.isDebugMode()) {
+        this.addLog(`[DEBUG] ${operationName}完成`);
+      }
+
       return result;
     } catch (error) {
-      this.logError(`${operationName}失敗`, error);
+      console.error(`❌ DayManager: ${operationName}失敗 -`, error);
+      // 錯誤訊息需要在遊戲日誌中顯示，但使用更友善的用語
+      this.addLog(`⚠️ 系統處理異常`, 'danger');
       return null;
     }
   }

@@ -319,7 +319,7 @@ export class BaseManager {
       this.eventBus.emit(finalEventName, data, eventOptions);
 
       // 除錯日誌（僅在除錯模式下）
-      if (!options.skipLog && this._isDebugMode()) {
+      if (!options.skipLog && this.isDebugMode()) {
         const category = this._getEventCategory(finalEventName);
         const crossModule = this._isCrossModuleEvent(finalEventName);
 
@@ -383,7 +383,7 @@ export class BaseManager {
         this.eventBus.on(finalEventName, wrappedCallback);
       }
 
-      if (this._isDebugMode()) {
+      if (this.isDebugMode()) {
         const category = this._getEventCategory(finalEventName);
         console.debug(
           `👂 ${this.managerType} 監聽事件: ${finalEventName} [${category}]`
@@ -416,7 +416,7 @@ export class BaseManager {
   addLog(message, type = "event", options = {}) {
     try {
       // 根據除錯模式決定是否添加管理器來源標識
-      const shouldShowSource = this._isDebugMode() || options.forceSource;
+      const shouldShowSource = this.isDebugMode() || options.forceSource;
       const displayMessage = shouldShowSource
         ? `[${this.managerType}] ${message}`
         : message;
@@ -442,7 +442,7 @@ export class BaseManager {
             type: type,
             originalMessage: message, // 保留原始訊息
             managerType: this.managerType, // 明確提供來源資訊
-            debugMode: this._isDebugMode(), // 提供模式資訊
+            debugMode: this.isDebugMode(), // 提供模式資訊
             timestamp: new Date().toISOString(),
           },
           { skipLog: true }
@@ -477,7 +477,7 @@ export class BaseManager {
     this.addLog(fullMessage, "danger", { forceConsole: true });
 
     // 如果有錯誤物件，也輸出堆疊追蹤
-    if (error instanceof Error && this._isDebugMode()) {
+    if (error instanceof Error && this.isDebugMode()) {
       console.error(`${this.managerType} 錯誤堆疊:`, error.stack);
     }
   }
@@ -583,7 +583,7 @@ export class BaseManager {
 
     this.logSuccess("事件命名規則已更新");
 
-    if (this._isDebugMode()) {
+    if (this.isDebugMode()) {
       console.debug(
         `${this.managerType} 更新後的事件命名規則:`,
         this._eventNamingRules
@@ -663,10 +663,9 @@ export class BaseManager {
 
   /**
    * 檢查是否為除錯模式
-   * @private
    * @returns {boolean} 是否為除錯模式
    */
-  _isDebugMode() {
+  isDebugMode() {
     return (
       (typeof window !== "undefined" &&
         window.location?.search?.includes("debug=true")) ||
@@ -722,7 +721,7 @@ export class BaseManager {
    * @returns {void}
    */
   debugEventNaming() {
-    if (!this._isDebugMode()) return;
+    if (!this.isDebugMode()) return;
 
     console.group(`🔍 ${this.managerType} 事件前綴解析示例`);
 
