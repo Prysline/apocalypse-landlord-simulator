@@ -1062,22 +1062,40 @@ export default class UIController {
   async executeNextDay() {
     if (!this._isSystemAvailable()) return;
 
-    try {
-      // 委託給 GameState 處理天數推進邏輯
-      if (
-        this.gameApp.gameState &&
-        typeof this.gameApp.gameState.advanceDay === "function"
-      ) {
-        await this.gameApp.gameState.advanceDay();
-      }
-    } catch (error) {
-      console.error("推進天數失敗:", error);
-      if (
-        this.gameApp.gameState &&
-        typeof this.gameApp.gameState.addLog === "function"
-      ) {
+    // 檢查 DayManager 是否可用
+    if (!this.gameApp.dayManager) {
+      // 降級處理：直接調用原有邏輯
+      this.gameApp.gameState.addLog("DayManager 未可用，使用傳統推進方式", "warning");
+
+      try {
+        if (this.gameApp.gameState && typeof this.gameApp.gameState.advanceDay === "function") {
+          await this.gameApp.gameState.advanceDay();
+        }
+      } catch (error) {
+        console.error("推進天數失敗:", error);
         this.gameApp.gameState.addLog("推進天數時發生錯誤", "danger");
       }
+      return;
+    }
+
+    try {
+      this.gameApp.gameState.addLog("開始執行每日循環...", "info");
+
+      // 委託給 DayManager 執行循環
+      const result = await this.gameApp.dayManager.executeNextDay();
+
+      if (result.success) {
+        this.gameApp.gameState.addLog(`✅ 第 ${result.newDay} 天循環完成！`, "success");
+        this.updateAllDisplays();
+      } else {
+        this.gameApp.gameState.addLog(`❌ 每日循環失敗: ${result.error}`, "error");
+      }
+
+    } catch (error) {
+      console.error("執行每日循環時發生例外:", error);
+      this.gameApp.gameState.addLog(`⚠️ 執行過程發生錯誤: ${error.message}`, "error");
+    } finally {
+      this.closeModal();
     }
   }
 

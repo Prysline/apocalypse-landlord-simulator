@@ -1329,6 +1329,38 @@ export class ResourceManager extends BaseManager {
     return typeof value === "number" && !isNaN(value) && isFinite(value);
   }
 
+
+  /**
+   * 處理每日資源消費（最小實作）
+   * @returns {Promise<boolean>} 處理是否成功
+   */
+  async processDailyConsumption() {
+    try {
+      const tenants = this.gameState.getAllTenants();
+
+      // 簡單消費計算：房東2食物 + 租客每人2食物 + 1燃料
+      const foodConsumption = 2 + (tenants.length * 2);
+      const fuelConsumption = 1;
+
+      // 執行消費
+      this.modifyResource('food', -foodConsumption, '每日食物消費', 'daily_cycle');
+      this.modifyResource('fuel', -fuelConsumption, '每日燃料消費', 'daily_cycle');
+
+      return true;
+    } catch (error) {
+      this.logError("每日消費處理失敗", error);
+      return false;
+    }
+  }
+
+  /**
+   * 檢查所有資源閾值（公開現有私有方法）
+   * @returns {void}
+   */
+  checkAllResourceThresholds() {
+    this._checkAllResourceThresholds();
+  }
+
   // ==========================================
   // 清理與維護
   // ==========================================

@@ -2770,6 +2770,41 @@ export class TenantManager extends BaseManager {
   }
 
   /**
+   * 重置租客每日狀態（最小實作）
+   * @returns {Promise<boolean>} 重置是否成功
+   */
+  async resetDailyStates() {
+    try {
+      // 重置系統級每日狀態
+      this.gameState.setStateValue("dailyActions.rentCollected", false, "每日重置");
+      this.gameState.setStateValue("dailyActions.scavengeUsed", 0, "每日重置");
+
+      // 減少採集冷卻時間
+      const harvestCooldown = this.gameState.getStateValue("dailyActions.harvestCooldown", 0);
+      if (harvestCooldown > 0) {
+        this.gameState.setStateValue(
+          "dailyActions.harvestCooldown",
+          harvestCooldown - 1,
+          "每日冷卻遞減"
+        );
+      }
+
+      // 重置租客任務狀態
+      const rooms = this.gameState.getStateValue("rooms", []);
+      rooms.forEach(room => {
+        if (room.tenant && room.tenant.onMission) {
+          room.tenant.onMission = false;
+        }
+      });
+
+      return true;
+    } catch (error) {
+      this.logError("租客每日狀態重置失敗", error);
+      return false;
+    }
+  }
+
+  /**
    * 清理系統數據
    * @returns {void}
    */

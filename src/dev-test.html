@@ -530,6 +530,18 @@
                 </div>
               </div>
 
+              <div class="button-group">
+                <div class="group-title">🌅 DayManager 循環測試</div>
+                <div class="button-row">
+                  <button class="btn primary" onclick="testDayManagerExecution()">
+                    🔄 測試循環執行
+                  </button>
+                  <button class="btn" onclick="checkDayManagerBasic()">
+                    📊 檢查基本狀態
+                  </button>
+                </div>
+              </div>
+
               <!-- =================== ResourceManager 測試 =================== -->
               <div class="button-group">
                 <div class="group-title">💎 ResourceManager</div>
@@ -992,6 +1004,61 @@
         addLog("詳細除錯資訊已輸出到控制台", "info");
         gameApp.debug();
       };
+
+  /**
+  * 測試 DayManager 基本執行
+  */
+  window.testDayManagerExecution = async function() {
+  if (!gameApp || !gameApp.dayManager) {
+  addLog('DayManager 未初始化', 'error');
+  return;
+  }
+
+  try {
+  addLog('=== DayManager 執行測試 ===', 'info');
+
+  const beforeDay = gameApp.gameState.getStateValue('day', 1);
+
+  // 執行循環
+  const result = await gameApp.dayManager.executeNextDay();
+
+  if (result.success) {
+  addLog(`✅ 循環成功！天數: ${beforeDay} → ${result.newDay}`, 'success');
+  } else {
+  addLog(`❌ 循環失敗: ${result.error}`, 'error');
+  }
+
+  updateSystemInfo();
+
+  } catch (error) {
+  addLog('DayManager 測試失敗: ' + error.message, 'error');
+  }
+  };
+
+  /**
+  * 檢查 DayManager 基本狀態
+  */
+  window.checkDayManagerBasic = function() {
+  if (!gameApp || !gameApp.dayManager) {
+  addLog('DayManager 未初始化', 'error');
+  return;
+  }
+
+  try {
+  addLog('=== DayManager 基本檢查 ===', 'info');
+
+  const initialized = gameApp.dayManager.markInitialized;
+  addLog(`初始化狀態: ${initialized ? '✅ 正常' : '❌ 異常'}`,
+  initialized ? 'success' : 'error');
+
+  const availability = gameApp.dayManager.getManagerAvailability();
+  addLog(`必要依賴: ${availability.allRequiredAvailable ? '✅ 完整' : '❌ 缺失'}`,
+  availability.allRequiredAvailable ? 'success' : 'error');
+
+  } catch (error) {
+  addLog('DayManager 狀態檢查失敗: ' + error.message, 'error');
+  }
+  };
 
       // ========================================
       // TenantManager 測試函數
