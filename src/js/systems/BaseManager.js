@@ -413,7 +413,12 @@ export class BaseManager {
    * @param {boolean} [options.forceSource=false] - 是否強制顯示來源標識（無視debug模式）
    * @returns {void}
    */
-  addLog(message, type = "event", options = {}) {
+  addLog(message, type = "event", options = {
+    skipGameLog: false,
+    skipEvent: false,
+    forceConsole: false,
+    forceSource: false,
+  }) {
     try {
       // 根據除錯模式決定是否添加管理器來源標識
       const shouldShowSource = this.isDebugMode() || options.forceSource;

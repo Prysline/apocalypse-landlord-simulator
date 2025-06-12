@@ -399,6 +399,21 @@ export class TradeManager extends BaseManager {
       };
     }
 
+    // 檢查今日是否已收租
+    const dailyActions = this.gameState.getStateValue("dailyActions", {});
+    if (dailyActions.rentCollected) {
+      this.addLog("今日已收取過租金", "event");
+      return {
+        success: false,
+        error: "今日已收取過租金",
+        totalCashRent: 0,
+        resourcePayments: [],
+        failedPayments: [],
+        bonusIncome: 0,
+        summary: "今日已收取過租金",
+      };
+    }
+
     this.logSuccess("開始處理租金收取");
 
     /** @type {RentCollectionResult} */
@@ -417,7 +432,7 @@ export class TradeManager extends BaseManager {
 
       // 檢查是否有租客
       const roomsWithTenants = rooms.filter(
-        /** @type {function(Room): boolean} */ (room) => room.tenant !== null
+        /** @type {function(Room): boolean} */(room) => room.tenant !== null
       );
       if (roomsWithTenants.length === 0) {
         results.success = false;
@@ -428,7 +443,7 @@ export class TradeManager extends BaseManager {
 
       // 篩選可收租的租客（未感染）
       const occupiedRooms = rooms.filter(
-        /** @type {function(Room): boolean} */ (room) =>
+        /** @type {function(Room): boolean} */(room) =>
           room.tenant && !room.tenant.infected
       );
 
@@ -481,20 +496,29 @@ export class TradeManager extends BaseManager {
         }
       }
 
-      // 更新統計
-      this.updateTradeStats(
-        "rent",
-        results.totalCashRent + results.bonusIncome
-      );
+      // 成功收租後的處理
+      if (results.success && (results.totalCashRent > 0 || results.resourcePayments.length > 0)) {
 
-      // 生成摘要
-      results.summary = this.generateRentCollectionSummary(results);
-      this.addLog(results.summary, "rent");
+        // 設置今日已收租狀態
+        this.gameState.setStateValue(
+          "dailyActions.rentCollected",
+          true,
+          "rent_collection_completed"
+        );
 
-      // 發送租金收取完成事件
-      this.emitEvent("rentCollectionCompleted", results);
+        // 更新統計
+        this.updateTradeStats("rent", results.totalCashRent + results.bonusIncome);
 
-      this.logSuccess("租金收取處理完成");
+        // 生成摘要
+        results.summary = this.generateRentCollectionSummary(results);
+        this.addLog(results.summary, "rent");
+
+        // 發送租金收取完成事件
+        this.emitEvent("rentCollectionCompleted", results);
+
+        this.logSuccess("租金收取處理完成");
+      }
+
       return results;
     } catch (error) {
       this.logError("租金收取處理失敗", error);
@@ -656,9 +680,8 @@ export class TradeManager extends BaseManager {
           type: resourceType,
           amount: resourceUsed,
           value: Math.floor(valueProvided),
-          description: `${resourceUsed}份${
-            resourceNames[resourceType]
-          } (價值$${Math.floor(valueProvided)})`,
+          description: `${resourceUsed}份${resourceNames[resourceType]
+            } (價值$${Math.floor(valueProvided)})`,
         };
 
         result.resourcePayments.push(paymentRecord);
@@ -1466,7 +1489,7 @@ export class TradeManager extends BaseManager {
       Object.keys(offer.give).forEach((resourceType) => {
         const amount = offer.give[resourceType];
         this.resourceManager.modifyResource(
-          /** @type {ResourceType} */ (resourceType),
+          /** @type {ResourceType} */(resourceType),
           -amount,
           "caravan_trade"
         );
@@ -1476,7 +1499,7 @@ export class TradeManager extends BaseManager {
       Object.keys(offer.receive).forEach((resourceType) => {
         const amount = offer.receive[resourceType];
         this.resourceManager.modifyResource(
-          /** @type {ResourceType} */ (resourceType),
+          /** @type {ResourceType} */(resourceType),
           amount,
           "caravan_trade"
         );
@@ -1531,7 +1554,7 @@ export class TradeManager extends BaseManager {
       .map(
         (type) =>
           `${offer.give[type]} ${this.getResourceDisplayName(
-            /** @type {ResourceType} */ (type)
+            /** @type {ResourceType} */(type)
           )}`
       )
       .join(", ");
@@ -1540,7 +1563,7 @@ export class TradeManager extends BaseManager {
       .map(
         (type) =>
           `${offer.receive[type]} ${this.getResourceDisplayName(
-            /** @type {ResourceType} */ (type)
+            /** @type {ResourceType} */(type)
           )}`
       )
       .join(", ");

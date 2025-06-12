@@ -112,7 +112,7 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @property {Resources} resources - 資源狀態
  * @property {LandlordState} landlord - 房東狀態
  * @property {Room[]} rooms - 房間陣列
- * @property {TenantsState} tenants - 租客相關狀態
+ * @property {TenantsState} tenantsState - 租客相關狀態
  * @property {BuildingState} building - 建築狀態
  * @property {DailyActions} dailyActions - 每日操作狀態
  * @property {GlobalEffects} globalEffects - 全局效果狀態
@@ -240,7 +240,7 @@ export class GameState {
       ],
 
       // 租客相關狀態
-      tenants: {
+      tenantsState: {
         satisfaction: {},
         relationships: [],
         conflictHistory: [],

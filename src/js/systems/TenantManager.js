@@ -197,9 +197,6 @@ export class TenantManager extends BaseManager {
     /** @type {SatisfactionHistory[]} 滿意度變更歷史 */
     this.satisfactionHistory = [];
 
-    /** @type {Applicant[]} 當前申請者列表 */
-    this.currentApplicants = [];
-
     // 工具
     /** @type {Object|null} 驗證器實例 */
     this.validator = null;
@@ -286,21 +283,6 @@ export class TenantManager extends BaseManager {
     console.log("✅ TenantManager 事件監聽器設置完成");
   }
 
-  /**
-   * 取得擴展狀態資訊
-   * @protected
-   * @returns {Object} 擴展狀態物件
-   */
-  getExtendedStatus() {
-    return {
-      stats: this.getTenantStats(),
-      activeConflicts: this.conflictHistory.filter((c) => !c.resolved).length,
-      satisfactionHistorySize: this.satisfactionHistory.length,
-      validatorAvailable: !!this.validator,
-      currentApplicants: this.currentApplicants.length,
-      scavengeStatus: this.getScavengeStatus(),
-    };
-  }
 
   // ==========================================
   // 系統初始化
@@ -544,19 +526,31 @@ export class TenantManager extends BaseManager {
 
   /**
    * 雇用租客 - 主要入口點
-   * @param {Applicant} applicant - 申請者物件
+   * @param {number} applicantId - 申請者ID
    * @param {number} [targetRoomId] - 指定房間ID（可選）
    * @returns {Promise<HiringResult>} 雇用結果
    * @throws {Error} 當系統未初始化或雇用過程失敗時
    */
-  async hireTenant(applicant, targetRoomId) {
+  async hireTenant(applicantId, targetRoomId) {
     if (!this.initialized) {
       return { success: false, error: "系統未初始化" };
     }
 
-    console.log(`👤 開始雇用租客: ${applicant.name} (${applicant.type})`);
+    console.log(`👤 開始雇用租客: 開始雇用租客ID: ${applicantId}`);
 
     try {
+      // 🔍 先通過 ID 查找申請者
+      const applicant = this.findApplicantById(applicantId);
+      if (!applicant) {
+        return {
+          success: false,
+          error: `找不到申請者 ID: ${applicantId}`,
+          reason: "確認申請者 ID 是否有效"
+        };
+      }
+
+      console.log(`✅ 找到申請者: ${applicant.name} (${applicant.type})`);
+
       // 驗證雇用條件
       const validation = this.validateHiring(applicant, targetRoomId);
       if (!validation.valid) {
@@ -1575,7 +1569,12 @@ export class TenantManager extends BaseManager {
       applicants.push(applicant);
     }
 
-    this.currentApplicants = applicants;
+    // ✅ 統一存儲到 GameState
+    const success = this.gameState.setStateValue(
+      "applicants",
+      applicants,
+      "生成新申請者"
+    );
 
     console.log(`👥 生成了 ${applicants.length} 個申請者`);
     return applicants;
@@ -1894,11 +1893,23 @@ export class TenantManager extends BaseManager {
    * @returns {boolean} 移除是否成功
    */
   removeApplicant(applicantId) {
-    const initialLength = this.currentApplicants.length;
-    this.currentApplicants = this.currentApplicants.filter(
+    const currentApplicants = this.gameState.getStateValue("applicants", []);
+    const filteredApplicants = currentApplicants.filter(
       (a) => a.id !== applicantId
     );
-    return this.currentApplicants.length < initialLength;
+
+    const success = this.gameState.setStateValue(
+      "applicants",
+      filteredApplicants,
+      `移除申請者 ${applicantId}`
+    );
+
+    if (success) {
+      // 清理個人註冊
+      this.unregisterPerson(applicantId);
+    }
+
+    return success;
   }
 
   /**
@@ -1906,7 +1917,7 @@ export class TenantManager extends BaseManager {
    * @returns {Applicant[]} 申請者列表
    */
   getCurrentApplicants() {
-    return [...this.currentApplicants];
+    return this.gameState.getStateValue("applicants", []);
   }
 
   /**
@@ -1914,7 +1925,62 @@ export class TenantManager extends BaseManager {
    * @returns {void}
    */
   clearApplicants() {
-    this.currentApplicants = [];
+    // 獲取當前申請者用於清理註冊
+    const currentApplicants = this.getCurrentApplicants();
+
+    const success = this.gameState.setStateValue("applicants", [], "清空申請者列表");
+
+    if (success) {
+      // 清理所有申請者的個人註冊
+      currentApplicants.forEach(applicant => {
+        this.unregisterPerson(applicant.id);
+      });
+    }
+
+    return success;
+  }
+
+  /**
+   * 取得申請者統計資訊
+   * @returns {Object} 申請者統計
+   */
+  getApplicantStats() {
+    const applicants = this.getCurrentApplicants();
+
+    const stats = {
+      totalApplicants: applicants.length,
+      infectedApplicants: applicants.filter(a => a.infected).length,
+      typeDistribution: {},
+      averageRent: 0
+    };
+
+    // 計算職業分布
+    const types = ["doctor", "worker", "farmer", "soldier", "elder"];
+    types.forEach(type => {
+      stats.typeDistribution[type] = applicants.filter(a => a.type === type).length;
+    });
+
+    // 計算平均房租
+    if (applicants.length > 0) {
+      stats.averageRent = Math.round(
+        applicants.reduce((sum, a) => sum + a.rent, 0) / applicants.length
+      );
+    }
+
+    return stats;
+  }
+
+  /**
+   * 刷新申請者列表（移除舊申請者，生成新申請者）
+   * @param {number} [count] - 新申請者數量
+   * @returns {Applicant[]} 新申請者列表
+   */
+  refreshApplicants(count) {
+    // 清空現有申請者
+    this.clearApplicants();
+
+    // 生成新申請者
+    return this.generateApplicants(count);
   }
 
   // ==========================================
@@ -2745,6 +2811,22 @@ export class TenantManager extends BaseManager {
       issues.push(`申請者缺少ID: ${applicantsWithoutID.join(", ")}`);
     }
 
+    // 檢查個人註冊表與實際數據的一致性
+    const registeredApplicants = Array.from(this.personRegistry.values())
+      .filter(person => person._systemRole === 'applicant')
+      .map(person => person.id);
+
+    const actualApplicantIds = applicants.map(a => a.id);
+    const unmappedRegistrations = registeredApplicants.filter(
+      id => !actualApplicantIds.includes(id)
+    );
+
+    if (unmappedRegistrations.length > 0) {
+      warnings.push(
+        `存在無對應申請者的註冊記錄: ${unmappedRegistrations.join(", ")}`
+      );
+    }
+
     // 檢查滿意度映射的一致性
     const tenantIds = rooms
       .filter((r) => r.tenant && r.tenant.id)
@@ -2765,7 +2847,10 @@ export class TenantManager extends BaseManager {
       isValid: issues.length === 0,
       issues: issues,
       warnings: warnings,
-      stats: this.getIDStats(),
+      stats: {
+        ...this.getIDStats(),
+        applicantStats: this.getApplicantStats()
+      },
     };
   }
 
@@ -2776,18 +2861,7 @@ export class TenantManager extends BaseManager {
   async resetDailyStates() {
     try {
       // 重置系統級每日狀態
-      this.gameState.setStateValue("dailyActions.rentCollected", false, "每日重置");
       this.gameState.setStateValue("dailyActions.scavengeUsed", 0, "每日重置");
-
-      // 減少採集冷卻時間
-      const harvestCooldown = this.gameState.getStateValue("dailyActions.harvestCooldown", 0);
-      if (harvestCooldown > 0) {
-        this.gameState.setStateValue(
-          "dailyActions.harvestCooldown",
-          harvestCooldown - 1,
-          "每日冷卻遞減"
-        );
-      }
 
       // 重置租客任務狀態
       const rooms = this.gameState.getStateValue("rooms", []);
@@ -2813,7 +2887,13 @@ export class TenantManager extends BaseManager {
     this.tenantRelationships = [];
     this.conflictHistory = [];
     this.satisfactionHistory = [];
-    this.currentApplicants = [];
+
+    // ✅ 清理申請者（統一清空）
+    this.clearApplicants();
+
+    // 清理個人註冊表
+    this.personRegistry.clear();
+    this.nextPersonId = 1;
 
     // 調用 BaseManager 的清理方法
     super.cleanup();
