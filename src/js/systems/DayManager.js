@@ -248,8 +248,6 @@ class DayManager extends BaseManager {
 
       // 技術日誌：顯示執行時間等技術資訊
       console.log(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
-      // 遊戲日誌：簡潔的完成訊息
-      this.addLog(`✅ 第 ${newDay} 天結束`);
 
       return {
         success: true,
@@ -328,7 +326,14 @@ class DayManager extends BaseManager {
       false // 同步操作
     );
 
-    // 7. 生成新申請者
+    // 7. 重置並生成新申請者
+    this._executeManagerOperation(
+      this.tenantManager,
+      'clearApplicants',
+      '清空申請者',
+      false
+    );
+
     this._executeManagerOperation(
       this.tenantManager,
       'generateApplicants',

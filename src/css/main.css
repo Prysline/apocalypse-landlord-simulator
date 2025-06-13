@@ -146,12 +146,12 @@ body {
     padding: 6px 10px;
     backdrop-filter: blur(10px);
     min-width: 100px;
+    font-size: 0.9em;
     text-align: center;
 }
 
 .status-label {
     color: #ccc;
-    font-size: 0.9em;
 }
 
 .status-value {
@@ -1044,24 +1044,24 @@ body {
     .skill-item {
          padding: 5px;
      }
-     
+
      .skill-item strong {
          font-size: 0.85em;
          margin-bottom: 2px;
          letter-spacing: 0.3px;
      }
-     
+
      .skill-item small {
          font-size: 0.75em;
          margin-bottom: 2px;
          line-height: 1.2;
      }
-     
+
      .skill-item small:last-of-type {
          margin-bottom: 3px;
          font-size: 0.75em;
      }
-     
+
      .skill-item .btn {
          padding: 3px 5px;
          margin-top: 3px;
@@ -1081,7 +1081,7 @@ body {
     .sidebar {
         padding: 15px;
     }
-    
+
     .tenant-skills {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 6px;
@@ -1138,43 +1138,43 @@ body {
         padding-bottom: 4px;
         margin-bottom: 6px;
     }
-    
+
     .tenant-skills {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 6px;
     }
-    
+
     .tenant-skill-group {
         padding: 5px;
         margin: 5px 0;
     }
-    
+
     .tenant-name {
         font-size: 0.85em;
         padding-bottom: 3px;
         margin-bottom: 4px;
     }
-    
+
     .skill-item {
         min-height: 50px;
         padding: 6px;
     }
-    
+
     .skill-item strong {
         font-size: 0.8em;
         padding: 0;
         letter-spacing: 0.2px;
     }
-    
+
     .skill-item small {
         font-size: 0.7em;
         padding: 2px 0;
     }
-    
+
     .skill-item small:last-of-type {
         padding: 2px 0 0;
     }
-    
+
     .skill-item .btn {
         padding: 6px 4px;
         font-size: 0.7em;

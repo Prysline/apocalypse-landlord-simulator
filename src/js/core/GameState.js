@@ -542,8 +542,6 @@ export class GameState {
         ),
         maxScavengePerDay: this.state.dailyActions.maxScavengePerDay,
       },
-      visitors: [],
-      applicants: [],
     };
 
     const success = this.setState(updates, "推進到下一天");

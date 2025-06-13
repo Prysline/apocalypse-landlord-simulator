@@ -1,267 +1,295 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>末日房東模擬器 v2.0</title>
-    <link rel="stylesheet" href="css/main.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>末日房東模擬器 v2.0</title>
+  <link rel="stylesheet" href="css/main.css">
 </head>
+
 <body>
-    <div class="game-container">
-        <div class="main-area">
-            <!-- 系統狀態指示器 -->
-            <div id="systemStatus" class="system-status status-loading">
-                🔄 正在載入遊戲系統...
-            </div>
+  <div class="game-container">
+    <div class="main-area">
+      <!-- 系統狀態指示器 -->
+      <div id="systemStatus" class="system-status status-loading">
+        🔄 正在載入遊戲系統...
+      </div>
 
-            <!-- 遊戲標題（雙擊啟用除錯） -->
-            <h1 id="gameTitle" class="game-title">末日房東模擬器</h1>
-            <p class="game-subtitle">在殭屍橫行的世界中經營你的租屋事業</p>
+      <!-- 遊戲標題（雙擊啟用除錯） -->
+      <h1 id="gameTitle" class="game-title">末日房東模擬器</h1>
+      <p class="game-subtitle">在殭屍橫行的世界中經營你的租屋事業</p>
 
-            <!-- 遊戲狀態列 -->
-            <div class="status-bar">
-                <div class="status-item">
-                    <span class="status-label">第</span>
-                    <span id="gameDay" class="status-value">1</span>
-                    <span class="status-label">天</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">時間:</span>
-                    <span id="gameTime" class="status-value">白天</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">💰 現金:</span>
-                    <span id="gameCash" class="status-value">$50</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">🛡️ 防禦:</span>
-                    <span id="buildingDefense" class="status-value">脆弱(0)</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">🍽️ 飢餓:</span>
-                    <span id="landlordHunger" class="status-value">飽足(0)</span>
-                </div>
-            </div>
-
-            <!-- 房屋佈局 -->
-            <div class="house-layout">
-                <div class="room" id="room1" data-room-id="1">
-                    <div class="room-info" id="room1-info">空房</div>
-                </div>
-                <div class="room" id="room2" data-room-id="2">
-                    <div class="room-info" id="room2-info">空房</div>
-                </div>
-            </div>
-
-            <!-- 資源顯示 -->
-            <div class="resources-grid">
-                <div class="resource-item">
-                    <span class="resource-icon">🍖</span>
-                    <span class="resource-label">食物:</span>
-                    <span id="resourceFood" class="resource-value">20</span>
-                </div>
-                <div class="resource-item">
-                    <span class="resource-icon">🔧</span>
-                    <span class="resource-label">建材:</span>
-                    <span id="resourceMaterials" class="resource-value">15</span>
-                </div>
-                <div class="resource-item">
-                    <span class="resource-icon">💊</span>
-                    <span class="resource-label">醫療:</span>
-                    <span id="resourceMedical" class="resource-value">10</span>
-                </div>
-                <div class="resource-item">
-                    <span class="resource-icon">⛽</span>
-                    <span class="resource-label">燃料:</span>
-                    <span id="resourceFuel" class="resource-value">8</span>
-                </div>
-            </div>
-
-            <!-- 控制按鈕 -->
-            <div class="controls">
-                <button class="btn btn-success" id="collectRentBtn">
-                    💰 收租
-                </button>
-                <button class="btn btn-primary" id="showVisitorsBtn">
-                    👥 查看訪客
-                </button>
-                <button class="btn btn-warning" id="scavengeBtn" disabled title="搜刮系統重構中">
-                    🚶 搜刮派遣 (重構中)
-                </button>
-                <button class="btn btn-primary" id="harvestBtn">
-                    🌱 院子採集
-                </button>
-                <button class="btn btn-primary" id="skillBtn">
-                    ⭐ 使用技能
-                </button>
-                <button class="btn btn-danger" id="nextDayBtn">
-                    🌙 下一天
-                </button>
-            </div>
-
-            <!-- 遊戲日誌 -->
-            <div class="log-section">
-                <h3>遊戲日誌</h3>
-                <div class="log" id="gameLog">
-                    <div class="log-entry event">遊戲開始！你繼承了這棟老房子，末日中的倖存者們正在尋找住所...</div>
-                </div>
-            </div>
+      <!-- 遊戲狀態列 -->
+      <div class="status-bar">
+        <div class="status-item">
+          <span class="status-label">第</span>
+          <span id="day" class="status-value">1</span>
+          <span class="status-label">天</span>
         </div>
-
-        <!-- 側邊欄 -->
-        <div class="sidebar">
-            <h3>租客列表</h3>
-            <div class="tenant-list" id="tenantList">
-                <div class="tenant-item">暫無租客</div>
-            </div>
-
-            <h3>遊戲說明</h3>
-            <div class="game-help">
-                <p>• 點擊房間查看租客詳情</p>
-                <p>• 邀請訪客租房或交易</p>
-                <p>• 商人訪客提供各種交易</p>
-                <p>• 租客可用資源抵付房租</p>
-                <p>• 派遣租客外出搜刮資源</p>
-                <p>• 房東也需要食物維生</p>
-                <p>• 建築防禦保護所有人安全</p>
-            </div>
-
-            <!-- 隱藏的除錯面板 -->
-            <div id="debugPanel" class="debug-panel" style="display: none;">
-                <h4>🔧 除錯面板</h4>
-                <div class="debug-section">
-                    <h5>系統狀態</h5>
-                    <div id="debugSystemInfo" class="debug-info">載入中...</div>
-                </div>
-                <div class="debug-section">
-                    <h5>模組狀態</h5>
-                    <div id="debugModuleInfo" class="debug-info">載入中...</div>
-                </div>
-                <div class="debug-section">
-                    <h5>快速操作</h5>
-                    <div class="debug-controls">
-                        <button class="btn btn-small" onclick="window.gameApp?.debug()">控制台除錯</button>
-                        <button class="btn btn-small" onclick="uiController?.addTestResources()">增加資源</button>
-                        <button class="btn btn-small" onclick="uiController?.toggleDebugPanel()">關閉面板</button>
-                    </div>
-                </div>
-            </div>
+        <div class="status-item">
+          <span class="status-label">時間:</span>
+          <span id="time" class="status-value">☀️白天</span>
         </div>
+        <div class="status-item">
+          <span class="status-label">💰 現金:</span>
+          <span id="cash" class="status-value">$50</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">🛡️ 防禦:</span>
+          <span id="buildingDefenseText" class="status-value">脆弱(0)</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">🍽️ 飢餓:</span>
+          <span id="landlordHungerText" class="status-value">飽足(0)</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">🔍 搜刮:</span>
+          <span id="scavengeCount" class="status-value">0/2</span>
+        </div>
+      </div>
+
+      <!-- 房屋佈局 -->
+      <div class="house-layout">
+        <div class="room" id="room1" data-room-id="1">
+          <div class="room-info" id="room1-info">空房</div>
+        </div>
+        <div class="room" id="room2" data-room-id="2">
+          <div class="room-info" id="room2-info">空房</div>
+        </div>
+      </div>
+
+      <!-- 資源顯示 -->
+      <div class="resources-grid">
+        <div class="resource-item">
+          <span class="resource-icon">🍖</span>
+          <span class="resource-label">食物:</span>
+          <span id="food" class="resource-value">20</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">🔧</span>
+          <span class="resource-label">建材:</span>
+          <span id="materials" class="resource-value">15</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">💊</span>
+          <span class="resource-label">醫療:</span>
+          <span id="medical" class="resource-value">10</span>
+        </div>
+        <div class="resource-item">
+          <span class="resource-icon">⛽</span>
+          <span class="resource-label">燃料:</span>
+          <span id="fuel" class="resource-value">8</span>
+        </div>
+      </div>
+
+      <!-- 控制按鈕 -->
+      <div class="controls">
+        <button class="btn btn-success" id="collectRentBtn">
+          💰 收租
+        </button>
+        <button class="btn btn-primary" id="showVisitorsBtn">
+          👥 查看訪客
+        </button>
+        <button class="btn btn-warning" id="showScavengeBtn">
+          🚶 搜刮派遣
+        </button>
+        <button class="btn btn-primary" id="harvestYardBtn">
+          🌱 院子採集
+        </button>
+        <button class="btn btn-primary" id="showSkillBtn">
+          ⭐ 使用技能
+        </button>
+        <button class="btn btn-danger" id="nextDayBtn">
+          🌙 下一天
+        </button>
+      </div>
+
+      <!-- 遊戲日誌 -->
+      <div class="log-section">
+        <h3>遊戲日誌</h3>
+        <div class="log" id="gameLog">
+          <div class="log-entry event">遊戲開始！你繼承了這棟老房子，末日中的倖存者們正在尋找住所...</div>
+        </div>
+      </div>
     </div>
 
-    <!-- 訪客/申請者模態框 -->
-    <div class="modal" id="visitorModal">
-        <div class="modal-content">
-            <h3>今日訪客</h3>
-            <div id="visitorList"></div>
-            <div class="modal-actions">
-                <button class="btn" onclick="uiController?.closeModal()">關閉</button>
-            </div>
+    <!-- 側邊欄 -->
+    <div class="sidebar">
+      <h3>租客列表</h3>
+      <div class="tenant-list" id="tenantList">
+        <div class="tenant-item">暫無租客</div>
+      </div>
+
+      <h3>遊戲說明</h3>
+      <div class="game-help">
+        <p>• 點擊房間查看租客詳情</p>
+        <p>• 邀請訪客租房或交易</p>
+        <p>• 商人訪客提供各種交易</p>
+        <p>• 租客可用資源抵付房租</p>
+        <p>• 派遣租客外出搜刮資源</p>
+        <p>• 房東也需要食物維生</p>
+        <p>• 建築防禦保護所有人安全</p>
+      </div>
+
+      <!-- 隱藏的除錯面板 -->
+      <div id="debugPanel" class="debug-panel" style="display: none;">
+        <h4>🔧 除錯面板</h4>
+        <div class="debug-section">
+          <h5>系統狀態</h5>
+          <div id="debugSystemInfo" class="debug-info">載入中...</div>
         </div>
-    </div>
-
-    <!-- 租客管理模態框 -->
-    <div class="modal" id="tenantModal">
-        <div class="modal-content">
-            <h3 id="tenantModalTitle">租客管理</h3>
-            <div id="tenantModalContent"></div>
-            <div id="tenantModalActions" class="modal-actions"></div>
+        <div class="debug-section">
+          <h5>模組狀態</h5>
+          <div id="debugModuleInfo" class="debug-info">載入中...</div>
         </div>
-    </div>
-
-    <!-- 技能模態框 -->
-    <div class="modal" id="skillModal">
-        <div class="modal-content">
-            <h3>可使用技能</h3>
-            <div id="skillListContainer"></div>
-            <div class="modal-actions">
-                <button class="btn" onclick="uiController?.closeModal('skillModal')">關閉</button>
-            </div>
+        <div class="debug-section">
+          <h5>快速操作</h5>
+          <div class="debug-controls">
+            <button class="btn btn-small" onclick="console.log(window.gameApp?.getStatus())">控制台除錯</button>
+            <button class="btn btn-small" onclick="uiCore?.addTestResources()">增加資源</button>
+            <button class="btn btn-small" onclick="uiCore?.regenerateVisitors()">重新生成訪客</button>
+            <button class="btn btn-small" onclick="uiCore?.toggleDebugPanel()">關閉面板</button>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 
-    <!-- 搜刮派遣模態框 -->
-    <div class="modal" id="scavengeModal">
-        <div class="modal-content">
-            <h3>選擇派遣人員</h3>
-            <p>剩餘派遣次數: <span id="remainingScavenges">2</span></p>
-            <div id="availableTenants"></div>
-            <div class="modal-actions">
-                <button class="btn" onclick="uiController?.closeModal()">取消</button>
-            </div>
-        </div>
+  <!-- 訪客/申請者模態框 -->
+  <div class="modal" id="visitorModal">
+    <div class="modal-content">
+      <h3>今日訪客</h3>
+      <div id="visitorList"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="uiCore?.closeModal()">關閉</button>
+      </div>
     </div>
+  </div>
 
-    <!-- 確認對話框 -->
-    <div class="modal" id="confirmModal">
-        <div class="modal-content">
-            <h3 id="confirmTitle">確認操作</h3>
-            <p id="confirmMessage"></p>
-            <div class="modal-actions">
-                <button class="btn btn-danger" id="confirmYes">確定</button>
-                <button class="btn" id="confirmNo">取消</button>
-            </div>
-        </div>
+  <!-- 租客管理模態框 -->
+  <div class="modal" id="tenantModal">
+    <div class="modal-content">
+      <h3 id="tenantModalTitle">租客管理</h3>
+      <div id="tenantModalContent"></div>
+      <div id="tenantModalActions" class="modal-actions"></div>
     </div>
+  </div>
 
-    <!-- 載入UI控制器 -->
-    <script type="module">
-        import UIController from './js/ui/UIController.js';
-        import { gameApp } from './js/main.js';
-        
-        // 全局變數（供HTML內嵌事件使用）
-        window.uiController = null;
-        window.gameApp = null;
+  <!-- 技能模態框 -->
+  <div class="modal" id="skillModal">
+    <div class="modal-content">
+      <h3>可使用技能</h3>
+      <div id="skillListContainer"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="uiCore?.closeModal('skillModal')">關閉</button>
+      </div>
+    </div>
+  </div>
 
-        // 等待系統初始化
-        const initializeUI = async () => {
-            try {
-                // 等待gameApp初始化
-                let attempts = 0;
-                while (!gameApp?.isInitialized && attempts < 50) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    attempts++;
-                }
+  <!-- 搜刮派遣模態框 -->
+  <div class="modal" id="scavengeModal">
+    <div class="modal-content">
+      <h3>選擇派遣人員</h3>
+      <p>剩餘派遣次數: <span id="remainingScavenges">2</span></p>
+      <div id="availableTenants"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="uiCore?.closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
 
-                if (!gameApp?.isInitialized) {
-                    throw new Error('遊戲系統初始化超時');
-                }
+  <!-- 確認對話框 -->
+  <div class="modal" id="confirmModal">
+    <div class="modal-content">
+      <h3 id="confirmTitle">確認操作</h3>
+      <p id="confirmMessage"></p>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="confirmYes">確定</button>
+        <button class="btn" id="confirmNo">取消</button>
+      </div>
+    </div>
+  </div>
 
-                // 設定全局引用
-                window.gameApp = gameApp;
+  <!-- 載入新UI系統 -->
+  <script type="module">
+    import UICore from '/src/js/ui/UICore.js';
+    import {
+      gameApp
+    } from './js/main.js';
 
-                // 初始化UI控制器
-                window.uiController = new UIController(gameApp);
-                await window.uiController.initialize();
+    // 全局變數（供HTML內嵌事件使用）
+    window.uiCore = null;
+    window.gameApp = null;
 
-                console.log('✅ UI系統初始化完成');
-                
-            } catch (error) {
-                console.error('❌ UI初始化失敗:', error);
-                document.getElementById('systemStatus').className = 'system-status status-error';
-                document.getElementById('systemStatus').textContent = '🔴 系統載入失敗';
-            }
-        };
-
-        // 開始初始化
-        initializeUI();
-    </script>
-
-    <!-- 錯誤處理 -->
-    <script>
-        window.addEventListener('error', (event) => {
-            console.error('全局錯誤:', event.error);
-            const statusEl = document.getElementById('systemStatus');
-            if (statusEl) {
-                statusEl.className = 'system-status status-error';
-                statusEl.textContent = '🔴 系統發生錯誤';
-            }
-        });
-
-        // ES6模組不支援的後備處理
-        if (!window.fetch || !window.Promise) {
-            document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial;">⚠️ 請使用現代瀏覽器開啟此遊戲<br>推薦: Chrome 61+, Firefox 60+, Safari 10.1+</div>';
+    // 等待系統初始化
+    const initializeUI = async () => {
+      try {
+        // 等待gameApp初始化
+        let attempts = 0;
+        while (!gameApp?.isInitialized && attempts < 50) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
         }
-    </script>
+
+        if (!gameApp?.isInitialized) {
+          throw new Error('遊戲系統初始化超時');
+        }
+
+        // 設定全局引用
+        window.gameApp = gameApp;
+
+        // 初始化新的UI核心系統
+        window.uiCore = new UICore(gameApp);
+        await window.uiCore.initialize();
+
+        // 更新系統狀態指示器
+        const statusEl = document.getElementById('systemStatus');
+        if (statusEl) {
+          statusEl.className = 'system-status status-normal';
+          statusEl.textContent = '🟢 系統就緒';
+        }
+
+        console.log('✅ 新UI系統初始化完成');
+
+      } catch (error) {
+        console.error('❌ UI初始化失敗:', error);
+        const statusEl = document.getElementById('systemStatus');
+        if (statusEl) {
+          statusEl.className = 'system-status status-error';
+          statusEl.textContent = '🔴 系統載入失敗';
+        }
+      }
+    };
+
+    // 開始初始化
+    initializeUI();
+  </script>
+
+  <!-- 錯誤處理與相容性檢查 -->
+  <script>
+    window.addEventListener('error', (event) => {
+      console.error('全局錯誤:', event.error);
+      const statusEl = document.getElementById('systemStatus');
+      if (statusEl) {
+        statusEl.className = 'system-status status-error';
+        statusEl.textContent = '🔴 系統發生錯誤';
+      }
+    });
+
+    // ES6模組不支援的後備處理
+    if (!window.fetch || !window.Promise) {
+      document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial;">⚠️ 請使用現代瀏覽器開啟此遊戲<br>推薦: Chrome 61+, Firefox 60+, Safari 10.1+</div>';
+    }
+
+    // 雙擊標題啟用除錯模式
+    document.getElementById('gameTitle')?.addEventListener('dblclick', () => {
+      const debugPanel = document.getElementById('debugPanel');
+      if (debugPanel) {
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+  </script>
 </body>
+
 </html>
