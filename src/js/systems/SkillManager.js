@@ -24,7 +24,7 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 
 /**
  * 效果類型聯合型別
- * @typedef {'modifyResource'|'modifyState'|'healTenant'|'repairRoom'|'logMessage'|'triggerEvent'|'scheduledEffect'|'reinforceRoom'|'autoRepair'|'removeTenant'|'improveTenantSatisfaction'|'detectEarlyInfection'|'revealInfection'} EffectType
+ * @typedef {'modifyResource'|'modifyState'|'healTenant'|'repairRoom'|'logMessage'|'triggerEvent'|'scheduledEffect'|'reinforceRoom'|'autoRepair'|'removeTenant'|'improveTenantSatisfaction'|'detectEarlyInfection'|'revealInfection'|'buildingUpgrade'|'wildForaging'} EffectType
  */
 
 /**
@@ -97,6 +97,8 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  * @property {number} [cooldown] - 冷卻天數
  * @property {number} [maxUses] - 最大使用次數
  * @property {SkillRequirements} [requirements] - 使用需求
+ * @property {number} [tenantId] - 租客ID
+ * @property {string} [tenantName] - 租客名稱
  */
 
 /**
@@ -344,6 +346,8 @@ export class SkillManager extends BaseManager {
       await this.loadSkillConfigurations();
       this.skillManagerStatus.skillsLoaded = true;
 
+      this.setupEventListeners();
+
       this.registerBuiltinEffectHandlers();
       this.skillManagerStatus.effectHandlersReady = true;
 
@@ -453,6 +457,8 @@ export class SkillManager extends BaseManager {
       new InfectionDetectionHandler()
     );
     this.effectHandlers.set("revealInfection", new InfectionRevealHandler());
+    this.effectHandlers.set("buildingUpgrade", new BuildingUpgradeHandler());
+    this.effectHandlers.set("wildForaging", new WildForagingHandler());
   }
 
   /**
@@ -486,7 +492,7 @@ export class SkillManager extends BaseManager {
       throw new Error("技能ID必須為字串");
     }
 
-    this.logSuccess(`嘗試執行技能: ${skillId} (租客ID: ${tenantId})`);
+    console.log(`嘗試執行技能: ${skillId} (租客ID: ${tenantId})`);
     this.stats.totalSkillsExecuted++;
 
     try {
@@ -623,7 +629,7 @@ export class SkillManager extends BaseManager {
       );
     }
 
-    this.logSuccess(`技能執行完成: ${context.skill.name}`);
+    console.log(`技能執行完成: ${context.skill.name}`);
   }
 
   /**
@@ -647,6 +653,15 @@ export class SkillManager extends BaseManager {
     tenants.forEach(tenant => {
       if (tenant && tenant.id) {
         const tenantSkills = this.getAvailableSkillsForTenant(tenant.id);
+        // 確保每個技能都有 tenantId 和 tenantName 屬性
+        tenantSkills.forEach(skill => {
+          if (!skill.tenantId) {
+            skill.tenantId = tenant.id;
+          }
+          if (!skill.tenantName) {
+            skill.tenantName = tenant.name;
+          }
+        });
         allSkills.push(...tenantSkills);
       }
     });
@@ -924,7 +939,7 @@ export class SkillManager extends BaseManager {
     });
 
     if (passiveSkills.length > 0) {
-      this.logSuccess(
+      console.log(
         `觸發了 ${passiveSkills.length} 個被動技能 (觸發器: ${trigger})`
       );
     }
@@ -1169,7 +1184,7 @@ class BaseSkillExecutor {
    * @throws {Error} 當效果執行失敗時
    */
   async execute(context) {
-    this.skillManager.logSuccess(`執行技能: ${this.skillConfig.name}`);
+    console.log(`執行技能: ${this.skillConfig.name}`);
 
     const costResult = this.payCost(context);
     const effects = await this.executeEffects(context);
@@ -1177,6 +1192,7 @@ class BaseSkillExecutor {
     return {
       success: true,
       skillId: this.skillConfig.id,
+      skillName: this.skillConfig.name,
       effects,
       cost: costResult,
     };
@@ -1223,6 +1239,7 @@ class BaseSkillExecutor {
           });
         }
       } catch (error) {
+        console.log(error)
         this.skillManager.logError("效果執行錯誤", error);
         results.push({
           type: "error",
@@ -1615,20 +1632,29 @@ class EffectHandler {
 class ResourceModificationHandler extends EffectHandler {
   async handle(effect, context) {
     const { resource, amount } = effect;
-    const oldValue = context.gameState.getResourceValue(resource);
-    context.gameState.modifyResource(
-      resource,
-      amount,
-      `技能效果: ${context.skill.name}`
-    );
+    const oldValue = context.gameState.getStateValue(`resources.${resource}`, 0);
+    const success = context.gameState.modifyResource(resource, amount, `技能效果: ${context.skill.name}`);
 
-    return {
-      type: "resource_modified",
-      resource,
-      amount,
-      oldValue,
-      newValue: context.gameState.getResourceValue(resource),
-    };
+    if (success) {
+      // 取得新值
+      const newValue = context.gameState.getStateValue(`resources.${resource}`, 0);
+
+      return {
+        type: "resource_modified",
+        resource,
+        amount,
+        oldValue,
+        newValue,
+      };
+    } else {
+      return {
+        type: "resource_modification_failed",
+        resource,
+        amount,
+        oldValue,
+        message: "資源修改失敗"
+      };
+    }
   }
 }
 
@@ -1766,7 +1792,11 @@ class EventTriggerHandler extends EffectHandler {
     const { eventId } = effect;
 
     // 這裡應該與EventSystem整合
-    context.skillManager.logSuccess(`🎲 觸發事件: ${eventId}`);
+    if (context.skillManager) {
+      context.skillManager.logSuccess(`🎲 觸發事件: ${eventId}`);
+    } else {
+      console.log(`🎲 觸發事件: ${eventId}`);
+    }
 
     return {
       type: "event_triggered",
@@ -1780,7 +1810,11 @@ class ScheduledEffectHandler extends EffectHandler {
     const { delay, effect: scheduledEffect } = effect;
 
     // 這裡需要實作延遲效果的排程系統
-    context.skillManager.logSuccess(`⏰ 排程效果將在 ${delay} 天後執行`);
+    if (context.skillManager) {
+      context.skillManager.logSuccess(`⏰ 排程效果將在 ${delay} 天後執行`);
+    } else {
+      console.log(`⏰ 排程效果將在 ${delay} 天後執行`);
+    }
 
     return {
       type: "effect_scheduled",
@@ -1868,5 +1902,80 @@ class InfectionRevealHandler extends EffectHandler {
     };
   }
 }
+
+
+class BuildingUpgradeHandler extends EffectHandler {
+  async handle(effect, context) {
+    const { amount = 5 } = effect; // 預設提升 5 點防禦
+
+    // 增加建築防禦
+    const oldDefense = context.gameState.getStateValue("building.defense", 0);
+    const newDefense = oldDefense + amount;
+
+    const success = context.gameState.setStateValue(
+      "building.defense",
+      newDefense,
+      `技能效果: ${context.skill.name}`
+    );
+
+    if (success) {
+      // 同時提升建築品質
+      const oldQuality = context.gameState.getStateValue("building.quality", 0);
+      const newQuality = oldQuality + amount;
+      context.gameState.setStateValue(
+        "building.quality",
+        newQuality,
+        `技能效果: ${context.skill.name}`
+      );
+
+      return {
+        type: "building_upgraded",
+        defenseOld: oldDefense,
+        defenseNew: newDefense,
+        qualityOld: oldQuality,
+        qualityNew: newQuality,
+        worker: context.tenant.name,
+      };
+    }
+
+    return {
+      type: "building_upgrade_failed",
+      message: "建築升級失敗"
+    };
+  }
+}
+
+
+class WildForagingHandler extends EffectHandler {
+  async handle(effect, context) {
+    // 隨機獲得 3-6 食物
+    const amount = Math.floor(Math.random() * 4) + 3; // 3-6
+
+    // 執行資源修改
+    const success = context.gameState.modifyResource(
+      "food",
+      amount,
+      `技能效果: ${context.skill.name}`
+    );
+
+    if (success) {
+      const result = {
+        type: "wild_foraging_success",
+        resource: /** @type {ResourceType} */("food"),
+        amount: amount,
+        forager: context.tenant.name,
+      };
+      return result;
+    }
+
+    /** @type {EffectResult} */
+    const failedResult = {
+      type: "wild_foraging_failed",
+      message: "野外採集失敗"
+    };
+    return failedResult;
+  }
+}
+
 
 export default SkillManager;

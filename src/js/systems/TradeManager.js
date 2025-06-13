@@ -1601,7 +1601,7 @@ export class TradeManager extends BaseManager {
       return { success: false, error: "系統未初始化" };
     }
 
-    this.logSuccess("處理租客互助系統");
+    console.log("處理租客互助系統");
 
     try {
       /** @type {Object} */
