@@ -715,7 +715,7 @@ export class TradeManager extends BaseManager {
       result.reason = "insufficient_resources";
 
       this.addLog(
-        `❌ ${tenant.name} 無法支付完整房租，欠款 $${result.shortage}`,
+        `${tenant.name} 無法支付完整房租，欠款 $${result.shortage}`,
         "danger"
       );
     }

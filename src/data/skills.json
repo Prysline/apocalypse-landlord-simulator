@@ -4,130 +4,64 @@
       "id": "heal_infection",
       "name": "治療感染",
       "type": "active",
-      "description": "治療感染的租客",
-      "icon": "🏥",
+      "description": "治療一個感染的租客",
       "cost": {
         "medical": 3,
         "cash": 12
       },
       "cooldown": 0,
-      "requirements": {
-        "conditions": [
-          {
-            "type": "hasTenantType",
-            "value": "infected",
-            "count": 1
-          }
-        ]
-      },
       "effects": [
         {
-          "type": "modifyState",
-          "target": "infected_tenant",
-          "path": "infected",
-          "value": false
+          "type": "heal_tenant",
+          "target": "infected_random"
         },
         {
-          "type": "logMessage",
-          "message": "醫生成功治癒了感染租客",
+          "type": "log_message",
+          "message": "醫生成功治療了感染租客",
           "logType": "skill"
         }
-      ],
-      "successRate": 95,
-      "priority": 1
+      ]
     },
     {
       "id": "health_check",
-      "name": "全面健康檢查",
+      "name": "健康檢查",
       "type": "active",
-      "description": "檢查所有人的健康狀況",
-      "icon": "🔍",
+      "description": "檢查所有人健康狀況，揭露訪客感染",
       "cost": {
         "medical": 1,
         "cash": 8
       },
-      "cooldown": 0,
-      "requirements": {
-        "conditions": []
-      },
+      "cooldown": 2,
       "effects": [
         {
-          "type": "revealInfection",
-          "targets": "all_visitors"
+          "type": "reveal_visitor_infection",
+          "target": "all_visitors"
         },
         {
-          "type": "detectEarlyInfection",
-          "targets": "all_tenants",
-          "probability": 0.12
-        },
-        {
-          "type": "logMessage",
-          "message": "完成全面健康檢查",
+          "type": "log_message",
+          "message": "醫生完成了全面健康檢查",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 2
+      ]
     },
     {
       "id": "medical_production",
       "name": "醫療生產",
       "type": "passive",
       "description": "每日自動產出醫療用品",
-      "icon": "💊",
-      "cost": {},
-      "cooldown": 0,
-      "requirements": {
-        "conditions": [
-          {
-            "type": "trigger",
-            "value": "day_end"
-          }
-        ]
-      },
+      "trigger": "daily",
       "effects": [
         {
-          "type": "modifyResource",
+          "type": "modify_resource",
           "resource": "medical",
           "amount": 1
         },
         {
-          "type": "logMessage",
-          "message": "醫生製作了 1 醫療用品",
+          "type": "log_message",
+          "message": "醫生製作了醫療用品",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 0
-    },
-    {
-      "id": "emergency_training",
-      "name": "急救培訓",
-      "type": "special",
-      "description": "培訓所有租客急救知識，永久降低受傷風險（限用1次）",
-      "icon": "🎓",
-      "cost": {
-        "cash": 15
-      },
-      "cooldown": -1,
-      "maxUses": 1,
-      "requirements": {
-        "conditions": []
-      },
-      "effects": [
-        {
-          "type": "modifyState",
-          "path": "emergencyTraining",
-          "value": true
-        },
-        {
-          "type": "logMessage",
-          "message": "培訓了所有人的急救知識",
-          "logType": "skill"
-        }
-      ],
-      "successRate": 100,
-      "priority": 3
+      ]
     }
   ],
   "worker": [
@@ -136,7 +70,6 @@
       "name": "專業維修",
       "type": "active",
       "description": "以更少建材維修房間",
-      "icon": "🔧",
       "cost": {
         "materials": 1,
         "cash": 10
@@ -145,33 +78,27 @@
       "requirements": {
         "conditions": [
           {
-            "type": "gameStateCheck",
-            "path": "rooms",
-            "operator": "hasNeedsRepair",
-            "value": true
+            "type": "has_damaged_rooms"
           }
         ]
       },
       "effects": [
         {
-          "type": "repairRoom",
-          "target": "needsRepair"
+          "type": "repair_room",
+          "target": "damaged_random"
         },
         {
-          "type": "logMessage",
+          "type": "log_message",
           "message": "工人專業維修了房間",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 1
+      ]
     },
     {
       "id": "reinforce_room",
       "name": "房間加固",
       "type": "active",
-      "description": "加固指定房間，提升租金和安全性",
-      "icon": "🛡️",
+      "description": "加固房間提升租金和安全性",
       "cost": {
         "materials": 4,
         "cash": 18
@@ -180,370 +107,182 @@
       "requirements": {
         "conditions": [
           {
-            "type": "gameStateCheck",
-            "path": "rooms",
-            "operator": "hasUnReinforced",
-            "value": true
+            "type": "has_unreinforced_rooms"
           }
         ]
       },
       "effects": [
         {
-          "type": "reinforceRoom",
-          "target": "selected"
+          "type": "reinforce_room",
+          "target": "tenant_room"
         },
         {
-          "type": "modifyState",
-          "path": "buildingDefense",
-          "value": 1,
-          "operation": "add"
+          "type": "modify_building_defense",
+          "amount": 1
         },
         {
-          "type": "logMessage",
+          "type": "log_message",
           "message": "工人加固了房間",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 2
-    },
-    {
-      "id": "daily_maintenance",
-      "name": "日常維護",
-      "type": "passive",
-      "description": "每日自動檢查並維修房屋",
-      "icon": "🏠",
-      "cost": {},
-      "cooldown": 0,
-      "requirements": {
-        "conditions": [
-          {
-            "type": "probability",
-            "chance": 0.3
-          }
-        ]
-      },
-      "effects": [
-        {
-          "type": "autoRepair",
-          "target": "random_damaged"
-        }
-      ],
-      "successRate": 100,
-      "priority": 0
+      ]
     },
     {
       "id": "building_upgrade",
-      "name": "房屋升級",
+      "name": "建築升級",
       "type": "special",
-      "description": "永久提升房屋品質和防禦（限用1次）",
-      "icon": "🏗️",
+      "description": "永久提升建築防禦",
       "cost": {
         "materials": 8,
         "cash": 25
       },
       "cooldown": -1,
       "maxUses": 1,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "modifyState",
-          "path": "buildingDefense",
-          "value": 3,
-          "operation": "add"
+          "type": "modify_building_defense",
+          "amount": 3
         },
         {
-          "type": "modifyState",
-          "path": "buildingQuality",
-          "value": 1,
-          "operation": "add"
-        },
-        {
-          "type": "logMessage",
-          "message": "升級了整體房屋品質",
+          "type": "log_message",
+          "message": "工人升級了整體建築防禦",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 3
+      ]
     }
   ],
   "farmer": [
     {
-      "id": "harvest_bonus",
-      "name": "採集加成",
-      "type": "passive",
-      "description": "院子採集 +2 食物",
-      "icon": "🌾",
-      "cost": {},
-      "cooldown": 0,
-      "requirements": {
-        "conditions": [
-          {
-            "type": "trigger",
-            "value": "harvestYard"
-          },
-          {
-            "type": "logMessage",
-            "message": "在農夫的協助下多採集了 2 食物！",
-            "logType": "skill"
-          }
-        ]
-      },
-      "effects": [
-        {
-          "type": "modifyResource",
-          "resource": "food",
-          "amount": 2
-        }
-      ],
-      "successRate": 100,
-      "priority": 0
-    },
-    {
       "id": "plant_crops",
       "name": "種植作物",
       "type": "active",
-      "description": "種植作物，3天後大量收穫",
-      "icon": "🌱",
+      "description": "種植作物，3天後收穫",
       "cost": {
         "food": 3,
         "cash": 8
       },
       "cooldown": 3,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "scheduledEffect",
+          "type": "schedule_harvest",
           "delay": 3,
-          "effect": {
-            "type": "modifyResource",
-            "resource": "food",
-            "amount": 12
-          }
+          "amount": 8
         },
         {
-          "type": "logMessage",
-          "message": "種植了作物，3天後可收穫",
+          "type": "log_message",
+          "message": "農夫種植了作物，3天後可收穫",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 1
+      ]
     },
     {
       "id": "wild_foraging",
       "name": "野外採集",
       "type": "active",
-      "description": "外出尋找野生食物（每2天1次）",
-      "icon": "🍄",
+      "description": "到野外尋找食物",
       "cost": {
         "cash": 6
       },
       "cooldown": 2,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "modifyResource",
+          "type": "modify_resource",
           "resource": "food",
-          "amount": 6
+          "amount": "2-4",
+          "random": true
         },
         {
-          "type": "logMessage",
-          "message": "野外採集獲得了食物",
+          "type": "log_message",
+          "message": "農夫野外採集獲得了食物",
           "logType": "skill"
         }
-      ],
-      "successRate": 85,
-      "priority": 1
+      ]
     },
     {
-      "id": "food_preservation",
-      "name": "食物保存技術",
-      "type": "special",
-      "description": "傳授保存技術，永久減少食物腐敗（限用1次）",
-      "icon": "🥫",
-      "cost": {
-        "cash": 20
-      },
-      "cooldown": -1,
-      "maxUses": 1,
-      "requirements": {
-        "conditions": []
-      },
+      "id": "harvest_bonus",
+      "name": "採集加成",
+      "type": "passive",
+      "description": "院子採集時額外獲得食物",
+      "trigger": "harvest",
       "effects": [
         {
-          "type": "modifyState",
-          "path": "foodPreservation",
-          "value": true
+          "type": "modify_resource",
+          "resource": "food",
+          "amount": 1
         },
         {
-          "type": "logMessage",
-          "message": "傳授了食物保存技術",
+          "type": "log_message",
+          "message": "農夫的技能讓採集獲得額外食物",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 3
+      ]
     }
   ],
   "soldier": [
     {
-      "id": "combat_bonus",
-      "name": "戰鬥加成",
-      "type": "passive",
-      "description": "戰鬥事件中提升成功率",
-      "icon": "⚔️",
-      "cost": {},
-      "cooldown": 0,
-      "requirements": {
-        "conditions": [
-          {
-            "type": "gameStateCheck",
-            "path": "currentEvent.type",
-            "operator": "===",
-            "value": "combat"
-          }
-        ]
-      },
-      "effects": [
-        {
-          "type": "modifyEventSuccessRate",
-          "amount": 0.2
-        }
-      ],
-      "successRate": 100,
-      "priority": 0
-    },
-    {
       "id": "night_watch",
       "name": "夜間警戒",
       "type": "active",
-      "description": "加強今晚防禦，降低突襲風險",
-      "icon": "🌙",
+      "description": "降低今晚的威脅風險",
       "cost": {
         "cash": 15
       },
       "cooldown": 0,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "modifyState",
-          "path": "nightWatchActive",
-          "value": true
+          "type": "temporary_defense_boost",
+          "amount": 4,
+          "duration": 1
         },
         {
-          "type": "modifyState",
-          "path": "buildingDefense",
-          "value": 4,
-          "operation": "add"
-        },
-        {
-          "type": "logMessage",
-          "message": "開始夜間警戒",
+          "type": "log_message",
+          "message": "軍人開始夜間警戒",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 1
+      ]
     },
     {
       "id": "defensive_construction",
-      "name": "建造防禦工事",
+      "name": "防禦工事",
       "type": "active",
-      "description": "永久提升建築防禦力",
-      "icon": "🏰",
+      "description": "永久增強建築防禦能力",
       "cost": {
         "materials": 5,
         "cash": 22
       },
       "cooldown": 0,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "modifyState",
-          "path": "buildingDefense",
-          "value": 2,
-          "operation": "add"
+          "type": "modify_building_defense",
+          "amount": 2
         },
         {
-          "type": "logMessage",
-          "message": "建造了防禦工事",
+          "type": "log_message",
+          "message": "軍人建造了防禦工事",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 2
+      ]
     },
     {
-      "id": "patrol_system",
-      "name": "建立巡邏系統",
-      "type": "special",
-      "description": "建立安全巡邏制度，永久降低威脅",
-      "icon": "👮",
-      "cost": {
-        "cash": 30
-      },
-      "cooldown": -1,
-      "maxUses": 1,
-      "requirements": {
-        "conditions": []
-      },
+      "id": "combat_bonus",
+      "name": "戰鬥加成",
+      "type": "passive",
+      "description": "戰鬥事件中提升成功率",
+      "trigger": "combat_event",
       "effects": [
         {
-          "type": "modifyState",
-          "path": "patrolSystem",
-          "value": true
-        },
-        {
-          "type": "logMessage",
-          "message": "建立了安全巡邏系統",
-          "logType": "skill"
+          "type": "modify_success_rate",
+          "amount": 0.2
         }
-      ],
-      "successRate": 100,
-      "priority": 3
+      ]
     }
   ],
   "elder": [
     {
-      "id": "peacemaker",
-      "name": "和諧氛圍",
-      "type": "passive",
-      "description": "降低糾紛發生機率",
-      "icon": "☮️",
-      "cost": {},
-      "cooldown": 0,
-      "requirements": {
-        "conditions": []
-      },
-      "effects": [
-        {
-          "type": "modifyState",
-          "path": "conflictProbability",
-          "value": -0.12,
-          "operation": "add"
-        }
-      ],
-      "successRate": 100,
-      "priority": 0
-    },
-    {
       "id": "conflict_mediation",
       "name": "糾紛調解",
       "type": "active",
-      "description": "主動解決租客間的矛盾，獲得感謝費",
-      "icon": "🤝",
+      "description": "解決租客糾紛，獲得感謝費",
       "cost": {
         "cash": 12
       },
@@ -551,90 +290,71 @@
       "requirements": {
         "conditions": [
           {
-            "type": "hasTenantType",
-            "value": "any",
+            "type": "min_tenants",
             "count": 2
           }
         ]
       },
       "effects": [
         {
-          "type": "mediateConflict",
-          "effects": [
-            {
-              "type": "improveTenantRelationships",
-              "amount": 15
-            },
-            {
-              "type": "gainThanksFee",
-              "tenantType": "elder"
-            }
-          ]
+          "type": "improve_relationships",
+          "amount": 15
+        },
+        {
+          "type": "improve_satisfaction",
+          "target": "all_tenants",
+          "amount": 12
+        },
+        {
+          "type": "collect_thanks_fee",
+          "baseAmount": 4,
+          "maxAmount": 8
+        },
+        {
+          "type": "log_message",
+          "message": "長者成功調解了租客糾紛",
+          "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 1
+      ]
     },
     {
       "id": "life_guidance",
       "name": "生活指導",
       "type": "active",
-      "description": "傳授生活智慧，提升所有租客滿意度（每2天1次）",
-      "icon": "🧠",
+      "description": "提升所有租客滿意度",
       "cost": {
         "cash": 10
       },
       "cooldown": 2,
-      "requirements": {
-        "conditions": []
-      },
       "effects": [
         {
-          "type": "improveTenantSatisfaction",
-          "target": "all",
+          "type": "improve_satisfaction",
+          "target": "all_tenants",
           "amount": 15
         },
         {
-          "type": "gainTips",
-          "tenantType": "elder"
+          "type": "collect_tips",
+          "chance": 0.6
         },
         {
-          "type": "logMessage",
-          "message": "生活指導讓所有租客更滿意",
+          "type": "log_message",
+          "message": "長者的生活指導讓所有租客更滿意",
           "logType": "skill"
         }
-      ],
-      "successRate": 100,
-      "priority": 2
+      ]
     },
     {
-      "id": "establish_network",
-      "name": "建立人際網絡",
-      "type": "special",
-      "description": "建立外部聯繫，增加商人和訪客品質（限用1次）",
-      "icon": "🌐",
-      "cost": {
-        "cash": 25
-      },
-      "cooldown": -1,
-      "maxUses": 1,
-      "requirements": {
-        "conditions": []
-      },
+      "id": "harmony_aura",
+      "name": "和諧氛圍",
+      "type": "passive",
+      "description": "降低糾紛發生機率",
+      "trigger": "daily",
       "effects": [
         {
-          "type": "modifyState",
-          "path": "socialNetwork",
-          "value": true
-        },
-        {
-          "type": "logMessage",
-          "message": "建立了寶貴的人際網絡",
-          "logType": "skill"
+          "type": "modify_conflict_chance",
+          "amount": -0.12
         }
-      ],
-      "successRate": 100,
-      "priority": 3
+      ]
     }
   ]
 }

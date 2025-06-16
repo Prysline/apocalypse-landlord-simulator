@@ -196,7 +196,9 @@ export default class UICore {
      * @param {string} skillId - 技能ID
      * @param {number} tenantId - 租客ID
      */
-  async useSkillWithTenant(skillId, tenantId) {
+  async useSkillWithTenant(skillId, tenantId, options = {}) {
+    console.log(`使用技能: ${skillId}, 租客ID: ${tenantId}`);
+    console.log(options)
     if (!this.gameApp?.skillManager?.executeSkill) {
       console.error("技能系統未載入或無法執行技能");
       this.gameApp.gameState?.addLog("技能系統未載入", "danger");
@@ -207,7 +209,7 @@ export default class UICore {
       console.log(`執行技能: ${skillId}, 租客ID: ${tenantId}`);
 
       // 直接執行技能，不需要查找租客ID
-      const result = await this.gameApp.skillManager.executeSkill(tenantId, skillId);
+      const result = await this.gameApp.skillManager.executeSkill(tenantId, skillId, options);
 
       // 關閉模態框並更新顯示
       this.closeAllModals();
@@ -217,9 +219,9 @@ export default class UICore {
       if (this.gameApp.gameState) {
         console.log(result)
         if (result.success) {
-          this.gameApp.gameState.addLog(`成功使用技能: ${result.result.skillName || skillId}`, "skill");
+          console.log(`成功使用技能: ${result.skillId || skillId}`, "skill");
         } else {
-          this.gameApp.gameState.addLog(`無法使用技能: ${result.message || '未知錯誤'}`, "danger");
+          console.log(`無法使用技能: ${result.error || '未知錯誤'}`, "danger");
         }
       }
     } catch (error) {

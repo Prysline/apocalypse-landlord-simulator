@@ -88,7 +88,7 @@ body {
     animation: pulse 2s infinite;
 }
 
-.status-ready {
+.status-normal {
     background: linear-gradient(90deg, #446644, #559955);
     color: #fff;
 }
@@ -754,12 +754,46 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(102, 170, 102, 0.2);
 }
 
-.skill-item > div {
-    flex-grow: 1;
+/* 可用技能 */
+.skill-item:not(.skill-disabled) {
+    border-left-color: #28a745;
+    /* 綠色邊框 */
+}
+
+.skill-item:not(.skill-disabled):hover {
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+/* 禁用技能 */
+.skill-item.skill-disabled {
+    opacity: 0.7;
+    border-left-color: #6c757d; /* 灰色邊框 */
+    background: #3f2727;
+}
+
+.skill-item.skill-disabled::before {
+background: rgba(0, 0, 0, 0.01);
+}
+
+
+
+/* 冷卻中技能 */
+.skill-item.skill-cooldown {
+    border-left-color: #ffc107; /* 黃色邊框 */
+    background-color: #34322b;
+}
+
+.skill-item>div {
     padding-right: 10px;
 }
 
-.skill-item strong {
+/* 技能資訊區域 */
+.skill-info {
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.skill-name {
     color: #ffcc66;
     display: block;
     margin: 0;
@@ -769,7 +803,7 @@ body {
     padding: 0;
 }
 
-.skill-item small {
+.skill-description {
     color: #ccc;
     display: block;
     margin: 0;
@@ -778,8 +812,13 @@ body {
     padding: 2px 0;
 }
 
-.skill-item small:last-of-type {
+/* 技能元資訊 */
+.skill-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
     color: #aaddaa;
+    font-size: 0.9em;
     font-weight: 500;
     margin: 0;
     padding: 2px 0 0;
@@ -801,6 +840,35 @@ body {
     white-space: nowrap;
 }
 
+.skill-cost {
+    color: #fff;
+    font-weight: 500;
+}
+
+.skill-status {
+    font-weight: 500;
+}
+
+.skill-status.status-ready {
+    color: #28a745;
+    /* 綠色 - 可用 */
+}
+
+.skill-status.status-cooldown {
+    color: #ffc107;
+    /* 黃色 - 冷卻中 */
+}
+
+.skill-status.status-unavailable {
+    color: #dc3545;
+    /* 紅色 - 不可用 */
+}
+
+.skill-cooldown-info {
+    color: #adb5bd;
+    font-style: italic;
+}
+
 .skill-item .btn:hover {
     background: linear-gradient(145deg, #5a7754, #4a6644);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px rgba(255, 255, 255, 0.2);
@@ -819,6 +887,54 @@ body {
     transform: none;
     box-shadow: none;
     opacity: 0.7;
+}
+
+/* 按鈕樣式更新 */
+.btn-cooldown.btn:disabled {
+    background: #ffc107 !important;
+    border-color: #ffc107 !important;
+    color: #444 !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.btn-insufficient:disabled {
+    background: #dc3545 !important;
+    border-color: #dc3545 !important;
+    color: #aaa !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.btn-cooldown:disabled::after {
+    content: "⌛ ";
+}
+
+.btn-insufficient:disabled::after {
+    content: "❌ ";
+}
+
+.skill-option {
+    margin: 0.2rem 0;
+}
+
+.skill-option label {
+    color: #fff;
+    font-size: 0.85rem;
+}
+
+.skill-option select.room-select {
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 5px;
+    padding: 0.2rem 0.3rem;
+    cursor: pointer;
+}
+
+.skill-option select.room-select:focus {
+    outline: none;
+    border-color: #66aa66;
 }
 
 .applicant {
@@ -1042,32 +1158,32 @@ body {
     }
 
     .skill-item {
-         padding: 5px;
-     }
+        padding: 5px;
+    }
 
-     .skill-item strong {
-         font-size: 0.85em;
-         margin-bottom: 2px;
-         letter-spacing: 0.3px;
-     }
+    .skill-item strong {
+        font-size: 0.85em;
+        margin-bottom: 2px;
+        letter-spacing: 0.3px;
+    }
 
-     .skill-item small {
-         font-size: 0.75em;
-         margin-bottom: 2px;
-         line-height: 1.2;
-     }
+    .skill-item small {
+        font-size: 0.75em;
+        margin-bottom: 2px;
+        line-height: 1.2;
+    }
 
-     .skill-item small:last-of-type {
-         margin-bottom: 3px;
-         font-size: 0.75em;
-     }
+    .skill-item small:last-of-type {
+        margin-bottom: 3px;
+        font-size: 0.75em;
+    }
 
-     .skill-item .btn {
-         padding: 3px 5px;
-         margin-top: 3px;
-         font-size: 0.75em;
-         letter-spacing: 0.3px;
-     }
+    .skill-item .btn {
+        padding: 3px 5px;
+        margin-top: 3px;
+        font-size: 0.75em;
+        letter-spacing: 0.3px;
+    }
 }
 
 @media (max-width: 768px) {

@@ -257,104 +257,6 @@ export default class UIModal {
     if (messageEl) messageEl.textContent = message;
   }
 
-  // =================== 樣式管理 (UIModal 專屬職責) ===================
-
-  /**
-   * 注入技能模態框專用的 CSS 樣式
-   * 職責：UIModal 負責自己所需的樣式管理
-   */
-  _injectSkillModalStyles() {
-    const styleId = 'skill-modal-styles';
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      /* 技能分組容器 */
-      .tenant-skill-group {
-        margin-bottom: 1.5rem;
-        border: 1px solid #333;
-        border-radius: 8px;
-        padding: 1rem;
-        background-color: rgba(0, 0, 0, 0.3);
-      }
-
-      /* 租客標題 */
-      .tenant-name {
-        color: #fff;
-        margin: 0 0 0.8rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #555;
-        font-size: 1.1rem;
-        font-weight: bold;
-      }
-
-      /* 技能容器 */
-      .tenant-skills {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-
-      /* 技能項目 */
-      .skill-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.8rem;
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 6px;
-        margin-bottom: 0.5rem;
-        transition: background-color 0.2s;
-      }
-
-      .skill-item:hover {
-        background-color: rgba(255, 255, 255, 0.08);
-      }
-
-      /* 無法負擔的技能 */
-      .skill-item.unaffordable {
-        opacity: 0.6;
-        background-color: rgba(255, 0, 0, 0.1);
-      }
-
-      /* 技能資訊區域 */
-      .skill-item div {
-        flex: 1;
-        margin-right: 1rem;
-      }
-
-      .skill-item strong {
-        color: #fff;
-        display: block;
-        margin-bottom: 0.2rem;
-      }
-
-      .skill-item small {
-        color: #ccc;
-        display: block;
-        margin-bottom: 0.1rem;
-      }
-
-      /* 禁用按鈕樣式 */
-      .btn-disabled {
-        background-color: #666 !important;
-        border-color: #666 !important;
-        cursor: not-allowed;
-        opacity: 0.7;
-      }
-
-      .btn-disabled:hover {
-        background-color: #666 !important;
-        border-color: #666 !important;
-      }
-    `;
-
-    document.head.appendChild(style);
-    console.log("💄 技能模態框樣式已注入");
-  }
-
-
   // =================== 內容生成輔助方法 ===================
 
   _generateVisitorCard(visitor) {
@@ -368,7 +270,7 @@ export default class UIModal {
 
     return `
       <div class="applicant ${visitor.revealedInfection ? 'infected' : ''}">
-        <strong>${visitor.name}</strong> ${typeIcon} - ${visitor.type}<br>
+        <strong>${visitor.name}</strong> ${typeIcon} - ${visitor.typeName}<br>
         <small>${visitor.description || '普通的倖存者'}</small><br>
         <small style="color: #aaa;">外觀: ${visitor.appearance}</small><br>
         房租: ${visitor.rent}/天 ${canAfford ? '✅' : '💸'}
@@ -402,8 +304,6 @@ export default class UIModal {
   }
 
   _generateSkillCard(skill) {
-    const resources = this.gameApp.gameState?.getStateValue('resources', {}) || {};
-    let canAfford = true;
     let costText = '';
 
     if (skill.cost) {
@@ -411,37 +311,65 @@ export default class UIModal {
       for (const [resource, amount] of Object.entries(skill.cost)) {
         const icon = this.uiCore ? this.uiCore.getIcon(resource, 'resource') : resource;
         costItems.push(`${icon} ${amount}`);
-        if ((resources[resource] || 0) < amount) {
-          canAfford = false;
-        }
       }
       costText = costItems.join(', ');
     }
 
-    const cooldownText = (skill.cooldownRemaining > 0) ? ` (冷卻${skill.cooldownRemaining}天)` : '';
-    const isDisabled = !canAfford || skill.cooldownRemaining > 0 || skill.canUse === false;
+    const isDisabled = !skill.isAvailable;
+    const statusText = skill.statusDescription || '未知狀態';
 
-    // 生成唯一的按鈕ID，包含租客ID和技能ID
-    const buttonId = `skill-btn-${skill.tenantId}-${skill.id}`;
+    // 根據不同狀態設定按鈕文字和樣式
+    let buttonText = '使用技能';
+    let buttonClass = 'btn-primary';
+
+    if (skill.cooldownRemaining > 0) {
+      buttonText = `冷卻中 (${skill.cooldownRemaining} 天)`;
+      buttonClass = 'btn-disabled btn-cooldown';
+    } else if (!skill.canAfford) {
+      buttonText = '資源不足';
+      buttonClass = 'btn-disabled btn-insufficient';
+    }
+
+    const buttonId = `useSkillBtn-${skill.tenantId}-${skill.id}`;
+
+    // 獲取所有房間，用於房間加固技能的選擇
+    const allRooms = this.gameApp.gameState.getStateValue('rooms', []);
 
     return `
-      <div class="skill-item ${!canAfford ? 'unaffordable' : ''}">
-        <div>
-          <strong>${skill.name}</strong>
-          <small>${skill.description}</small>
-          ${costText ? `<small>消耗: ${costText}</small>` : ''}
+    <div class="skill-item ${isDisabled ? 'skill-disabled' : ''} ${skill.cooldownRemaining > 0 ? 'skill-cooldown' : ''}">
+      <div class="skill-info">
+        <strong class="skill-name">${skill.name}</strong>
+        <small class="skill-description">${skill.description}</small>
+
+        ${skill.id === 'reinforce_room' ? `
+          <div class="skill-option">
+            <label for="roomSelect-${skill.tenantId}-${skill.id}">選擇房間:</label>
+            <select id="roomSelect-${skill.tenantId}-${skill.id}" class="room-select" ${isDisabled ? 'disabled' : ''}>
+              ${allRooms.map(room => `<option value="${room.id}">房間 ${room.id}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+
+        <div class="skill-meta">
+          <span class="skill-cost">消耗: ${costText || '無'}</span>
+          ${skill.cooldown > 0 ? `<span class="skill-cooldown-info">冷卻: ${skill.cooldown} 天</span>` : ''}
+          <span class="skill-status status-${skill.cooldownRemaining > 0 ? 'cooldown' : skill.canAfford ? 'ready' : 'unavailable'}">
         </div>
+      </div>
+
+      <div class="skill-actions">
         <button id="${buttonId}"
-                class="btn ${!isDisabled ? 'btn-primary' : 'btn-disabled'}"
-                onclick="uiCore.useSkillWithTenant('${skill.id}', ${skill.tenantId})"
+                class="btn ${buttonClass}"
+                onclick="uiCore.useSkillWithTenant('${skill.id}', ${skill.tenantId}, { roomId: document.getElementById('roomSelect-${skill.tenantId}-${skill.id}')?.value })"
                 ${isDisabled ? 'disabled' : ''}
                 data-skill-id="${skill.id}"
                 data-tenant-id="${skill.tenantId}"
-                data-tenant-name="${skill.tenantName || '未知'}">
-          使用技能${cooldownText}
+                title="${statusText}">
+          ${buttonText}
         </button>
       </div>
-    `;
+    </div>
+  `;
   }
 
   // =================== 狀態查詢 ===================
