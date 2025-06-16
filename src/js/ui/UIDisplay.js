@@ -209,14 +209,29 @@ export default class UIDisplay {
       if (tenant.onMission) statusIndicators.push('🚶執行任務中');
       if (tenant.roomReinforced) statusIndicators.push('🛡️已加固');
 
+      // === 個人資源概況 ===
+      const personalResources = this.uiCore.safeGetPersonalResources(tenant);
+      const totalValue = this.uiCore.getPersonalResourcesValue(personalResources);
+      const statusInfo = this.uiCore.getStatusText(totalValue, 'personalWealth', true);
+
+      // 生成資源圖示字串
+      const resourceIcons = Object.entries(personalResources)
+        .filter(([type, amount]) => amount > 0)
+        .map(([type, amount]) => `${this.uiCore.getIcon(type, 'resource')}${amount}`)
+        .join(' ');
+
+      if (resourceIcons) {
+        statusIndicators.push(`${resourceIcons} (${statusInfo.text})`);
+      }
+
       return `
-        <div class="tenant-item ${tenant.infected ? 'infected' : ''} ${tenant.type}" data-tenant-id="${tenant.id}">
-          <strong>${tenant.name}</strong> (${tenant.typeName})<br>
-          <small>房間 ${tenant.roomId} | 房租 ${tenant.rent}/天</small><br>
-          <small>${satisfactionEmoji} 滿意度 ${satisfaction}%</small>
-          ${statusIndicators.length > 0 ? `<br><small>${statusIndicators.join(' ')}</small>` : ''}
-        </div>
-      `;
+    <div class="tenant-item ${tenant.infected ? 'infected' : ''} ${tenant.type}" data-tenant-id="${tenant.id}">
+      <strong>${tenant.name}</strong> (${tenant.typeName})<br>
+      <small>房間 ${tenant.roomId} | 房租 ${tenant.rent}/天</small><br>
+      <small>${satisfactionEmoji} 滿意度 ${satisfaction}%</small>
+      ${statusIndicators.length > 0 ? `<br><small>${statusIndicators.join(' ')}</small>` : ''}
+    </div>
+  `;
     }).join('');
 
     tenantListElement.innerHTML = tenantHTML;

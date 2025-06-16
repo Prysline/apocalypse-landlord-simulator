@@ -767,19 +767,21 @@ body {
 /* 禁用技能 */
 .skill-item.skill-disabled {
     opacity: 0.7;
-    border-left-color: #6c757d; /* 灰色邊框 */
+    border-left-color: #6c757d;
+    /* 灰色邊框 */
     background: #3f2727;
 }
 
 .skill-item.skill-disabled::before {
-background: rgba(0, 0, 0, 0.01);
+    background: rgba(0, 0, 0, 0.01);
 }
 
 
 
 /* 冷卻中技能 */
 .skill-item.skill-cooldown {
-    border-left-color: #ffc107; /* 黃色邊框 */
+    border-left-color: #ffc107;
+    /* 黃色邊框 */
     background-color: #34322b;
 }
 
@@ -960,6 +962,96 @@ background: rgba(0, 0, 0, 0.01);
     background: linear-gradient(145deg, #334466, #223355);
     border-left-color: #6688aa;
 }
+
+/* === 租客模態框分欄佈局樣式 === */
+
+/* 主要分欄容器 */
+.tenant-modal-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.tenant-modal-columns>div {
+    height: 100%;
+}
+
+/* 左欄：基本資訊 */
+.tenant-info-column {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #2196F3;
+}
+
+.tenant-info-column h4 {
+    margin: 0 0 12px 0;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 8px;
+}
+
+.tenant-info-column p {
+    margin: 8px 0;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+.tenant-info-column p strong {
+    color: #fff;
+}
+
+/* 右欄：個人資源 */
+.tenant-resources-column {
+    background-color: rgba(255, 255, 255, 0.08);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #FF9800;
+}
+
+.tenant-resources-column h4 {
+    margin: 0 0 12px 0;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 8px;
+}
+
+.tenant-resources-column p {
+    margin: 6px 0;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+/* 資源狀況顏色樣式 */
+.tenant-resources-column .resource-good {
+    color: #4CAF50 !important;
+    font-weight: bold;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tenant-resources-column .resource-warning {
+    color: #FF9800 !important;
+    font-weight: bold;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tenant-resources-column .resource-critical {
+    color: #F44336 !important;
+    font-weight: bold;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 
 /* ===========================================
    動畫效果
@@ -1184,6 +1276,16 @@ background: rgba(0, 0, 0, 0.01);
         font-size: 0.75em;
         letter-spacing: 0.3px;
     }
+
+    .tenant-modal-columns {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .tenant-info-column,
+    .tenant-resources-column {
+        padding: 12px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1295,6 +1397,21 @@ background: rgba(0, 0, 0, 0.01);
         padding: 6px 4px;
         font-size: 0.7em;
         letter-spacing: 0.2px;
+    }
+
+    .tenant-modal-columns {
+        gap: 10px;
+    }
+
+    .tenant-info-column h4,
+    .tenant-resources-column h4 {
+        font-size: 0.9rem;
+    }
+
+    .tenant-info-column p,
+    .tenant-resources-column p {
+        font-size: 0.85rem;
+        margin: 6px 0;
     }
 }
 

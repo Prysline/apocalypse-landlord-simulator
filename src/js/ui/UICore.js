@@ -312,6 +312,59 @@ export default class UICore {
     return match ? parseInt(match[1]) : null;
   }
 
+  // =================== 個人資源處理方法 ===================
+
+  /**
+   * 計算個人資源總價值
+   * @param {Object} personalResources - 個人資源物件
+   * @returns {number} 總價值
+   */
+  getPersonalResourcesValue(personalResources) {
+    if (!personalResources) return 0;
+
+    const resourceValues = this._getPersonalWealthConfig()?.resourceValues || {
+      food: 1.5, materials: 3.0, medical: 4.0, fuel: 3.0, cash: 1.0
+    };
+
+    return Object.entries(personalResources)
+      .reduce((total, [type, amount]) => {
+        const value = resourceValues[type] || 1.0;
+        return total + (amount * value);
+      }, 0);
+  }
+
+  /**
+   * 安全取得個人資源
+   * @param {Object} tenant - 租客物件
+   * @returns {Object} 個人資源物件（含預設值）
+   */
+  safeGetPersonalResources(tenant) {
+    const defaultResources = {
+      food: 0, materials: 0, medical: 0, fuel: 0, cash: 0
+    };
+
+    if (!tenant || !tenant.personalResources) {
+      return defaultResources;
+    }
+
+    return { ...defaultResources, ...tenant.personalResources };
+  }
+
+  /**
+   * 取得個人財富配置
+   * @private
+   * @returns {Object} 個人財富配置
+   */
+  _getPersonalWealthConfig() {
+    try {
+      const gameRules = this.gameApp.dataManager?.getGameRules();
+      return gameRules?.gameBalance?.personalWealth || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+
   // =================== 其他必要方法 (簡化版本) ===================
 
   async _waitForGameApp() {
@@ -379,7 +432,7 @@ export default class UICore {
       log: {
         rent: '🚪',
         success: '✅', danger: '❌', warning: '⚠️',
-        info: 'ℹ️', event: '📅'
+        info: 'ℹ️', event: '📅', skill: '⭐'
       }
     };
     return iconMaps[category]?.[type] || '❓';
@@ -401,26 +454,125 @@ export default class UICore {
 
   /**
    * 統一的狀態文字生成
+   * @param {number} value - 數值
+   * @param {string} type - 類型
+   * @param {boolean} returnDetails - 是否返回詳細資訊
+   * @returns {string|Object} 狀態文字或詳細資訊物件
    */
-  getStatusText(value, type) {
-    const statusMaps = {
-      defense: [
-        [0, "脆弱"], [2, "基本"], [5, "穩固"], [8, "堅固"], [12, "要塞"]
-      ],
-      hunger: [
-        [0, "飽足"], [1, "微餓"], [2, "有點餓"], [3, "飢餓"], [4, "很餓"], [6, "極度飢餓"]
-      ]
-    };
+  getStatusText(value, type, returnDetails = false) {
+    let result = { text: '', value: value, severity: 'normal', displayText: '' };
 
-    const levels = statusMaps[type];
-    if (!levels) return `未知(${value})`;
+    switch (type) {
+      case 'defense':
+        result = this._getDefenseStatus(value);
+        break;
+      case 'hunger':
+        result = this._getHungerStatus(value);
+        break;
+      case 'personalWealth':
+        result = this._getPersonalWealthStatus(value);
+        break;
+      default:
+        result = { text: `未知(${value})`, value, severity: 'normal', displayText: `未知(${value})` };
+    }
+
+    return returnDetails ? result : result.displayText;
+  }
+
+  /**
+   * 取得個人財富狀態
+   * @private
+   * @param {number} totalValue - 總價值
+   * @returns {Object} 狀態資訊
+   */
+  _getPersonalWealthStatus(totalValue) {
+    const config = this._getPersonalWealthConfig();
+    const levels = config.display?.levels || [
+      { threshold: 80, name: "富裕", severity: "good" },
+      { threshold: 50, name: "充足", severity: "good" },
+      { threshold: 20, name: "普通", severity: "good" },
+      { threshold: 5, name: "匱乏", severity: "warning" },
+      { threshold: 0, name: "身無分文", severity: "critical" }
+    ];
+
+    // 找到符合的等級（從高到低）
+    const level = levels.find(l => totalValue >= l.threshold) || levels[levels.length - 1];
+
+    return {
+      text: level.name,
+      value: totalValue,
+      severity: level.severity,
+      displayText: `${level.name}(${totalValue.toFixed(1)})`
+    };
+  }
+
+  /**
+   * 取得防禦狀態（重構現有邏輯）
+   * @private
+   * @param {number} value - 防禦值
+   * @returns {Object} 狀態資訊
+   */
+  _getDefenseStatus(value) {
+    const levels = [
+      [0, "脆弱", "critical"], [2, "基本", "warning"], [5, "穩固", "normal"],
+      [8, "堅固", "good"], [12, "要塞", "good"]
+    ];
 
     for (let i = levels.length - 1; i >= 0; i--) {
-      if (value >= levels[i][0]) {
-        return `${levels[i][1]}(${value})`;
+      const threshold = Number(levels[i][0]); // 確保轉換為數字類型
+      if (value >= threshold) {
+        return {
+          text: levels[i][1],
+          value: value,
+          severity: levels[i][2],
+          displayText: `${levels[i][1]}(${value})`
+        };
       }
     }
-    return `${levels[0][1]}(${value})`;
+
+    return { text: "脆弱", value, severity: "critical", displayText: `脆弱(${value})` };
+  }
+
+  /**
+   * 取得飢餓狀態（重構現有邏輯）
+   * @private
+   * @param {number} value - 飢餓值
+   * @returns {Object} 狀態資訊
+   */
+  _getHungerStatus(value) {
+    const levels = [
+      [0, "飽足", "good"], [1, "微餓", "normal"], [2, "有點餓", "warning"],
+      [3, "飢餓", "warning"], [4, "很餓", "critical"], [6, "極度飢餓", "critical"]
+    ];
+
+    for (let i = levels.length - 1; i >= 0; i--) {
+      const threshold = Number(levels[i][0]); // 確保轉換為數字類型
+      if (value >= threshold) {
+        return {
+          text: levels[i][1],
+          value: value,
+          severity: levels[i][2],
+          displayText: `${levels[i][1]}(${value})`
+        };
+      }
+    }
+
+    return { text: "飽足", value, severity: "good", displayText: `飽足(${value})` };
+  }
+
+  /**
+   * 取得資源中文名稱
+   * @param {string} resourceType - 資源類型
+   * @returns {string} 中文名稱
+   */
+  getResourceName(resourceType) {
+    const config = this._getPersonalWealthConfig();
+    const resourceNames = config.resourceNames || {
+      food: '食物', materials: '建材', medical: '醫療',
+      fuel: '燃料', cash: '現金'
+    };
+
+    return resourceNames[resourceType] || resourceType;
   }
 
   // =================== 事件監聽 ===================

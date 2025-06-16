@@ -198,20 +198,44 @@ export default class UIModal {
 
     titleEl.textContent = `房間 ${room.id} - ${tenant.name}`;
 
+    // === 個人資源詳細顯示 ===
+    const personalResources = this.uiCore.safeGetPersonalResources(tenant);
+    const totalValue = this.uiCore.getPersonalResourcesValue(personalResources);
+    const statusInfo = this.uiCore.getStatusText(totalValue, 'personalWealth', true);
+
+    const resourceHTML = Object.entries(personalResources)
+      .map(([type, amount]) => {
+        const icon = this.uiCore.getIcon(type, 'resource');
+        const name = this.uiCore.getResourceName(type);
+        return `<p>${icon} ${name}：${amount}</p>`;
+      }).join('');
+
     contentEl.innerHTML = `
-      <p><strong>姓名：</strong>${tenant.name} ${typeIcon}</p>
-      <p><strong>類型：</strong>${tenant.typeName}</p>
-      <p><strong>技能：</strong>${tenant.skill}</p>
-      <p><strong>房租：</strong>💰 ${tenant.rent} / 天</p>
-      <p><strong>滿意度：</strong>${satisfaction}% ${satisfaction >= 70 ? '😊' : satisfaction >= 40 ? '😐' : '😞'}</p>
-      <p><strong>狀態：</strong>${tenant.infected ? '🦠 已感染' : tenant.onMission ? '🚶 執行任務中' : '🏠 在房間內'}</p>
-      ${room.reinforced ? '<p style="color:#66ccff;">🛡️ 房間已加固</p>' : ''}
+    <div class="tenant-modal-columns">
+      <!-- 左欄：基本資訊 -->
+      <div class="tenant-info-column">
+        <h4>基本資訊</h4>
+        <p><strong>姓名：</strong>${tenant.name}</p>
+        <p><strong>類型：</strong>${typeIcon}${tenant.typeName}</p>
+        <p><strong>技能：</strong>${tenant.skill}</p>
+        <p><strong>房租：</strong>💰 ${tenant.rent} / 天</p>
+        <p><strong>滿意度：</strong>${satisfaction}% ${satisfaction >= 70 ? '😊' : satisfaction >= 40 ? '😐' : '😞'}</p>
+        <p><strong>狀態：</strong>${tenant.infected ? '🦠已感染' : tenant.onMission ? '🚶執行任務中' : '🏠在房間內'}</p>
+        ${room.reinforced ? '<p style="color:#66ccff;">🛡️房間已加固</p>' : ''}
+      </div>
+
+      <div class="tenant-resources-column">
+        <h4>個人資源</h4>
+        ${resourceHTML}
+        <p class="resource-${statusInfo.severity}">資源狀況：${statusInfo.text}</p>
+      </div>
+    </div>
     `;
 
     actionsEl.innerHTML = `
       <button class="btn" onclick="uiCore.closeModal()">關閉</button>
       <button class="btn btn-danger" onclick="uiCore.evictTenant(${tenant.id}, ${tenant.infected})">
-        ${tenant.infected ? '🦠 驅逐（感染）' : '📤 要求退租'}
+        ${tenant.infected ? '🦠驅逐（感染）' : '📤要求退租'}
       </button>
     `;
   }

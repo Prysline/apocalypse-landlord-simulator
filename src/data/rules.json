@@ -34,19 +34,46 @@
       "harmoniumBonus": 0
     }
   },
-
   "gameBalance": {
     "landlord": {
       "dailyFoodConsumption": 2,
       "hungerSystem": {
         "levels": [
-          { "threshold": 0, "name": "飽足", "severity": "good" },
-          { "threshold": 1, "name": "微餓", "severity": "normal" },
-          { "threshold": 2, "name": "有點餓", "severity": "warning" },
-          { "threshold": 3, "name": "飢餓", "severity": "concern" },
-          { "threshold": 4, "name": "很餓", "severity": "danger" },
-          { "threshold": 5, "name": "極度飢餓", "severity": "critical" },
-          { "threshold": 7, "name": "瀕臨餓死", "severity": "fatal" }
+          {
+            "threshold": 0,
+            "name": "飽足",
+            "severity": "good"
+          },
+          {
+            "threshold": 1,
+            "name": "微餓",
+            "severity": "normal"
+          },
+          {
+            "threshold": 2,
+            "name": "有點餓",
+            "severity": "warning"
+          },
+          {
+            "threshold": 3,
+            "name": "飢餓",
+            "severity": "concern"
+          },
+          {
+            "threshold": 4,
+            "name": "很餓",
+            "severity": "danger"
+          },
+          {
+            "threshold": 5,
+            "name": "極度飢餓",
+            "severity": "critical"
+          },
+          {
+            "threshold": 7,
+            "name": "瀕臨餓死",
+            "severity": "fatal"
+          }
         ],
         "hungerEffects": {
           "workEfficiencyPenalty": 0.8,
@@ -59,7 +86,10 @@
       "elderMedicalConsumption": 1,
       "satisfactionSystem": {
         "baseValue": 50,
-        "range": { "min": 0, "max": 100 },
+        "range": {
+          "min": 0,
+          "max": 100
+        },
         "factors": {
           "reinforcedRoom": 3,
           "needsRepair": -8,
@@ -156,6 +186,51 @@
         "trademarkup": 1.2,
         "bulkDiscountThreshold": 5
       }
+    },
+    "personalWealth": {
+      "resourceValues": {
+        "food": 1.5,
+        "materials": 3.0,
+        "medical": 4.0,
+        "fuel": 3.0,
+        "cash": 1.0
+      },
+      "resourceNames": {
+        "food": "食物",
+        "materials": "建材",
+        "medical": "醫療",
+        "fuel": "燃料",
+        "cash": "現金"
+      },
+      "display": {
+        "levels": [
+          {
+            "threshold": 80,
+            "name": "富裕",
+            "severity": "good"
+          },
+          {
+            "threshold": 50,
+            "name": "充足",
+            "severity": "good"
+          },
+          {
+            "threshold": 20,
+            "name": "普通",
+            "severity": "good"
+          },
+          {
+            "threshold": 5,
+            "name": "匱乏",
+            "severity": "warning"
+          },
+          {
+            "threshold": 0,
+            "name": "身無分文",
+            "severity": "critical"
+          }
+        ]
+      }
     }
   },
   "mechanics": {
@@ -206,12 +281,36 @@
       },
       "defenseSystem": {
         "levels": [
-          { "threshold": 0, "name": "脆弱", "severity": "critical" },
-          { "threshold": 1, "name": "基本", "severity": "warning" },
-          { "threshold": 3, "name": "穩固", "severity": "normal" },
-          { "threshold": 6, "name": "堅固", "severity": "good" },
-          { "threshold": 9, "name": "要塞", "severity": "excellent" },
-          { "threshold": 13, "name": "銅牆鐵壁", "severity": "perfect" }
+          {
+            "threshold": 0,
+            "name": "脆弱",
+            "severity": "critical"
+          },
+          {
+            "threshold": 1,
+            "name": "基本",
+            "severity": "warning"
+          },
+          {
+            "threshold": 3,
+            "name": "穩固",
+            "severity": "normal"
+          },
+          {
+            "threshold": 6,
+            "name": "堅固",
+            "severity": "good"
+          },
+          {
+            "threshold": 9,
+            "name": "要塞",
+            "severity": "excellent"
+          },
+          {
+            "threshold": 13,
+            "name": "銅牆鐵壁",
+            "severity": "perfect"
+          }
         ]
       }
     },
@@ -285,15 +384,21 @@
     "tenantUnlocks": {
       "doctor": {
         "minDay": 3,
-        "conditions": ["medical_emergency_survived"]
+        "conditions": [
+          "medical_emergency_survived"
+        ]
       },
       "soldier": {
         "minDay": 7,
-        "conditions": ["buildingDefense >= 3"]
+        "conditions": [
+          "buildingDefense >= 3"
+        ]
       },
       "elder": {
         "minDay": 5,
-        "conditions": ["totalTenants >= 2"]
+        "conditions": [
+          "totalTenants >= 2"
+        ]
       }
     },
     "skillUnlocks": {
