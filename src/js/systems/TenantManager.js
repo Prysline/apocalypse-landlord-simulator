@@ -639,7 +639,7 @@ export class TenantManager extends BaseManager {
     if (targetRoomId) {
       const rooms = this.gameState.getStateValue("rooms", []);
       const targetRoom = rooms.find(
-        /** @type {function(Room): boolean} */ (r) => r.id === targetRoomId
+        /** @type {function(Room): boolean} */(r) => r.id === targetRoomId
       );
 
       if (!targetRoom) {
@@ -779,14 +779,14 @@ export class TenantManager extends BaseManager {
 
     if (targetRoomId) {
       const targetRoom = rooms.find(
-        /** @type {function(Room): boolean} */ (r) => r.id === targetRoomId
+        /** @type {function(Room): boolean} */(r) => r.id === targetRoomId
       );
       return targetRoom && !this.gameState.getRoomTenant(targetRoom.id) ? targetRoom : null;
     }
 
     // 自動分配：優先選擇已加固的空房
     const emptyRooms = rooms.filter(
-      /** @type {function(Room): boolean} */ (r) => !this.gameState.getRoomTenant(r.id)
+      /** @type {function(Room): boolean} */(r) => !this.gameState.getRoomTenant(r.id)
     );
 
     // 按優先級排序：加固房間 > 普通房間 > 需維修房間
@@ -1078,6 +1078,7 @@ export class TenantManager extends BaseManager {
       type: "evict",
       tenant: tenant,
       room: room,
+      gameState: this.gameState
     };
 
     return this.validator.validateTenantOperation(tenantOperation);
@@ -1144,7 +1145,7 @@ export class TenantManager extends BaseManager {
             result.leftBehind[/** @type {ResourceType} */ (resourceType)];
           if (amount > 0) {
             this.resourceManager.modifyResource(
-              /** @type {ResourceType} */ (resourceType),
+              /** @type {ResourceType} */(resourceType),
               amount,
               "tenant_leftBehind"
             );
@@ -2439,7 +2440,7 @@ export class TenantManager extends BaseManager {
         Object.entries(result.rewards).forEach(([resourceType, amount]) => {
           if (amount > 0) {
             this.resourceManager.modifyResource(
-              /** @type {ResourceType} */ (resourceType),
+              /** @type {ResourceType} */(resourceType),
               amount,
               `${tenant.name}搜刮獲得`
             );

@@ -47,10 +47,12 @@
  * @property {'hire'|'evict'|'skill'} type - 操作類型
  * @property {Object} [tenant] - 租客物件
  * @property {string} [tenant.name] - 租客姓名
+ * @property {number} [tenant.id] - 租客ID
  * @property {'doctor'|'worker'|'farmer'|'soldier'|'elder'} [tenant.type] - 租客類型
  * @property {boolean} [tenant.infected] - 是否感染
  * @property {Object} [room] - 房間物件
- * @property {Object|null} [room.tenant] - 房間中的租客
+ * @property {number} [room.id] - 房間ID
+ * @property {Object} [gameState] - 遊戲狀態實例
  */
 
 /**
@@ -205,7 +207,7 @@ export class Validator {
 
     this.stats.total++;
 
-    const { type, tenant, room } = operation;
+    const { type, tenant, room, gameState } = operation;
 
     switch (type) {
       case "hire":
@@ -217,12 +219,26 @@ export class Validator {
         }
         break;
 
-      // 待修改 room.tenant
-      // case "evict":
-      //   if (!room || !room.tenant) {
-      //     return this._fail("房間內沒有租客");
-      //   }
-      //   break;
+      case "evict":
+        if (!tenant) {
+          return this._fail("租客物件無效");
+        }
+
+        if (!room) {
+          return this._fail("房間物件無效");
+        }
+
+        // 驗證租客是否在指定房間中
+        if (gameState) {
+          const currentTenant = gameState.getRoomTenant(room.id);
+          if (!currentTenant) {
+            return this._fail("房間內沒有租客");
+          }
+          if (currentTenant.id !== tenant.id) {
+            return this._fail("租客不在指定房間中");
+          }
+        }
+        break;
 
       case "skill":
         if (!tenant || tenant.infected) {
