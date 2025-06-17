@@ -15,7 +15,11 @@
       "fuel": 0,
       "cash": 20
     },
-    "traits": ["professional", "cautious", "valuable"],
+    "traits": [
+      "professional",
+      "cautious",
+      "valuable"
+    ],
     "baseStats": {
       "health": 90,
       "workEfficiency": 85,
@@ -25,17 +29,23 @@
     "skillIds": [
       "heal_infection",
       "health_check",
-      "medical_production",
-      "emergency_training"
+      "medical_production"
     ],
     "preferences": {
       "roomType": "clean",
-      "neighbors": ["worker", "elder"],
-      "conflicts": ["soldier"]
+      "neighbors": [
+        "worker",
+        "elder"
+      ],
+      "conflicts": [
+        "soldier"
+      ]
     },
     "unlockConditions": {
       "day": 3,
-      "events": ["medical_emergency"]
+      "events": [
+        "medical_emergency"
+      ]
     }
   },
   {
@@ -54,7 +64,11 @@
       "fuel": 0,
       "cash": 15
     },
-    "traits": ["practical", "hardworking", "reliable"],
+    "traits": [
+      "practical",
+      "hardworking",
+      "reliable"
+    ],
     "baseStats": {
       "health": 95,
       "workEfficiency": 90,
@@ -64,12 +78,14 @@
     "skillIds": [
       "efficient_repair",
       "reinforce_room",
-      "daily_maintenance",
       "building_upgrade"
     ],
     "preferences": {
       "roomType": "workshop",
-      "neighbors": ["farmer", "doctor"],
+      "neighbors": [
+        "farmer",
+        "doctor"
+      ],
       "conflicts": []
     },
     "unlockConditions": {
@@ -92,7 +108,11 @@
       "fuel": 0,
       "cash": 12
     },
-    "traits": ["natural", "patient", "resourceful"],
+    "traits": [
+      "natural",
+      "patient",
+      "resourceful"
+    ],
     "baseStats": {
       "health": 85,
       "workEfficiency": 75,
@@ -102,13 +122,17 @@
     "skillIds": [
       "harvest_bonus",
       "plant_crops",
-      "wild_foraging",
-      "food_preservation"
+      "wild_foraging"
     ],
     "preferences": {
       "roomType": "garden_view",
-      "neighbors": ["elder", "worker"],
-      "conflicts": ["soldier"]
+      "neighbors": [
+        "elder",
+        "worker"
+      ],
+      "conflicts": [
+        "soldier"
+      ]
     },
     "unlockConditions": {
       "day": 1
@@ -130,7 +154,11 @@
       "fuel": 0,
       "cash": 25
     },
-    "traits": ["combat_ready", "disciplined", "protective"],
+    "traits": [
+      "combat_ready",
+      "disciplined",
+      "protective"
+    ],
     "baseStats": {
       "health": 100,
       "workEfficiency": 80,
@@ -140,13 +168,17 @@
     "skillIds": [
       "combat_bonus",
       "night_watch",
-      "defensive_construction",
-      "patrol_system"
+      "defensive_construction"
     ],
     "preferences": {
       "roomType": "secure",
-      "neighbors": ["worker"],
-      "conflicts": ["farmer", "elder"]
+      "neighbors": [
+        "worker"
+      ],
+      "conflicts": [
+        "farmer",
+        "elder"
+      ]
     },
     "unlockConditions": {
       "day": 7,
@@ -169,7 +201,11 @@
       "fuel": 0,
       "cash": 30
     },
-    "traits": ["wise", "diplomatic", "fragile"],
+    "traits": [
+      "wise",
+      "diplomatic",
+      "fragile"
+    ],
     "baseStats": {
       "health": 60,
       "workEfficiency": 50,
@@ -177,15 +213,19 @@
       "survivability": 40
     },
     "skillIds": [
-      "peacemaker",
+      "harmony_aura",
       "conflict_mediation",
-      "life_guidance",
-      "establish_network"
+      "life_guidance"
     ],
     "preferences": {
       "roomType": "quiet",
-      "neighbors": ["doctor", "farmer"],
-      "conflicts": ["soldier"]
+      "neighbors": [
+        "doctor",
+        "farmer"
+      ],
+      "conflicts": [
+        "soldier"
+      ]
     },
     "unlockConditions": {
       "day": 5,

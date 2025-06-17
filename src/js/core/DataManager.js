@@ -160,7 +160,6 @@ import { getNestedValue } from "../utils/helpers.js";
  * @property {number} configsLoaded - 已載入配置檔案數量
  * @property {number} gameDataLoaded - 已載入遊戲資料檔案數量
  * @property {number} cacheSize - 快取大小
- * @property {boolean} fallbackMode - 是否處於後備模式
  */
 
 /**
@@ -208,14 +207,8 @@ export class DataManager {
         this.loadGameData("events"),
       ];
 
-      const results = await Promise.allSettled(loadPromises);
-
-      // 檢查載入結果
-      const failures = results.filter((result) => result.status === "rejected");
-      if (failures.length > 0) {
-        console.warn("部分資料載入失敗，使用後備模式");
-        this.enableFallbackMode();
-      }
+      // 使用 Promise.all 確保所有載入成功，任何失敗都會拋出錯誤
+      await Promise.all(loadPromises);
 
       this.isInitialized = true;
       console.log(MESSAGE_TEMPLATES.SYSTEM.READY);
@@ -223,21 +216,14 @@ export class DataManager {
       return {
         success: true,
         data: this.getAllData(),
-        fallbackMode: failures.length > 0,
-        errors: failures.map((f) => f.reason?.message || String(f.reason)),
       };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error(MESSAGE_TEMPLATES.SYSTEM.ERROR(errorMessage));
-      this.enableFallbackMode();
 
-      return {
-        success: false,
-        error: errorMessage,
-        fallbackMode: true,
-        data: this.getAllData(),
-      };
+      // 不再啟用後備模式，直接拋出錯誤
+      throw new Error(`資料載入失敗，請檢查配置檔案：${errorMessage}`);
     }
   }
 
@@ -328,88 +314,77 @@ export class DataManager {
   }
 
   /**
-   * 啟用後備模式 - 使用硬編碼預設值
-   * @returns {void}
-   */
-  enableFallbackMode() {
-    console.warn("啟用後備模式，使用預設配置");
-
-    // 設定基本遊戲規則
-    if (!this.configs.has("rules")) {
-      this.configs.set("rules", this._getDefaultRules());
-    }
-
-    // 設定基本租客類型
-    if (!this.gameData.has("tenants")) {
-      this.gameData.set("tenants", this._getDefaultTenants());
-    }
-
-    // 設定基本技能
-    if (!this.gameData.has("skills")) {
-      this.gameData.set("skills", this._getDefaultSkills());
-    }
-
-    // 設定基本事件
-    if (!this.gameData.has("events")) {
-      this.gameData.set("events", this._getDefaultEvents());
-    }
-  }
-
-  /**
    * 取得遊戲規則配置
    * @returns {GameRules} 遊戲規則物件
+   * @throws {Error} 當配置未載入時
    */
   getGameRules() {
-    return /** @type {GameRules} */ (
-      this.configs.get("rules") || this._getDefaultRules()
-    );
+    const rules = this.configs.get("rules");
+    if (!rules) {
+      throw new Error("遊戲規則配置未載入，請先執行 initialize()");
+    }
+    return /** @type {GameRules} */ (rules);
   }
 
   /**
    * 取得租客類型資料
    * @returns {Array<TenantType>} 租客類型陣列
+   * @throws {Error} 當資料未載入時
    */
   getTenantTypes() {
-    return /** @type {Array<TenantType>} */ (
-      this.gameData.get("tenants") || this._getDefaultTenants()
-    );
+    const tenants = this.gameData.get("tenants");
+    if (!tenants) {
+      throw new Error("租客類型資料未載入，請先執行 initialize()");
+    }
+    return /** @type {Array<TenantType>} */ (tenants);
   }
 
   /**
    * 取得技能資料
    * @param {'doctor'|'worker'|'farmer'|'soldier'|'elder'} [tenantType] - 租客類型
    * @returns {Array<Skill>} 指定類型的技能陣列
+   * @throws {Error} 當資料未載入時
    */
   getSkillData(tenantType) {
-    const allSkills = /** @type {SkillCollection} */ (
-      this.gameData.get("skills") || this._getDefaultSkills()
-    );
-    return tenantType ? allSkills[tenantType] || [] : [];
+    const allSkills = this.gameData.get("skills");
+    if (!allSkills) {
+      throw new Error("技能資料未載入，請先執行 initialize()");
+    }
+
+    const skillCollection = /** @type {SkillCollection} */ (allSkills);
+    return tenantType ? (skillCollection[tenantType] || []) : [];
   }
 
   /**
    * 取得完整技能集合
    * @returns {SkillCollection} 技能資料集合
+   * @throws {Error} 當資料未載入時
    */
   getAllSkills() {
-    return /** @type {SkillCollection} */ (
-      this.gameData.get("skills") || this._getDefaultSkills()
-    );
+    const skills = this.gameData.get("skills");
+    if (!skills) {
+      throw new Error("技能資料未載入，請先執行 initialize()");
+    }
+    return /** @type {SkillCollection} */ (skills);
   }
 
   /**
    * 取得事件資料
    * @returns {EventCollection} 事件資料集合
+   * @throws {Error} 當資料未載入時
    */
   getEventData() {
-    return /** @type {EventCollection} */ (
-      this.gameData.get("events") || this._getDefaultEvents()
-    );
+    const events = this.gameData.get("events");
+    if (!events) {
+      throw new Error("事件資料未載入，請先執行 initialize()");
+    }
+    return /** @type {EventCollection} */ (events);
   }
 
   /**
    * 取得所有載入的資料
    * @returns {AllGameData} 包含所有遊戲資料的物件
+   * @throws {Error} 當任何資料未載入時
    */
   getAllData() {
     return {
@@ -420,190 +395,17 @@ export class DataManager {
     };
   }
 
+
   /**
    * 配置查詢輔助方法 - 支援路徑查詢
    * @param {string} path - 配置路徑，用點分隔（如：'gameDefaults.initialResources.food'）
    * @param {*} [defaultValue=null] - 預設值
    * @returns {*} 查詢到的值或預設值
+   * @throws {Error} 當配置未載入時
    */
   getRuleValue(path, defaultValue = null) {
     const rules = this.getGameRules();
     return getNestedValue(rules, path, defaultValue);
-  }
-
-  /**
-   * 取得預設遊戲規則
-   * @returns {GameRules} 預設遊戲規則物件
-   * @private
-   */
-  _getDefaultRules() {
-    return {
-      gameDefaults: {
-        initialResources: {
-          food: 20,
-          materials: 15,
-          medical: 10,
-          fuel: 8,
-          cash: 50,
-        },
-        initialRooms: { count: 2 },
-      },
-      gameBalance: {
-        landlord: { dailyFoodConsumption: 2 },
-        tenants: { dailyFoodConsumption: 2 },
-        resources: { dailyConsumption: { fuel: 1 } },
-      },
-      characterGeneration: {
-        names: [
-          "小明",
-          "小華",
-          "小李",
-          "老王",
-          "阿強",
-          "小美",
-          "阿珍",
-          "大雄",
-          "靜香",
-          "胖虎",
-          "小張",
-          "阿陳",
-          "小林",
-          "老劉",
-          "阿花",
-          "小玉",
-          "阿寶",
-          "小鳳",
-          "阿義",
-          "小雲",
-        ],
-        appearances: {
-          normal: [
-            "看起來精神狀態不錯",
-            "衣著整潔，談吐得體",
-            "眼神清澈，反應靈敏",
-            "握手時手掌溫暖有力",
-            "說話條理清晰，很有條理",
-          ],
-          infected: [
-            "眼神有點呆滯，反應遲鈍",
-            "皮膚蒼白，手有輕微顫抖",
-            "說話時偶爾停頓，像在想什麼",
-            "衣服有些血跡，說是意外受傷",
-            "體溫似乎偏低，一直在發抖",
-          ],
-        },
-      },
-    };
-  }
-
-  /**
-   * 取得預設租客類型
-   * @returns {Array<TenantType>} 預設租客類型陣列
-   * @private
-   */
-  _getDefaultTenants() {
-    return [
-      {
-        typeId: "doctor",
-        typeName: "醫生",
-        category: "doctor",
-        rent: 15,
-        skill: "醫療",
-        infectionRisk: 0.1,
-        description: "可以治療感染，檢測可疑租客",
-        personalResources: {
-          food: 3,
-          materials: 0,
-          medical: 5,
-          fuel: 0,
-          cash: 20,
-        },
-      },
-      {
-        typeId: "worker",
-        typeName: "工人",
-        category: "worker",
-        rent: 12,
-        skill: "維修",
-        infectionRisk: 0.2,
-        description: "擅長維修建築，房間升級",
-        personalResources: {
-          food: 4,
-          materials: 8,
-          medical: 0,
-          fuel: 0,
-          cash: 15,
-        },
-      },
-    ];
-  }
-
-  /**
-   * 取得預設技能資料
-   * @returns {SkillCollection} 預設技能集合
-   * @private
-   */
-  _getDefaultSkills() {
-    return {
-      doctor: [
-        {
-          id: "heal_infection",
-          name: "治療感染",
-          type: "active",
-          description: "治療感染的租客",
-          cost: { medical: 3, cash: 12 },
-          cooldown: 0,
-          requirements: { conditions: [] },
-          effects: [],
-          successRate: 95,
-          priority: 1,
-        },
-      ],
-      worker: [
-        {
-          id: "efficient_repair",
-          name: "專業維修",
-          type: "active",
-          description: "以更少建材維修房間",
-          cost: { materials: 1, cash: 10 },
-          cooldown: 0,
-          requirements: { conditions: [] },
-          effects: [],
-          successRate: 100,
-          priority: 1,
-        },
-      ],
-    };
-  }
-
-  /**
-   * 取得預設事件資料
-   * @returns {EventCollection} 預設事件集合
-   * @private
-   */
-  _getDefaultEvents() {
-    return {
-      random_events: [
-        {
-          id: "zombie_attack",
-          category: "combat",
-          title: "殭屍襲擊",
-          description: "一群殭屍正在靠近房屋！",
-          priority: 1,
-          trigger: {
-            type: "random",
-            probability: 0.3,
-          },
-          choices: [
-            {
-              id: "fortify_defense",
-              text: "加固防禦 (-5建材)",
-              cost: { materials: 5 },
-            },
-          ],
-        },
-      ],
-    };
   }
 
   /**
@@ -616,8 +418,21 @@ export class DataManager {
       configsLoaded: this.configs.size,
       gameDataLoaded: this.gameData.size,
       cacheSize: this.cache.size,
-      fallbackMode: this.configs.size === 0 || this.gameData.size === 0,
     };
+  }
+
+  /**
+   * 驗證所有必要資料是否已載入
+   * @returns {boolean} 是否所有資料都已載入
+   */
+  isFullyLoaded() {
+    return (
+      this.isInitialized &&
+      this.configs.has("rules") &&
+      this.gameData.has("tenants") &&
+      this.gameData.has("skills") &&
+      this.gameData.has("events")
+    );
   }
 
   /**
@@ -630,6 +445,7 @@ export class DataManager {
     this.cache.clear();
     this.loadingPromises.clear();
     this.isInitialized = false;
+    console.log("DataManager 已清理所有資源");
   }
 }
 
