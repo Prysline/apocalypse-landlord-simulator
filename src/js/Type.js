@@ -111,6 +111,41 @@
  * @property {string[]} recommendations - 建議操作
  */
 
+// ==================== 人物系統類型 ====================
+
+/**
+ * 人物基礎資料（所有角色共用）
+ * @typedef {Object} Person
+ * @property {string} id - 唯一識別碼
+ * @property {string} name - 姓名
+ * @property {TenantType} type - 人物類型
+ * @property {string} appearance - 外觀描述
+ * @property {boolean} infected - 感染狀態
+ * @property {boolean} revealedInfection - 是否已發現感染
+ * @property {PersonalResources} personalResources - 個人資源
+ * @property {boolean} tradingInterest - 交易興趣
+ * @property {Resources} tradingResources - 可交易的資源
+ */
+
+/**
+ * 角色對應關係
+ * @typedef {Object} RoleStates
+ * @property {Map<number, string>} tenants - 房間ID -> 租客ID
+ * @property {Map<string, number>} tenantRooms - 租客ID -> 房間ID
+ * @property {Set<string>} visitors - 當前訪客ID集合
+ * @property {Set<string>} applicants - 有租房興趣的訪客ID集合
+ */
+
+/**
+ * 角色專屬屬性
+ * @typedef {Object} RoleProps
+ * @property {number} [satisfaction] - 租客滿意度
+ * @property {number} [rentAmount] - 租客房租金額
+ * @property {number} [moveInDate] - 租客入住日期
+ * @property {boolean} [onMission] - 租客是否在執行任務
+ * @property {boolean} [rentingInterest] - 申請者的租房興趣
+ */
+
 // ==================== 租客相關類型 ====================
 
 /**
@@ -177,7 +212,6 @@
  * 房間物件類型
  * @typedef {Object} Room
  * @property {number} id - 房間ID
- * @property {Tenant|null} tenant - 入住的租客
  * @property {boolean} needsRepair - 是否需要維修
  * @property {boolean} reinforced - 是否已加固
  * @property {number} [repairCost] - 維修費用

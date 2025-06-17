@@ -212,16 +212,17 @@ export class Validator {
         if (!tenant || !tenant.name || !tenant.type) {
           return this._fail("租客資料不完整");
         }
-        if (!room || room.tenant !== null) {
+        if (!room) {
           return this._fail("房間不可用");
         }
         break;
 
-      case "evict":
-        if (!room || !room.tenant) {
-          return this._fail("房間內沒有租客");
-        }
-        break;
+      // 待修改 room.tenant
+      // case "evict":
+      //   if (!room || !room.tenant) {
+      //     return this._fail("房間內沒有租客");
+      //   }
+      //   break;
 
       case "skill":
         if (!tenant || tenant.infected) {

@@ -83,10 +83,10 @@ export default class UICore {
     const scavengeUsed = this.gameApp.gameState?.getStateValue('scavengeUsed', 0) || 0;
     const remaining = 2 - scavengeUsed;
 
-    const rooms = this.gameApp.gameState?.getStateValue('rooms', []) || [];
-    const availableTenants = rooms
-      .filter(room => room.tenant && !room.tenant.onMission && !room.tenant.infected)
-      .map(room => room.tenant);
+    const allTenants = this.gameApp.gameState?.getAllTenants() || [];
+    const availableTenants = allTenants.filter(tenant =>
+      !tenant.onMission && !tenant.infected
+    );
 
     this.modal.setScavengeContent(availableTenants, remaining);
     this.modal.show('scavengeModal');
@@ -107,8 +107,10 @@ export default class UICore {
    * 顯示房間模態框 (對外介面)
    */
   showRoomModal(room) {
-    if (room.tenant) {
-      const satisfaction = this.gameApp.gameState?.getStateValue(`tenantSatisfaction.${room.tenant.name}`, 50) || 50;
+    const tenant = this.gameApp.gameState?.getRoomTenant(room.id);
+
+    if (tenant) {
+      const satisfaction = this.gameApp.gameState?.getStateValue(`tenantSatisfaction.${tenant.name}`, 50) || 50;
       this.modal.setTenantContent(room, satisfaction);
     } else {
       this.modal.setEmptyRoomContent(room);

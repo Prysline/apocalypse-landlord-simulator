@@ -431,10 +431,9 @@ export class TradeManager extends BaseManager {
       const rooms = this.gameState.getStateValue("rooms", []);
 
       // 檢查是否有租客
-      const roomsWithTenants = rooms.filter(
-        /** @type {function(Room): boolean} */(room) => room.tenant !== null
-      );
-      if (roomsWithTenants.length === 0) {
+      const allTenants = this.gameState.getAllTenants();
+
+      if (allTenants.length === 0) {
         results.success = false;
         results.summary = "❌ 目前沒有租客，無法進行收租";
         this.addLog(results.summary, "rent");
@@ -442,34 +441,39 @@ export class TradeManager extends BaseManager {
       }
 
       // 篩選可收租的租客（未感染）
-      const occupiedRooms = rooms.filter(
-        /** @type {function(Room): boolean} */(room) =>
-          room.tenant && !room.tenant.infected
-      );
+      const healthyTenants = allTenants.filter(tenant => !tenant.infected);
 
-      if (occupiedRooms.length === 0) {
+      if (healthyTenants.length === 0) {
         results.summary = "📭 今日沒有租客繳納房租";
         this.addLog(results.summary, "event");
         return results;
       }
 
       // 逐個處理租客租金
-      for (const room of occupiedRooms) {
-        const tenantResult = await this.processIndividualRent(room);
+      for (const tenant of healthyTenants) {
+        // 獲取租客的房間ID
+        const roomId = this.gameState.state.roles.tenantRooms.get(tenant.id);
+        const room = this.gameState.state.rooms.find(r => r.id === roomId);
 
-        if (tenantResult.success) {
-          results.totalCashRent += tenantResult.cashAmount;
-          results.bonusIncome += tenantResult.bonusAmount;
+        if (room) {
+          // 創建臨時房間物件以保持介面相容性
+          const roomWithTenant = { ...room, tenant };
+          const tenantResult = await this.processIndividualRent(roomWithTenant);
 
-          if (tenantResult.resourcePayments.length > 0) {
-            results.resourcePayments.push(...tenantResult.resourcePayments);
+          if (tenantResult.success) {
+            results.totalCashRent += tenantResult.cashAmount;
+            results.bonusIncome += tenantResult.bonusAmount;
+
+            if (tenantResult.resourcePayments.length > 0) {
+              results.resourcePayments.push(...tenantResult.resourcePayments);
+            }
+          } else {
+            results.failedPayments.push({
+              tenant: tenant.name,
+              reason: tenantResult.reason,
+              shortage: tenantResult.shortage,
+            });
           }
-        } else {
-          results.failedPayments.push({
-            tenant: room.tenant.name,
-            reason: tenantResult.reason,
-            shortage: tenantResult.shortage,
-          });
         }
       }
 
@@ -530,16 +534,16 @@ export class TradeManager extends BaseManager {
 
   /**
    * 處理個別租客租金
-   * @param {Room} room - 房間物件
+   * @param {Object} roomWithTenant - 房間物件
    * @returns {Promise<IndividualRentResult>} 個別租客租金處理結果
    * @throws {Error} 當房間或租客資料無效時
    */
-  async processIndividualRent(room) {
-    if (!room || !room.tenant) {
+  async processIndividualRent(roomWithTenant) {
+    if (!roomWithTenant || !roomWithTenant.tenant) {
       throw new Error("無效的房間或租客資料");
     }
 
-    const tenant = room.tenant;
+    const tenant = roomWithTenant.tenant;
     const rentOwed = tenant.rent;
 
     /** @type {IndividualRentResult} */
@@ -558,11 +562,11 @@ export class TradeManager extends BaseManager {
 
     // 嘗試現金支付
     if (tenant.personalResources && tenant.personalResources.cash >= rentOwed) {
-      return this.processDirectCashPayment(tenant, rentOwed, room);
+      return this.processDirectCashPayment(tenant, rentOwed, roomWithTenant);
     }
 
     // 嘗試資源抵付
-    return this.processResourcePayment(tenant, rentOwed, room);
+    return this.processResourcePayment(tenant, rentOwed, roomWithTenant);
   }
 
   /**
@@ -999,10 +1003,7 @@ export class TradeManager extends BaseManager {
     }
 
     // 檢查租客（早期感染偵測）
-    const rooms = this.gameState.getStateValue("rooms", []);
-    const healthyTenants = rooms
-      .filter((room) => room.tenant && !room.tenant.infected)
-      .map((room) => room.tenant);
+    const healthyTenants = this.gameState.getAllTenants().filter(tenant => !tenant.infected);
 
     healthyTenants.forEach((tenant) => {
       if (Math.random() < 0.15) {
@@ -1656,12 +1657,7 @@ export class TradeManager extends BaseManager {
       return results;
     }
 
-    const rooms = this.gameState.getStateValue("rooms", []);
-    const tenants = rooms
-      .filter(
-        (room) => room.tenant !== null && room.tenant.personalResources !== null
-      )
-      .map((room) => room.tenant);
+    const tenants = this.gameState.getAllTenants()
 
     if (tenants.length < 2) {
       return results;
@@ -1801,11 +1797,8 @@ export class TradeManager extends BaseManager {
     }
 
     const rooms = this.gameState.getStateValue("rooms", []);
-    const tenants = rooms
-      .filter(
-        (room) => room.tenant !== null && room.tenant.personalResources !== null
-      )
-      .map((room) => room.tenant);
+    const tenants = this.gameState.getAllTenants()
+      .filter(tenant => tenant.personalResources !== null);
 
     for (const tenant of tenants) {
       const tradeResult = this.attemptLandlordTenantTrade(tenant);

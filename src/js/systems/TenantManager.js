@@ -650,7 +650,7 @@ export class TenantManager extends BaseManager {
         };
       }
 
-      if (targetRoom.tenant) {
+      if (this.gameState.getRoomTenant(targetRoom.id)) {
         return {
           valid: false,
           error: `房間 ${targetRoomId} 已有租客`,
@@ -781,12 +781,12 @@ export class TenantManager extends BaseManager {
       const targetRoom = rooms.find(
         /** @type {function(Room): boolean} */ (r) => r.id === targetRoomId
       );
-      return targetRoom && !targetRoom.tenant ? targetRoom : null;
+      return targetRoom && !this.gameState.getRoomTenant(targetRoom.id) ? targetRoom : null;
     }
 
     // 自動分配：優先選擇已加固的空房
     const emptyRooms = rooms.filter(
-      /** @type {function(Room): boolean} */ (r) => !r.tenant
+      /** @type {function(Room): boolean} */ (r) => !this.gameState.getRoomTenant(r.id)
     );
 
     // 按優先級排序：加固房間 > 普通房間 > 需維修房間
@@ -839,8 +839,10 @@ export class TenantManager extends BaseManager {
    */
   async executeHiring(tenant, room) {
     try {
-      // 分配房間
-      room.tenant = tenant;
+      // 分配房間 - 直接更新 gameState 的人員和角色映射
+      this.gameState.state.people.set(tenant.id, tenant);
+      this.gameState.state.roles.tenants.set(room.id, tenant.id);
+      this.gameState.state.roles.tenantRooms.set(tenant.id, room.id);
 
       // 更新遊戲狀態
       const updateSuccess = this.gameState.setState(
@@ -1021,8 +1023,9 @@ export class TenantManager extends BaseManager {
     const rooms = this.gameState.getStateValue("rooms", []);
 
     for (const room of rooms) {
-      if (room.tenant && room.tenant.id === tenantId) {
-        return { tenant: room.tenant, room: room };
+      const tenant = this.gameState.getRoomTenant(room.id);
+      if (tenant && tenant.id === tenantId) {
+        return { tenant: tenant, room: room };
       }
     }
 
@@ -1157,8 +1160,10 @@ export class TenantManager extends BaseManager {
         }
       }
 
-      // 移除租客
-      room.tenant = null;
+      // 移除租客 - 直接更新 gameState 的人員和角色映射
+      this.gameState.state.people.delete(tenant.id);
+      this.gameState.state.roles.tenants.delete(room.id);
+      this.gameState.state.roles.tenantRooms.delete(tenant.id);
 
       // 更新遊戲狀態
       const updateSuccess = this.gameState.setState(
@@ -2654,10 +2659,7 @@ export class TenantManager extends BaseManager {
    * @returns {Room[]} 空房間列表
    */
   getEmptyRooms() {
-    const rooms = this.gameState.getStateValue("rooms", []);
-    return rooms.filter(
-      /** @type {function(Room): boolean} */ (room) => !room.tenant
-    );
+    return this.gameState.getEmptyRooms();
   }
 
   /**
@@ -2864,10 +2866,10 @@ export class TenantManager extends BaseManager {
       this.gameState.setStateValue("dailyActions.scavengeUsed", 0, "每日重置");
 
       // 重置租客任務狀態
-      const rooms = this.gameState.getStateValue("rooms", []);
-      rooms.forEach(room => {
-        if (room.tenant && room.tenant.onMission) {
-          room.tenant.onMission = false;
+      const allTenants = this.gameState.getAllTenants();
+      allTenants.forEach(tenant => {
+        if (tenant.onMission) {
+          tenant.onMission = false;
         }
       });
 

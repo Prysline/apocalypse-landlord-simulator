@@ -193,7 +193,7 @@ export default class UIModal {
 
     if (!titleEl || !contentEl || !actionsEl) return;
 
-    const tenant = room.tenant;
+    const tenant = this.gameApp.gameState.getRoomTenant(room.id);
     const typeIcon = this.uiCore ? this.uiCore.getIcon(tenant.type, 'tenant') : '';
 
     titleEl.textContent = `房間 ${room.id} - ${tenant.name}`;

@@ -10,6 +10,10 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
 
 /**
  * @see {@link ../Type.js} 完整類型定義
+/**
+ * @typedef {import('../Type.js').Person} Person - 人物基礎資料
+ * @typedef {import('../Type.js').RoleStates} RoleStates  -  角色對應關係
+ * @typedef {import('../Type.js').RoleProps} RoleProps - 角色專屬屬性
  * @typedef {import('../Type.js').ResourceType} ResourceType - 資源類型
  * @typedef {import('../Type.js').TenantType} TenantType - 租客類型
  * @typedef {import('../Type.js').LogType} LogType - 日誌類型
@@ -26,7 +30,7 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
 
 /**
  * 狀態更新事件類型
- * @typedef {'state_changed'|'log_added'|'day_advanced'|'state_reset'|'state_imported'} StateEventType
+ * @typedef {'state_changed'|'log_added'|'day_advanced'|'state_reset'|'state_imported'|'person_updated'} StateEventType
  */
 
 /**
@@ -116,10 +120,11 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @property {BuildingState} building - 建築狀態
  * @property {DailyActions} dailyActions - 每日操作狀態
  * @property {GlobalEffects} globalEffects - 全局效果狀態
- * @property {Visitor[]} visitors - 當前訪客陣列
- * @property {Visitor[]} applicants - 當前申請者陣列
  * @property {LogEntry[]} gameLog - 遊戲日誌陣列
  * @property {SystemState} system - 系統狀態
+ * @property {Map<string, Person>} people - 所有人物基礎資料
+ * @property {RoleStates} roles - 角色對應關係
+ * @property {Map<string, RoleProps>} roleProperties - 角色專屬屬性
  */
 
 /**
@@ -235,8 +240,8 @@ export class GameState {
 
       // 房間狀態
       rooms: [
-        { id: 1, tenant: null, needsRepair: false, reinforced: false },
-        { id: 2, tenant: null, needsRepair: false, reinforced: false },
+        { id: 1, needsRepair: false, reinforced: false },
+        { id: 2, needsRepair: false, reinforced: false },
       ],
 
       // 租客相關狀態
@@ -271,10 +276,6 @@ export class GameState {
         harmoniumBonus: 0,
       },
 
-      // 當前訪客和申請者
-      visitors: [],
-      applicants: [],
-
       // 遊戲日誌
       gameLog: [],
 
@@ -285,6 +286,22 @@ export class GameState {
         lastSaved: null,
         gameRules: null,
       },
+
+      // === 統一人物系統 ===
+
+      /** @type {Map<string, Person>} 所有人物基礎資料 */
+      people: new Map(),
+
+      /** @type {RoleStates} 角色對應關係 */
+      roles: {
+        tenants: new Map(),        // 房間ID -> 租客ID
+        tenantRooms: new Map(),    // 租客ID -> 房間ID（反查優化）
+        visitors: new Set(),       // 當前訪客ID集合
+        applicants: new Set()      // 有租房興趣的訪客ID集合
+      },
+
+      /** @type {Map<string, RoleProps>} 角色專屬屬性 */
+      roleProperties: new Map()
     };
 
     // 如果有初始資料，合併覆蓋預設值
@@ -301,7 +318,6 @@ export class GameState {
         const roomCount = rules.gameDefaults.initialRooms.count || 2;
         defaults.rooms = Array.from({ length: roomCount }, (_, i) => ({
           id: i + 1,
-          tenant: null,
           needsRepair: false,
           reinforced: false,
         }));
@@ -316,6 +332,8 @@ export class GameState {
 
     return defaults;
   }
+
+  // =================== 核心狀態管理 API ===================
 
   /**
    * 取得完整狀態（唯讀）
@@ -342,7 +360,7 @@ export class GameState {
   }
 
   /**
-   * 更新狀態
+   * 批量更新狀態
    * @param {Partial<GameStateData>} updates - 要更新的狀態部分
    * @param {string} [reason='狀態更新'] - 更新原因
    * @returns {boolean} 更新是否成功
@@ -441,8 +459,35 @@ export class GameState {
    */
   hasEnoughResources(requirements) {
     return Object.entries(requirements).every(([type, amount]) =>
-      this.hasEnoughResource(/** @type {ResourceType} */ (type), amount)
+      this.hasEnoughResource(/** @type {ResourceType} */(type), amount)
     );
+  }
+
+  // =================== 高頻查詢 API ===================
+
+  /**
+   * 取得房間的租客（高效查詢）
+   * @param {number} roomId - 房間ID
+   * @returns {Person|null} 租客資料或 null
+   */
+  getRoomTenant(roomId) {
+    const personId = this.state.roles.tenants.get(roomId);
+    return personId ? this.state.people.get(personId) : null;
+  }
+
+  /**
+   * 取得所有租客（功能等價替代）
+   * @returns {Person[]} 所有租客陣列
+   */
+  getAllTenants() {
+    const tenants = [];
+    for (const personId of this.state.roles.tenantRooms.keys()) {
+      const person = this.state.people.get(personId);
+      if (person) {
+        tenants.push(person);
+      }
+    }
+    return tenants;
   }
 
   /**
@@ -460,7 +505,7 @@ export class GameState {
    * @returns {Room[]} 已出租房間陣列
    */
   getOccupiedRooms() {
-    return this.state.rooms.filter((room) => room.tenant !== null);
+    return this.state.rooms.filter(room => this.state.roles.tenants.has(room.id));
   }
 
   /**
@@ -468,31 +513,39 @@ export class GameState {
    * @returns {Room[]} 空房間陣列
    */
   getEmptyRooms() {
-    return this.state.rooms.filter((room) => room.tenant === null);
+    return this.state.rooms.filter(room => !this.state.roles.tenants.has(room.id));
   }
 
-  /**
-   * 取得所有租客
-   * @returns {Tenant[]} 所有租客陣列
-   */
-  getAllTenants() {
-    return this.state.rooms
-      .filter((room) => room.tenant)
-      .map((room) => /** @type {Tenant} */ (room.tenant));
-  }
+  // =================== 相容性方法（支援現有程式碼） ===================
 
   /**
-   * 根據類型取得租客
-   * @param {TenantType} tenantType - 租客類型
-   * @returns {Tenant[]} 指定類型的租客陣列
+   * 取得當前訪客（相容性介面）
+   * @returns {Person[]} 訪客陣列
    */
-  getTenantsByType(tenantType) {
-    if (!this._isValidTenantType(tenantType)) {
-      console.warn(`無效的租客類型: ${tenantType}`);
-      return [];
+  getCurrentVisitors() {
+    const visitors = [];
+    for (const personId of this.state.roles.visitors) {
+      const person = this.state.people.get(personId);
+      if (person) {
+        visitors.push(person);
+      }
     }
+    return visitors;
+  }
 
-    return this.getAllTenants().filter((tenant) => tenant.type === tenantType);
+  /**
+   * 取得當前申請者（相容性介面）
+   * @returns {Person[]} 申請者陣列
+   */
+  getCurrentApplicants() {
+    const applicants = [];
+    for (const personId of this.state.roles.applicants) {
+      const person = this.state.people.get(personId);
+      if (person) {
+        applicants.push(person);
+      }
+    }
+    return applicants;
   }
 
   /**
@@ -555,6 +608,8 @@ export class GameState {
     return success;
   }
 
+  // =================== 事件訂閱系統 ===================
+
   /**
    * 訂閱狀態變更
    * @param {StateEventType} eventType - 事件類型
@@ -576,6 +631,8 @@ export class GameState {
       }
     };
   }
+
+  // =================== 私有方法 ===================
 
   /**
    * 通知訂閱者
@@ -643,6 +700,55 @@ export class GameState {
       this.changeHistory.shift();
     }
   }
+
+  // =================== 除錯和統計 ===================
+
+  /**
+   * 取得人物系統統計
+   * @returns {Object} 統計資訊
+   */
+  getPeopleStats() {
+    return {
+      totalPeople: this.state.people.size,
+      tenants: this.state.roles.tenantRooms.size,
+      visitors: this.state.roles.visitors.size,
+      applicants: this.state.roles.applicants.size,
+      rooms: {
+        total: this.state.rooms.length,
+        occupied: this.state.roles.tenants.size,
+        empty: this.state.rooms.length - this.state.roles.tenants.size
+      }
+    };
+  }
+
+  /**
+   * 快速一致性檢查（輕量級）
+   * @returns {boolean} 資料是否一致
+   */
+  isDataConsistent() {
+    try {
+      // 檢查租客角色一致性
+      for (const [roomId, personId] of this.state.roles.tenants) {
+        if (!this.state.roles.tenantRooms.has(personId) ||
+          !this.state.people.has(personId)) {
+          return false;
+        }
+      }
+
+      // 檢查申請者是否都是訪客
+      for (const personId of this.state.roles.applicants) {
+        if (!this.state.roles.visitors.has(personId)) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('一致性檢查失敗:', error);
+      return false;
+    }
+  }
+
 
   /**
    * 驗證資源類型是否有效

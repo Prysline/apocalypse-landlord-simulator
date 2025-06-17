@@ -115,8 +115,9 @@ export default class UIDisplay {
 
     return rooms.map(room => {
       // 統一預處理共用邏輯
-      if (room.tenant) {
-        room.tenantSatisfaction = state.getStateValue(`tenantSatisfaction.${room.tenant.name}`, 50);
+      const tenant = state.getRoomTenant(room.id);
+      if (tenant) {
+        room.tenantSatisfaction = state.getStateValue(`tenantSatisfaction.${tenant.name}`, 50);
         room.satisfactionEmoji = this.uiCore.getSatisfactionEmoji(room.tenantSatisfaction);
       }
       return room;
@@ -139,10 +140,11 @@ export default class UIDisplay {
       // 重設CSS類
       roomElement.className = "room";
 
-      if (room.tenant) {
+      const tenant = state.getRoomTenant(room.id);
+      if (tenant) {
         roomElement.classList.add("occupied");
 
-        if (room.tenant.infected) {
+        if (tenant.infected) {
           roomElement.classList.add("infected");
         }
 
@@ -156,8 +158,8 @@ export default class UIDisplay {
         const satisfactionEmoji = room.satisfactionEmoji || '😐';
 
         infoElement.innerHTML = `
-                  ${room.tenant.name}<br>
-                  <small>${room.tenant.skill}</small><br>
+                  ${tenant.name}<br>
+                  <small>${tenant.skill}</small><br>
                   <small>滿意度: ${satisfaction} ${satisfactionEmoji}</small>
               `;
       } else {
@@ -184,14 +186,20 @@ export default class UIDisplay {
     const tenantListElement = this.elements.get('tenantList');
     if (!tenantListElement) return;
 
-    const rooms = this._getRoomsData(this.gameApp.gameState)
-    const tenants = rooms.filter(room => room.tenant).map(room => ({
-      ...room.tenant,
-      roomId: room.id,
-      roomReinforced: room.reinforced,
-      satisfaction: room.tenantSatisfaction,
-      satisfactionEmoji: room.satisfactionEmoji
-    }));
+    const occupiedRooms = this.gameApp.gameState.getOccupiedRooms();
+    const tenants = occupiedRooms.map(room => {
+      const tenant = this.gameApp.gameState.getRoomTenant(room.id);
+      if (tenant) {
+        return {
+          ...tenant,
+          roomId: room.id,
+          roomReinforced: room.reinforced,
+          satisfaction: room.tenantSatisfaction,
+          satisfactionEmoji: room.satisfactionEmoji
+        };
+      }
+      return null;
+    }).filter(tenant => tenant !== null);
 
     if (tenants.length === 0) {
       tenantListElement.innerHTML = '<div class="tenant-item">暫無租客</div>';
