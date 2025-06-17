@@ -161,7 +161,7 @@
     "skill": "經驗",
     "infectionRisk": 0.3,
     "rarity": "uncommon",
-    "description": "經驗豐富，調解糾紛，社交管理，人際網絡",
+    "description": "老人家經驗豐富，能幫忙調解住戶間的紛爭",
     "personalResources": {
       "food": 2,
       "materials": 0,
