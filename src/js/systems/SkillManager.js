@@ -106,11 +106,14 @@ export default class SkillManager extends BaseManager {
    * @param {Object} eventBus - 事件總線
    * @param {Object} dataManager - 資料管理器實例
    */
-  constructor(gameState, eventBus, dataManager) {
+  constructor(gameState, eventBus, dataManager, resourceManager) {
     super(gameState, eventBus, "SkillManager");
 
     /** @type {Object} 資料管理器實例 */
     this.dataManager = dataManager;
+
+    /** @type {Object} 資源管理器實例 */
+    this.resourceManager = resourceManager;
 
     /** @type {Map<TenantType, SkillConfig[]>} 技能註冊表 (tenantType -> skills) */
     this.skillRegistry = new Map();
@@ -1171,7 +1174,7 @@ export default class SkillManager extends BaseManager {
   _payCost(cost, tenant) {
     Object.keys(cost).forEach(resource => {
       const amount = cost[resource];
-      this.gameState.modifyResource(resource, -amount, `技能支付: ${tenant.name}`);
+      this.resourceManager.transferResource('landlord', tenant.id, { [resource]: amount }, `技能支付: ${tenant.name}`)
     });
   }
 

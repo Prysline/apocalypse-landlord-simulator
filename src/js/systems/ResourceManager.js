@@ -31,8 +31,8 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
 /**
  * 資源轉移記錄
  * @typedef {Object} ResourceTransfer
- * @property {string} from - 來源（'landlord' 或租客名稱）
- * @property {string} to - 目標（'landlord' 或租客名稱）
+ * @property {string} from - 來源（'landlord' 或租客 ID）
+ * @property {string} to - 目標（'landlord' 或租客 ID）
  * @property {Partial<Resources>} resources - 轉移的資源
  * @property {string} reason - 轉移原因
  * @property {boolean} success - 轉移是否成功
@@ -504,8 +504,8 @@ export class ResourceManager extends BaseManager {
 
   /**
    * 資源轉移（租客與房東之間）
-   * @param {string} from - 來源（'landlord' 或租客名稱）
-   * @param {string} to - 目標（'landlord' 或租客名稱）
+   * @param {string} from - 來源（'landlord' 或租客 ID）
+   * @param {string} to - 目標（'landlord' 或租客 ID）
    * @param {Partial<Resources>} resources - 要轉移的資源
    * @param {string} reason - 轉移原因
    * @returns {boolean} 轉移是否成功
@@ -1086,12 +1086,12 @@ export class ResourceManager extends BaseManager {
   }
 
   /**
-   * 檢查特定擁有者是否有足夠資源
-   * @param {string} owner - 擁有者（'landlord' 或租客名稱）
+   * 檢查指定擁有者（房東或租客）的資源是否足夠
+   * @private
+   * @param {string} owner - 資源擁有者 ('landlord' 或租客 ID)
    * @param {ResourceType} resourceType - 資源類型
    * @param {number} amount - 需要的數量
-   * @private
-   * @returns {boolean} 是否有足夠資源
+   * @returns {boolean} 資源是否足夠
    */
   _hasEnoughResource(owner, resourceType, amount) {
     if (owner === "landlord") {
@@ -1099,7 +1099,7 @@ export class ResourceManager extends BaseManager {
     } else {
       // 檢查租客個人資源
       const tenants = this.gameState.getAllTenants();
-      const tenant = tenants.find((t) => t.name === owner);
+      const tenant = tenants.find((t) => t.id === owner);
 
       if (!tenant || !tenant.personalResources) {
         return false;
@@ -1111,12 +1111,12 @@ export class ResourceManager extends BaseManager {
   }
 
   /**
-   * 按擁有者修改資源
-   * @param {string} owner - 擁有者（'landlord' 或租客名稱）
-   * @param {ResourceType} resourceType - 資源類型
-   * @param {number} amount - 變更數量
-   * @param {string} reason - 變更原因
+   * 修改指定擁有者（房東或租客）的資源數量
    * @private
+   * @param {string} owner - 資源擁有者 ('landlord' 或租客 ID)
+   * @param {ResourceType} resourceType - 資源類型
+   * @param {number} amount - 變更數量（可為負數）
+   * @param {string} reason - 修改原因
    * @returns {boolean} 修改是否成功
    */
   _modifyResourceByOwner(owner, resourceType, amount, reason) {
@@ -1125,7 +1125,7 @@ export class ResourceManager extends BaseManager {
     } else {
       // 修改租客個人資源
       const tenants = this.gameState.getAllTenants();
-      const tenant = tenants.find((t) => t.name === owner);
+      const tenant = tenants.find((t) => t.id === owner);
 
       if (!tenant) {
         this.logError(`找不到租客: ${owner}`);

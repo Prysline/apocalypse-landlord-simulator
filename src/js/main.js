@@ -128,7 +128,8 @@ class GameApplication {
     this.skillManager = new SkillManager(
       this.gameState,
       this.eventBus,
-      this.dataManager
+      this.dataManager,
+      this.resourceManager
     );
     await this.skillManager.initialize();
     console.log("✅ SkillManager 初始化完成");
