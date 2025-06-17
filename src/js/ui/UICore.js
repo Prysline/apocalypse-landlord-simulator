@@ -235,11 +235,21 @@ export default class UICore {
   /**
    * 收租 (對外介面)
    */
-  collectRent() {
-    if (this.gameApp.tradeManager?.processRentCollection) {
-      const result = this.gameApp.tradeManager.processRentCollection();
+  async collectRent() {
+    try {
+      if (this.gameApp.tradeManager?.collectRent) {
+        const result = await this.gameApp.tradeManager.collectRent(); // 正確方法名 + await
+        if (result.success) {
+          this.gameApp.gameState?.addLog(result.summary, 'rent');
+        } else {
+          this.gameApp.gameState?.addLog(result.error || '收租失敗', 'danger');
+        }
+      }
+    } catch (error) {
+      console.error('收租失敗:', error);
+      this.gameApp.gameState?.addLog('收租系統錯誤', 'danger');
     }
-    this.updateAll();
+    this.updateAll(); // 確保UI更新
   }
 
   /**

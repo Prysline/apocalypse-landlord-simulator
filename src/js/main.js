@@ -110,7 +110,7 @@ class GameApplication {
       this.dataManager,
       this.eventBus
     );
-    this.tradeManager.initialize();
+    await this.tradeManager.initialize();
     console.log("✅ TradeManager 初始化完成");
 
     // 租客管理器

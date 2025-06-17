@@ -179,12 +179,299 @@
           "materials": 3,
           "medical": 4,
           "fuel": 3
+        },
+        "resourceProcessingOrder": [
+          "food",
+          "materials",
+          "medical",
+          "fuel"
+        ]
+      },
+      "resourceTrade": {
+        "baseResourceValues": {
+          "food": 2,
+          "materials": 4,
+          "medical": 5,
+          "fuel": 3,
+          "cash": 1
+        },
+        "comfortLevels": {
+          "food": 4,
+          "materials": 3,
+          "medical": 2,
+          "fuel": 2,
+          "cash": 20
+        },
+        "relationshipPriceEffect": {
+          "buyPriceBase": 1.3,
+          "buyPriceReduction": 0.4,
+          "sellPriceBase": 0.8,
+          "sellPriceIncrease": 0.4
+        },
+        "emergencyTradeThresholds": {
+          "minimumRelationship": 30,
+          "urgentSellRelationship": 20
         }
       },
-      "trading": {
-        "merchantVisitChance": 0.4,
-        "trademarkup": 1.2,
-        "bulkDiscountThreshold": 5
+      "mutualAid": {
+        "baseProbability": 0.3,
+        "minimumRelationshipForAid": 60,
+        "minimumRelationshipForHelp": 50,
+        "relationshipEffects": {
+          "foodAid": {
+            "helper": 2,
+            "recipient": 3
+          },
+          "cashLoan": {
+            "helper": 1,
+            "recipient": 2
+          },
+          "medicalAid": {
+            "helper": 1,
+            "recipient": 3
+          }
+        }
+      },
+      "caravanTrade": {
+        "dailyOfferRange": {
+          "minimum": 3,
+          "maximum": 5
+        },
+        "groupSelectionRules": {
+          "maxFromRegularGroup": 1,
+          "maxFromSpecialGroup": 2
+        },
+        "offers": {
+          "fuel_for_food": {
+            "give": {
+              "fuel": 3
+            },
+            "receive": {
+              "food": 10
+            },
+            "description": "用燃料換食物"
+          },
+          "medical_for_food": {
+            "give": {
+              "medical": 2
+            },
+            "receive": {
+              "food": 8
+            },
+            "description": "用醫療用品換食物"
+          },
+          "cash_for_food": {
+            "give": {
+              "cash": 12
+            },
+            "receive": {
+              "food": 9
+            },
+            "description": "用現金購買食物"
+          },
+          "food_for_materials": {
+            "give": {
+              "food": 8
+            },
+            "receive": {
+              "materials": 3
+            },
+            "description": "用食物換建材"
+          },
+          "materials_for_cash": {
+            "give": {
+              "materials": 6
+            },
+            "receive": {
+              "cash": 20
+            },
+            "description": "出售建材換現金"
+          },
+          "cash_for_materials": {
+            "give": {
+              "cash": 18
+            },
+            "receive": {
+              "materials": 5
+            },
+            "description": "用現金購買建材"
+          },
+          "fuel_for_materials": {
+            "give": {
+              "fuel": 4
+            },
+            "receive": {
+              "materials": 4
+            },
+            "description": "用燃料換建材"
+          },
+          "materials_for_medical": {
+            "give": {
+              "materials": 4
+            },
+            "receive": {
+              "medical": 3
+            },
+            "description": "用建材換醫療用品"
+          },
+          "cash_for_medical": {
+            "give": {
+              "cash": 15
+            },
+            "receive": {
+              "medical": 4
+            },
+            "description": "用現金買醫療用品"
+          },
+          "medical_for_cash": {
+            "give": {
+              "medical": 3
+            },
+            "receive": {
+              "cash": 14
+            },
+            "description": "出售醫療用品換現金"
+          },
+          "medical_for_fuel": {
+            "give": {
+              "medical": 2
+            },
+            "receive": {
+              "fuel": 3
+            },
+            "description": "用醫療用品換燃料"
+          },
+          "cash_for_fuel": {
+            "give": {
+              "cash": 12
+            },
+            "receive": {
+              "fuel": 4
+            },
+            "description": "用現金購買燃料"
+          },
+          "materials_for_fuel": {
+            "give": {
+              "materials": 3
+            },
+            "receive": {
+              "fuel": 4
+            },
+            "description": "用建材換燃料"
+          },
+          "fuel_for_cash": {
+            "give": {
+              "fuel": 4
+            },
+            "receive": {
+              "cash": 13
+            },
+            "description": "出售燃料換現金"
+          },
+          "survival_bundle": {
+            "give": {
+              "cash": 25
+            },
+            "receive": {
+              "food": 6,
+              "medical": 2,
+              "fuel": 2
+            },
+            "description": "購買生存套餐"
+          },
+          "building_bundle": {
+            "give": {
+              "cash": 30
+            },
+            "receive": {
+              "materials": 8,
+              "fuel": 3
+            },
+            "description": "購買建設套餐"
+          },
+          "emergency_supplies": {
+            "give": {
+              "materials": 5,
+              "fuel": 2
+            },
+            "receive": {
+              "food": 8,
+              "medical": 3
+            },
+            "description": "緊急物資交換"
+          },
+          "luxury_trade": {
+            "give": {
+              "food": 12,
+              "materials": 4
+            },
+            "receive": {
+              "cash": 35
+            },
+            "description": "奢侈品交易"
+          },
+          "resource_exchange": {
+            "give": {
+              "food": 4,
+              "medical": 1
+            },
+            "receive": {
+              "materials": 3,
+              "fuel": 2
+            },
+            "description": "綜合資源互換"
+          },
+          "military_surplus": {
+            "give": {
+              "cash": 40
+            },
+            "receive": {
+              "materials": 10,
+              "medical": 3
+            },
+            "description": "軍用物資批發"
+          },
+          "medical_convoy": {
+            "give": {
+              "food": 15,
+              "fuel": 3
+            },
+            "receive": {
+              "medical": 8
+            },
+            "description": "醫療商隊特供"
+          },
+          "fuel_depot": {
+            "give": {
+              "materials": 8,
+              "cash": 10
+            },
+            "receive": {
+              "fuel": 12
+            },
+            "description": "燃料補給站"
+          },
+          "food_caravan": {
+            "give": {
+              "medical": 4,
+              "cash": 15
+            },
+            "receive": {
+              "food": 20
+            },
+            "description": "食物商隊大宗交易"
+          },
+          "scrap_dealer": {
+            "give": {
+              "fuel": 6,
+              "food": 8
+            },
+            "receive": {
+              "materials": 12
+            },
+            "description": "廢料回收商"
+          }
+        }
       }
     },
     "personalWealth": {

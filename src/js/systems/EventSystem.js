@@ -160,23 +160,20 @@ export class EventSystem extends EventTarget {
       const { tenantType, count = 1 } = condition;
 
       if (tenantType === "any") {
-        const tenantCount = this.gameState.rooms.filter(
-          (room) => room.tenant
-        ).length;
+        const tenantCount = this.gameState.getAllTenants().length;
         return tenantCount >= count;
       }
 
       if (tenantType === "infected") {
-        const infectedCount = this.gameState.rooms.filter(
-          (room) => room.tenant && room.tenant.infected
+        const infectedCount = this.gameState.getAllTenants().filter(
+          (tenant) => tenant.infected
         ).length;
         return infectedCount >= count;
       }
 
-      const typeCount = this.gameState.rooms.filter(
-        (room) =>
-          room.tenant &&
-          (room.tenant.type === tenantType || room.tenant.typeId === tenantType)
+      const typeCount = this.gameState.getAllTenants().filter(
+        (tenant) =>
+          (tenant.type === tenantType || tenant.typeId === tenantType)
       ).length;
 
       return typeCount >= count;
@@ -309,12 +306,12 @@ export class EventSystem extends EventTarget {
       const { target } = effect;
 
       if (target === "sick" || target === "infected") {
-        const targetTenants = this.gameState.rooms.filter(
-          (room) => room.tenant && room.tenant.infected
+        const targetTenants = this.gameState.getAllTenants().filter(
+          (tenant) => tenant.infected
         );
 
         if (targetTenants.length > 0) {
-          const tenantToRemove = targetTenants[0].tenant;
+          const tenantToRemove = targetTenants[0];
           if (this.tenantSystemRef) {
             return this.tenantSystemRef.evictTenant(
               tenantToRemove.name,
@@ -331,12 +328,12 @@ export class EventSystem extends EventTarget {
     this.effectExecutors.set("healTenant", (effect) => {
       const { target } = effect;
 
-      const infectedTenants = this.gameState.rooms.filter(
-        (room) => room.tenant && room.tenant.infected
+      const infectedTenants = this.gameState.getAllTenants().filter(
+        (tenant) => tenant.infected
       );
 
       if (infectedTenants.length > 0) {
-        const tenantToHeal = infectedTenants[0].tenant;
+        const tenantToHeal = infectedTenants[0];
         tenantToHeal.infected = false;
         this.addLog(`${tenantToHeal.name} 已康復`, "skill");
         return { success: true, tenantName: tenantToHeal.name };
@@ -347,10 +344,9 @@ export class EventSystem extends EventTarget {
 
     // 軍人加成檢查
     this.effectExecutors.set("checkSoldierBonus", (effect) => {
-      const soldierCount = this.gameState.rooms.filter(
-        (room) =>
-          room.tenant &&
-          (room.tenant.type === "soldier" || room.tenant.typeId === "soldier")
+      const soldierCount = this.gameState.getAllTenants().filter(
+        (tenant) =>
+          (tenant.type === "soldier" || tenant.typeId === "soldier")
       ).length;
 
       if (soldierCount > 0 && effect.effects) {
@@ -741,9 +737,7 @@ export class EventSystem extends EventTarget {
     let modifiedChance = baseChance;
 
     // 租客數量修飾符
-    const tenantCount = this.gameState.rooms.filter(
-      (room) => room.tenant
-    ).length;
+    const tenantCount = this.gameState.getAllTenants().length;
     modifiedChance +=
       tenantCount *
       (this.eventParameters.conflictModifiers?.tenantCountMultiplier || 0.08);
@@ -762,10 +756,9 @@ export class EventSystem extends EventTarget {
     }
 
     // 長者減少衝突
-    const elderCount = this.gameState.rooms.filter(
-      (room) =>
-        room.tenant &&
-        (room.tenant.type === "elder" || room.tenant.typeId === "elder")
+    const elderCount = this.gameState.getAllTenants().filter(
+      (tenant) =>
+        (tenant.type === "elder" || tenant.typeId === "elder")
     ).length;
 
     if (elderCount > 0) {
