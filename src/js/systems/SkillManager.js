@@ -665,7 +665,12 @@ export default class SkillManager extends BaseManager {
     }
 
     const oldValue = this.gameState.getStateValue(`resources.${resource}`, 0);
-    const success = this.gameState.modifyResource(resource, finalAmount, `技能效果: ${context.skill.name}`);
+    const success = this.resourceManager.modifyResource(
+      resource,
+      finalAmount,
+      `技能效果: ${context.skill.name}`,
+      'skill_system'
+    );
     const newValue = this.gameState.getStateValue(`resources.${resource}`, 0);
 
     return {
@@ -962,7 +967,12 @@ export default class SkillManager extends BaseManager {
     const maxAmount = effect.maxAmount || 8;
     const amount = Math.floor(Math.random() * (maxAmount - baseAmount + 1)) + baseAmount;
 
-    const success = this.gameState.modifyResource('cash', amount, `感謝費: ${context.skill.name}`);
+    const success = this.resourceManager.modifyResource(
+      'cash',
+      amount,
+      `感謝費: ${context.skill.name}`,
+      'skill_system'
+    );
 
     return {
       type: 'collect_thanks_fee',
@@ -990,7 +1000,12 @@ export default class SkillManager extends BaseManager {
     }
 
     const amount = Math.floor(Math.random() * 5) + 2; // 2-6 現金
-    const success = this.gameState.modifyResource('cash', amount, `小費: ${context.skill.name}`);
+    const success = this.resourceManager.modifyResource(
+      'cash',
+      amount,
+      `小費: ${context.skill.name}`,
+      'skill_system'
+    );
 
     return {
       type: 'collect_tips',
