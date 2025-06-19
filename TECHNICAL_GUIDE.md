@@ -30,14 +30,14 @@ GameState(dataResult.data)
 
 // 3. 業務模組依賴注入
 ResourceManager(gameState, eventBus)
-TradeManager(gameState, resourceManager, dataManager, eventBus)
-TenantManager(gameState, resourceManager, tradeManager, dataManager, eventBus)
+TenantManager(gameState, resourceManager, dataManager, eventBus)
+TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus)
 SkillManager(gameState, eventBus, dataManager, resourceManager)
 DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager)
 ```
 
 ### 依賴注入機制
-每個業務模組在建構函式中明確聲明所需依賴，避免運行時查找。TradeManager內部協調RentManager和UniversalTrader兩個子模組，提供統一的交易API介面。
+每個業務模組在建構函式中明確聲明所需依賴，避免運行時查找。TradeManager依賴TenantManager並內部協調RentManager和UniversalTrader兩個子模組，提供統一的交易API介面。
 
 ## 配置驅動系統
 
@@ -170,7 +170,7 @@ GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。�
 ### TradeManager - 統一交易入口
 協調RentManager和UniversalTrader實現完整交易功能：
 - **RentManager**: 租金計算、收取流程、優惠懲罰機制
-- **UniversalTrader**: 商人交易、商隊貿易、互助協作
+- **UniversalTrader**: 租客個人交易、互助協作
 - **統一API**: collectRent(), processMutualAid()等統一介面
 
 ### TenantManager - 租客生命週期
@@ -192,6 +192,21 @@ GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。�
 3. 處理被動技能（SkillManager）
 4. 處理租客互助交易（TradeManager）
 5. 推進天數並觸發系統事件
+
+## UI系統架構
+
+### 三層UI架構設計
+UI系統採用三層分離架構，職責明確劃分：
+
+- **UICore**: 統一對外介面和業務邏輯協調器
+- **UIDisplay**: 畫面顯示邏輯和DOM更新控制
+- **UIModal**: 模態框系統管理和生命週期控制
+
+### TradeDescriptionFormatter
+專用描述格式化器統一管理交易相關文本生成：
+- 交易選項描述：購買、出售、緊急交易
+- 互助事件描述：食物援助、現金借貸、醫療協助
+- 交易執行描述：成功完成後的結果文本
 
 ## 型別安全機制
 
