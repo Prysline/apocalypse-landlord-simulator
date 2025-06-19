@@ -103,26 +103,26 @@ class GameApplication {
     this.resourceManager = new ResourceManager(this.gameState, this.eventBus);
     console.log("✅ ResourceManager 初始化完成");
 
-    // 交易管理器
-    this.tradeManager = new TradeManager(
-      this.gameState,
-      this.resourceManager,
-      this.dataManager,
-      this.eventBus
-    );
-    await this.tradeManager.initialize();
-    console.log("✅ TradeManager 初始化完成");
-
     // 租客管理器
     this.tenantManager = new TenantManager(
       this.gameState,
       this.resourceManager,
-      this.tradeManager,
       this.dataManager,
       this.eventBus
     );
     await this.tenantManager.initialize();
     console.log("✅ TenantManager 初始化完成");
+
+    // 交易管理器
+    this.tradeManager = new TradeManager(
+      this.gameState,
+      this.resourceManager,
+      this.tenantManager,
+      this.dataManager,
+      this.eventBus
+    );
+    await this.tradeManager.initialize();
+    console.log("✅ TradeManager 初始化完成");
 
     // 技能管理器
     this.skillManager = new SkillManager(

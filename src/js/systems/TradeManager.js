@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @fileoverview TradeManager.js v3.0 - 統一交易管理器（重構版）
+ * @fileoverview TradeManager.js - 統一交易管理器
  * 職責：統一交易入口，整合租金收取和租客交易系統
  * 架構：繼承 BaseManager，協調 RentManager 和 UniversalTrader
  */
@@ -31,7 +31,7 @@ import UniversalTrader from "./UniversalTrader.js";
  */
 
 /**
- * 統一交易管理器 v3.0（重構版）
+ * 統一交易管理器
  * 提供簡潔的交易API，協調租金收取和租客交易功能
  * @class
  * @extends BaseManager
@@ -44,7 +44,7 @@ export class TradeManager extends BaseManager {
    * @param {Object} dataManager - 資料管理器實例
    * @param {Object} eventBus - 事件總線實例
    */
-  constructor(gameStateRef, resourceManager, dataManager, eventBus) {
+  constructor(gameStateRef, resourceManager, tenantManager, dataManager, eventBus) {
     super(gameStateRef, eventBus, "TradeManager");
 
     /** @type {Object} 資源管理器實例 */
@@ -52,6 +52,9 @@ export class TradeManager extends BaseManager {
 
     /** @type {Object} 資料管理器實例 */
     this.dataManager = dataManager;
+
+    /** @type {Object} 租客管理器實例 */
+    this.tenantManager = tenantManager
 
     /** @type {RentManager|null} 租金管理器 */
     this.rentManager = null;
@@ -74,7 +77,7 @@ export class TradeManager extends BaseManager {
       },
     };
 
-    this.logSuccess("TradeManager v3.0 (統一入口版) 已建立");
+    this.logSuccess("TradeManager 已建立");
   }
 
   // ==========================================
@@ -193,6 +196,7 @@ export class TradeManager extends BaseManager {
     this.universalTrader = new UniversalTrader(
       this.gameState,
       this.resourceManager,
+      this.tenantManager,
       this.dataManager,
       this.eventBus
     );

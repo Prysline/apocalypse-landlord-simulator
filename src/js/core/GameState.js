@@ -122,9 +122,9 @@ import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.
  * @property {GlobalEffects} globalEffects - 全局效果狀態
  * @property {LogEntry[]} gameLog - 遊戲日誌陣列
  * @property {SystemState} system - 系統狀態
- * @property {Map<string, Person>} people - 所有人物基礎資料
+ * @property {Map<number, Person>} people - 所有人物基礎資料
  * @property {RoleStates} roles - 角色對應關係
- * @property {Map<string, RoleProps>} roleProperties - 角色專屬屬性
+ * @property {Map<number, RoleProps>} roleProperties - 角色專屬屬性
  */
 
 /**
@@ -289,7 +289,7 @@ export class GameState {
 
       // === 統一人物系統 ===
 
-      /** @type {Map<string, Person>} 所有人物基礎資料 */
+      /** @type {Map<number, Person>} 所有人物基礎資料 */
       people: new Map(),
 
       /** @type {RoleStates} 角色對應關係 */
@@ -300,7 +300,7 @@ export class GameState {
         applicants: new Set()      // 有租房興趣的訪客ID集合
       },
 
-      /** @type {Map<string, RoleProps>} 角色專屬屬性 */
+      /** @type {Map<number, RoleProps>} 角色專屬屬性 */
       roleProperties: new Map()
     };
 
@@ -472,7 +472,7 @@ export class GameState {
    */
   getRoomTenant(roomId) {
     const personId = this.state.roles.tenants.get(roomId);
-    return personId ? this.state.people.get(personId) : null;
+    return personId ? this.state.people.get(Number(personId)) : null;
   }
 
   /**
@@ -482,7 +482,7 @@ export class GameState {
   getAllTenants() {
     const tenants = [];
     for (const personId of this.state.roles.tenantRooms.keys()) {
-      const person = this.state.people.get(personId);
+      const person = this.state.people.get(Number(personId));
       if (person) {
         tenants.push(person);
       }
@@ -516,6 +516,15 @@ export class GameState {
     return this.state.rooms.filter(room => !this.state.roles.tenants.has(room.id));
   }
 
+  /**
+   * 根據ID尋找角色
+   * @param {number} personId - 角色ID
+   * @returns {Object|null} 角色物件或null
+   */
+  findPersonById(personId) {
+    return this.state.people.get(personId);
+  }
+
   // =================== 相容性方法（支援現有程式碼） ===================
 
   /**
@@ -525,7 +534,7 @@ export class GameState {
   getCurrentVisitors() {
     const visitors = [];
     for (const personId of this.state.roles.visitors) {
-      const person = this.state.people.get(personId);
+      const person = this.state.people.get(Number(personId));
       if (person) {
         visitors.push(person);
       }
@@ -540,7 +549,7 @@ export class GameState {
   getCurrentApplicants() {
     const applicants = [];
     for (const personId of this.state.roles.applicants) {
-      const person = this.state.people.get(personId);
+      const person = this.state.people.get(Number(personId));
       if (person) {
         applicants.push(person);
       }
@@ -730,7 +739,7 @@ export class GameState {
       // 檢查租客角色一致性
       for (const [roomId, personId] of this.state.roles.tenants) {
         if (!this.state.roles.tenantRooms.has(personId) ||
-          !this.state.people.has(personId)) {
+          !this.state.people.has(Number(personId))) {
           return false;
         }
       }

@@ -4,6 +4,7 @@
  * 所有 HTML onclick 都調用 UICore 的方法
  */
 
+import { TradeDescriptionFormatter } from './TradeDescriptionFormatter.js';
 import UIDisplay from './UIDisplay.js';
 import UIModal from './UIModal.js';
 
@@ -119,6 +120,41 @@ export default class UICore {
   }
 
   /**
+   * 顯示交易模態框 (對外介面)
+   * @param {string} characterId - 角色ID
+   */
+  showTradeModal(characterId) {
+    try {
+      if (!this.gameApp.tradeManager) {
+        this.gameApp.gameState?.addLog("交易系統未載入", "danger");
+        return;
+      }
+
+      // 獲取角色交易選項
+      const rawTradeOptions = this.gameApp.tradeManager.getCharacterTradeOptions(characterId);
+
+      // 在UI層添加描述格式化
+      const formattedOptions = this.formatTradeOptionsForDisplay(rawTradeOptions);
+
+      // 找到角色資訊
+      const character = this._findCharacterById(characterId);
+      if (!character) {
+        this.gameApp.gameState?.addLog("找不到指定角色", "danger");
+        return;
+      }
+
+      // 設置交易模態框內容
+      this.modal.setTradeContent(character, formattedOptions);
+      this.modal.show('tradeModal');
+
+      console.log(`顯示 ${character.name} 的交易選項，共 ${formattedOptions.length} 個`);
+    } catch (error) {
+      console.error("顯示交易模態框失敗:", error);
+      this.gameApp.gameState?.addLog("無法顯示交易選項", "danger");
+    }
+  }
+
+  /**
    * 關閉模態框 (對外介面)
    */
   closeModal(modalId = null) {
@@ -229,6 +265,44 @@ export default class UICore {
     } catch (error) {
       console.error("執行技能失敗:", error);
       this.gameApp.gameState?.addLog("執行技能失敗", "danger");
+    }
+  }
+
+  /**
+   * 執行交易 (對外介面)
+   * @param {string} tradeOptionId - 交易選項ID
+   */
+  async executeTrade(tradeOptionId) {
+    try {
+      if (!this.gameApp.tradeManager) {
+        this.gameApp.gameState?.addLog("交易系統未載入", "danger");
+        return;
+      }
+
+      console.log(`執行交易: ${tradeOptionId}`);
+
+      // 執行交易
+      const result = await this.gameApp.tradeManager.executeResourceTrade(tradeOptionId);
+
+      if (result.success) {
+        // 交易成功
+        const description = TradeDescriptionFormatter.formatTradeExecutionDescription(result.transaction);
+        this.gameApp.gameState?.addLog(description, 'rent');
+
+        // 關閉交易模態框並更新顯示
+        this.closeModal('tradeModal');
+        this.updateAll();
+
+        console.log(`交易執行成功: ${description}`);
+      } else {
+        // 交易失敗
+        this.gameApp.gameState?.addLog(`交易失敗: ${result.error}`, "danger");
+        console.error(`交易失敗: ${result.error}`);
+      }
+
+    } catch (error) {
+      console.error("執行交易失敗:", error);
+      this.gameApp.gameState?.addLog("交易系統錯誤", "danger");
     }
   }
 
@@ -376,6 +450,49 @@ export default class UICore {
     }
   }
 
+  // =================== 交易輔助方法 ===================
+
+  /**
+   * 根據ID尋找角色
+   * @private
+   * @param {string} personId - 角色ID
+   * @returns {Object|null} 角色物件
+   */
+  _findCharacterById(personId) {
+    return this.gameApp.gameState?.findPersonById(Number(personId)) || null;
+  }
+
+  /**
+   * 格式化交易選項供顯示使用 (UI層職責)
+   * 技術要點：使用 TradeDescriptionFormatter 進行描述生成
+   * @param {Array} rawOptions - 原始交易選項
+   * @returns {Array} 格式化後的交易選項
+   */
+  formatTradeOptionsForDisplay(rawOptions) {
+    return rawOptions.map(option => ({
+      ...option,
+      // 使用描述格式化器生成描述
+      description: TradeDescriptionFormatter.formatTradeOption(option),
+      // 額外的UI顯示資訊
+      urgencyText: TradeDescriptionFormatter.getUrgencyDisplayText(option.urgency),
+      typeText: TradeDescriptionFormatter.getTradeTypeDisplayText(option.type),
+      // 價格顯示格式化
+      priceText: this.formatPriceDisplay(option.price, option.originalPrice)
+    }));
+  }
+
+  /**
+ * 格式化價格顯示
+ * @param {number} currentPrice - 當前價格
+ * @param {number} originalPrice - 原始價格
+ * @returns {string} 格式化的價格文字
+ */
+  formatPriceDisplay(currentPrice, originalPrice) {
+    if (currentPrice !== originalPrice) {
+      return `$${currentPrice} (原價 $${originalPrice})`;
+    }
+    return `$${currentPrice}`;
+  }
 
   // =================== 其他必要方法 (簡化版本) ===================
 

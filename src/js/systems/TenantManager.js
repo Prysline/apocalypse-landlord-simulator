@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @fileoverview TenantManager.js v2.1 - 租客生命週期管理系統
+ * @fileoverview TenantManager.js - 租客生命週期管理系統
  * 職責：租客雇用/驅逐、滿意度系統、關係管理、個人資源管理、申請者篩選、搜刮派遣
  */
 
@@ -138,7 +138,7 @@ import { SYSTEM_LIMITS } from "../utils/constants.js";
  */
 
 /**
- * 租客生命週期管理系統 v2.1（BaseManager 整合版）
+ * 租客生命週期管理系統
  * 負責處理租客的雇用、驅逐、滿意度管理、關係系統、搜刮派遣等核心功能
  * 重構亮點：統一事件命名、移除重複實現、使用 BaseManager 統一架構
  * @class
@@ -149,20 +149,16 @@ export class TenantManager extends BaseManager {
    * 建立 TenantManager 實例
    * @param {Object} gameState - 遊戲狀態管理器
    * @param {Object} resourceManager - 資源管理器
-   * @param {Object} tradeManager - 交易管理器
    * @param {Object} dataManager - 資料管理器
    * @param {Object} eventBus - 事件總線
    */
-  constructor(gameState, resourceManager, tradeManager, dataManager, eventBus) {
+  constructor(gameState, resourceManager, dataManager, eventBus) {
     // 調用 BaseManager 建構函式
     super(gameState, eventBus, "TenantManager");
 
     // 依賴注入
     /** @type {Object} 資源管理器 */
     this.resourceManager = resourceManager;
-
-    /** @type {Object} 交易管理器 */
-    this.tradeManager = tradeManager;
 
     /** @type {Object} 資料管理器 */
     this.dataManager = dataManager;
@@ -201,7 +197,7 @@ export class TenantManager extends BaseManager {
     /** @type {Object|null} 驗證器實例 */
     this.validator = null;
 
-    console.log("🏘️ TenantManager v2.0 (BaseManager 整合版) 初始化中...");
+    console.log("🏘️ TenantManager 初始化中...");
   }
 
   // ==========================================
@@ -490,6 +486,8 @@ export class TenantManager extends BaseManager {
       _systemRole: role,
       _registeredAt: new Date().toISOString(),
     });
+
+    this.gameState.state.people.set(person.id, person);
   }
 
   /**
@@ -1270,9 +1268,7 @@ export class TenantManager extends BaseManager {
     }
 
     const { tenant, room } = tenantInfo;
-    const oldSatisfaction =
-      this.tenantSatisfaction.get(tenantId) ||
-      this.satisfactionConfig.baseValue;
+    const oldSatisfaction = this.getTenantSatisfaction(tenantId)
     const newSatisfaction = this.calculateSatisfaction(tenant, room);
 
     this.tenantSatisfaction.set(tenantId, newSatisfaction);
@@ -1301,6 +1297,32 @@ export class TenantManager extends BaseManager {
     tenants.forEach((tenant) => {
       this.updateIndividualSatisfaction(tenant.id);
     });
+  }
+
+  /**
+   * 取得個別租客滿意度
+   * @param {number} tenantId - 租客ID
+   * @returns {number} 滿意度值 (0-100)
+   */
+  getTenantSatisfaction(tenantId) {
+    const satisfaction = this.tenantSatisfaction.get(tenantId) ||
+      this.satisfactionConfig.baseValue;
+    return satisfaction;
+  }
+
+  /**
+   * 修改個別租客滿意度
+   * @param {number} tenantId - 租客ID
+   * @param {number} change - 滿意度的變化量
+   * @returns {number} 新的滿意度值 (0-100)
+   */
+  modifyTenantSatisfaction(tenantId, change) {
+    const oldSatisfaction = this.getTenantSatisfaction(tenantId);
+    const newSatisfaction = oldSatisfaction + change;
+
+    this.tenantSatisfaction.set(tenantId, newSatisfaction);
+
+    return newSatisfaction;
   }
 
   /**
@@ -1339,20 +1361,6 @@ export class TenantManager extends BaseManager {
       satisfaction += factors.highBuildingDefense;
     } else if (buildingDefense <= 2) {
       satisfaction += factors.lowBuildingDefense;
-    }
-
-    // 全局效果影響
-    if (this.gameState.getStateValue("emergencyTraining", false)) {
-      satisfaction += factors.emergencyTraining;
-    }
-    if (this.gameState.getStateValue("buildingQuality", 0) >= 1) {
-      satisfaction += factors.buildingQuality;
-    }
-    if (this.gameState.getStateValue("patrolSystem", false)) {
-      satisfaction += factors.patrolSystem;
-    }
-    if (this.gameState.getStateValue("socialNetwork", false)) {
-      satisfaction += factors.socialNetwork;
     }
 
     // 長者和諧氛圍加成
@@ -2169,9 +2177,7 @@ export class TenantManager extends BaseManager {
 
     // 提升涉及租客的滿意度
     conflict.involvedTenants.forEach((tenantId) => {
-      const currentSatisfaction =
-        this.tenantSatisfaction.get(tenantId) ||
-        this.satisfactionConfig.baseValue;
+      const currentSatisfaction = this.getTenantSatisfaction(tenantId);
       const newSatisfaction = Math.min(100, currentSatisfaction + 10);
       this.tenantSatisfaction.set(tenantId, newSatisfaction);
 

@@ -234,6 +234,9 @@ export default class UIModal {
 
     actionsEl.innerHTML = `
       <button class="btn" onclick="uiCore.closeModal()">關閉</button>
+      <button class="btn btn-info" onclick="uiCore.showTradeModal('${tenant.id}')">
+        💱 查看交易
+      </button>
       <button class="btn btn-danger" onclick="uiCore.evictTenant(${tenant.id}, ${tenant.infected})">
         ${tenant.infected ? '🦠驅逐（感染）' : '📤要求退租'}
       </button>
@@ -266,6 +269,57 @@ export default class UIModal {
         👥 查看訪客
       </button>
     `;
+  }
+
+  /**
+   * 設定交易模態框內容
+   * @param {Object} character - 角色物件
+   * @param {Array} tradeOptions - 交易選項陣列
+   */
+  setTradeContent(character, tradeOptions) {
+    const titleEl = document.getElementById('tradeModalTitle');
+    const containerEl = document.getElementById('tradeOptionsContainer');
+
+    if (!titleEl || !containerEl) {
+      console.error("交易模態框元素未找到");
+      return;
+    }
+
+    // 設置標題
+    titleEl.textContent = `與 ${character?.name || '未知角色'} 交易`;
+
+    const typeIcon = this.uiCore ? this.uiCore.getIcon(character.type, 'tenant') : '';
+    titleEl.textContent = `與 ${character.name} 交易`;
+
+    // 生成交易選項HTML
+    if (tradeOptions.length === 0) {
+      containerEl.innerHTML = `
+        <div class="trade-info">
+          <p class="no-trades">目前沒有可用的交易選項。</p>
+          <p><small>提示：提高關係度或等待角色資源狀況變化可能產生新的交易機會。</small></p>
+        </div>
+      `;
+    }
+
+    // 角色資訊
+    const characterInfo = `
+    <div class="trade-character-info">
+      <h4>${this._getCharacterIcon(character?.type)}${character?.name} (${character?.typeName || '未知類型'})</h4>
+      <p>關係度: ${tradeOptions[0]?.relationship || 50}%</p>
+    </div>
+  `;
+
+    // 交易選項列表
+    const optionsHTML = tradeOptions.map(option =>
+      this._generateTradeOptionCard(option)
+    ).join('');
+
+    containerEl.innerHTML = `
+    ${characterInfo}
+    <div class="trade-options-list">
+      ${optionsHTML}
+    </div>
+  `;
   }
 
   /**
@@ -305,6 +359,11 @@ export default class UIModal {
                 ${!canAfford ? 'disabled' : ''}>
           ${visitor.revealedInfected ? '雇用 (危險)' : '雇用'}
           ${!canAfford ? ' (資金不足)' : ''}
+        </button>
+        <button class="btn btn-info"
+                onclick="uiCore.showTradeModal(${visitor.id})"
+                title="與訪客進行資源交易">
+          💱 交易
         </button>
       </div>
     `;
@@ -394,6 +453,130 @@ export default class UIModal {
       </div>
     </div>
   `;
+  }
+
+  /**
+   * 生成交易選項卡片
+   * @param {Object} option - 交易選項
+   * @returns {string} HTML字串
+   */
+  _generateTradeOptionCard(option) {
+    const resourceName = this._getResourceDisplayName(option.item);
+    const priceText = this._formatPriceDisplay(option.price, option.originalPrice);
+    const urgencyClass = this._getUrgencyClass(option.urgency);
+    const disabledClass = option.canAfford ? '' : 'trade-option-disabled';
+
+    return `
+    <div class="trade-option-card ${urgencyClass} ${disabledClass}">
+      <header class="trade-option-header">
+        ${this._generateTypeBadge(option.type, option.urgency)}
+        ${this._generateUrgencyBadge(option.urgency)}
+      </header>
+
+      <div class="trade-option-body">
+        <div class="trade-option-main">
+          <div class="trade-option-content">
+            <div class="trade-description">${option.description}</div>
+            <div class="trade-details">
+              <p><strong>物品:</strong> ${resourceName} × ${option.quantity}</p>
+              <p><strong>價格:</strong> ${priceText}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="trade-option-actions">
+          <button
+            class="btn ${option.canAfford ? 'btn-primary' : 'btn-disabled'}"
+            onclick="uiCore?.executeTradeOption('${option.id}')"
+            ${!option.canAfford ? 'disabled' : ''}
+            title="${option.canAfford ? '執行交易' : '資源不足'}"
+          >
+            ${option.canAfford ? '確認交易' : '無法交易'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  }
+  /**
+   * 生成交易類型徽章
+   * @param {string} type - 交易類型
+   * @param {string} urgency - 緊急程度
+   * @returns {string} HTML字串
+   * @private
+   */
+  _generateTypeBadge(type, urgency) {
+    const typeTexts = {
+      'buy': '購買需求',
+      'sell': '出售提議',
+      'emergency': '緊急交易'
+    };
+
+    const urgencyIcon = urgency === 'critical' ? '⚠️ ' : '';
+    const badgeText = urgencyIcon + typeTexts[type];
+
+    return `<span class="trade-type-badge type-${type}">${badgeText}</span>`;
+  }
+
+  /**
+   * 生成緊急程度徽章
+   * @param {string} urgency - 緊急程度
+   * @returns {string} HTML字串
+   * @private
+   */
+  _generateUrgencyBadge(urgency) {
+    const urgencyTexts = {
+      critical: '🚨 緊急',
+      high: '⚠️ 急迫',
+      medium: '📋 一般',
+      low: '💭 可選'
+    };
+
+    return `<span class="trade-urgency-badge urgency-${urgency}">${urgencyTexts[urgency]}</span>`;
+  }
+
+  /**
+   * 取得緊急程度的CSS類別
+   * @param {string} urgency - 緊急程度
+   * @returns {string} CSS類別名稱
+   * @private
+   */
+  _getUrgencyClass(urgency) {
+    return `urgency-${urgency}`;
+  }
+
+  /**
+   * 格式化價格顯示
+   * @param {number} currentPrice - 當前價格
+   * @param {number} originalPrice - 原始價格
+   * @returns {string} 格式化的價格文字
+   * @private
+   */
+  _formatPriceDisplay(currentPrice, originalPrice) {
+    if (currentPrice !== originalPrice) {
+      return `$${currentPrice} <span style="color: #888; text-decoration: line-through;">($${originalPrice})</span>`;
+    }
+    return `$${currentPrice}`;
+  }
+
+  /**
+   * 取得資源顯示名稱（使用 UICore 現有方法）
+   * @param {string} resourceType - 資源類型
+   * @returns {string} 顯示名稱
+   * @private
+   */
+  _getResourceDisplayName(resourceType) {
+    return this.uiCore ? this.uiCore.getResourceName(resourceType) : resourceType;
+  }
+
+  /**
+   * 取得角色圖示（使用 UICore 現有方法）
+   * @param {string} characterType - 角色類型
+   * @returns {string} 圖示
+   * @private
+   */
+  _getCharacterIcon(characterType) {
+    return this.uiCore ? this.uiCore.getIcon(characterType, 'tenant') : '👤';
   }
 
   // =================== 狀態查詢 ===================

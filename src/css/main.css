@@ -963,6 +963,195 @@ body {
     border-left-color: #6688aa;
 }
 
+/* 交易角色資訊區 */
+.trade-character-info {
+    background-color: #3a3a3a;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    border-left: 4px solid #66ccff;
+}
+
+.trade-character-info h4 {
+    margin: 0.5rem 0;
+    color: #66ccff;
+}
+
+.trade-character-info p {
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+}
+
+.trade-options-list {
+    max-height: 450px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 交易選項卡片 */
+.trade-option-card {
+    border: 1px solid #555;
+    border-radius: 8px;
+    background-color: #333;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+.trade-option-card:hover:not(.trade-option-disabled) {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+.trade-option-card.trade-option-disabled {
+    opacity: 0.7;
+    background-color: #2a2a2a;
+}
+
+/* Header 區域 */
+.trade-option-header {
+    padding: 12px 15px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Body 區域 */
+.trade-option-body {
+    padding: 8px 15px 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.trade-option-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.trade-option-actions {
+    flex-shrink: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* 徽章系統 */
+.trade-type-badge,
+.trade-urgency-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.trade-type-badge.type-buy {
+    background-color: #1a4480;
+    color: #66ccff;
+    border-color: #007bff;
+}
+
+.trade-type-badge.type-sell {
+    background-color: #1a4a1a;
+    color: #66ff66;
+    border-color: #28a745;
+}
+
+.trade-type-badge.type-emergency {
+    background-color: #4a1a1a;
+    color: #ff6666;
+    border-color: #dc3545;
+}
+
+.trade-urgency-badge.urgency-critical {
+    background-color: #dc3545;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.trade-urgency-badge.urgency-high {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.trade-urgency-badge.urgency-medium {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.trade-urgency-badge.urgency-low {
+    background-color: #6c757d;
+    color: white;
+}
+
+/* 緊急程度邊框 */
+.trade-option-card.urgency-critical {
+    border-left: 4px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.03);
+}
+
+.trade-option-card.urgency-high {
+    border-left: 4px solid #fd7e14;
+    background-color: rgba(253, 126, 20, 0.03);
+}
+
+.trade-option-card.urgency-medium {
+    border-left: 4px solid #17a2b8;
+}
+
+/* 內容樣式 */
+.trade-description {
+    margin: 0 0 10px 0;
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.3;
+}
+
+.trade-details {
+    font-size: 12px;
+    color: #aaaaaa;
+    margin: 0;
+}
+
+.trade-details p {
+    margin: 3px 0;
+}
+
+.trade-details p:last-child {
+    margin-bottom: 0;
+}
+
+.trade-details strong {
+    color: #bbbbbb;
+}
+
+.no-options {
+    text-align: center;
+    color: #999;
+    padding: 30px;
+    font-style: italic;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
 /* === 租客模態框分欄佈局樣式 === */
 
 /* 主要分欄容器 */
@@ -1278,13 +1467,16 @@ body {
     }
 
     .tenant-modal-columns {
+        display: grid;
         grid-template-columns: 1fr;
         gap: 15px;
     }
 
     .tenant-info-column,
     .tenant-resources-column {
+        background: #f8f9fa;
         padding: 12px;
+        border-radius: 8px;
     }
 }
 

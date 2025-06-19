@@ -24,7 +24,6 @@ import BaseManager from "./BaseManager.js";
  * @property {number} originalPrice - 原始價格
  * @property {number} relationship - 關係度
  * @property {'low'|'medium'|'high'|'critical'} urgency - 緊急程度
- * @property {string} description - 描述
  * @property {boolean} canAfford - 房東是否負擔得起
  */
 
@@ -38,7 +37,7 @@ import BaseManager from "./BaseManager.js";
  * @property {number} [transaction.quantity] - 數量
  * @property {number} [transaction.price] - 價格
  * @property {string} [transaction.characterName] - 對方角色名稱
- * @property {string} [transaction.characterId] - 對方角色ID
+ * @property {number} [transaction.characterId] - 對方角色ID
  * @property {'low'|'medium'|'high'|'critical'} [transaction.urgency] - 緊急程度（僅緊急交易）
  * @property {number} [satisfaction] - 滿意度影響
  * @property {string} [error] - 錯誤訊息（失敗時提供）
@@ -49,11 +48,12 @@ import BaseManager from "./BaseManager.js";
  * @typedef {Object} AutoMutualAidEvent
  * @property {'auto_mutual_aid'} type - 事件類型
  * @property {'food_aid'|'cash_loan'|'medical_aid'} subtype - 子類型
- * @property {string} helperId - 幫助者ID
- * @property {string} recipientId - 受助者ID
+ * @property {number} helperId - 幫助者ID
+ * @property {string} helperName - 幫助者名稱
+ * @property {number} recipientId - 受助者ID
+ * @property {string} recipientName - 受助者名稱
  * @property {string} item - 物品類型
  * @property {number} amount - 數量
- * @property {string} description - 描述
  * @property {Object} relationshipImpact - 關係影響
  */
 
@@ -88,73 +88,71 @@ function calculateTradeOptions(character, relationship, config) {
  * 添加購買選項
  */
 function addBuyingOptions(options, resources, character, config) {
-  // 食物短缺時願意購買
-  if (resources.food < 2) {
-    options.push({
-      type: 'buy',
-      item: 'food',
-      quantity: 3,
-      basePrice: config.baseResourceValues.food * 3,
-      urgency: resources.food === 0 ? 'high' : 'medium',
-      description: `${character.name} 想要購買食物`
-    });
-  }
+  const resourceTypes = ['food', 'materials', 'medical', 'fuel'];
 
-  // 建材需求
-  if (resources.materials < 1) {
-    options.push({
-      type: 'buy',
-      item: 'materials',
-      quantity: 2,
-      basePrice: config.baseResourceValues.materials * 2,
-      urgency: 'medium',
-      description: `${character.name} 需要建材`
-    });
-  }
+  resourceTypes.forEach(resourceType => {
+    const currentAmount = resources[resourceType] || 0;
+    const comfortLevel = config.resourceComfortLevels[resourceType];
+    const currentCash = resources.cash || 0;
 
-  // 醫療用品需求（特別是醫生和老人）
-  if ((character.type === 'doctor' || character.type === 'elder') && resources.medical < 2) {
-    options.push({
-      type: 'buy',
-      item: 'medical',
-      quantity: 2,
-      basePrice: config.baseResourceValues.medical * 2,
-      urgency: 'medium',
-      description: `${character.name} 需要醫療用品`
-    });
-  }
+    // 計算需求程度
+    const needAssessment = calculateNeedLevel(currentAmount, comfortLevel, character.type, resourceType);
 
-  // 燃料需求
-  if (resources.fuel < 1) {
-    options.push({
-      type: 'buy',
-      item: 'fuel',
-      quantity: 2,
-      basePrice: config.baseResourceValues.fuel * 2,
-      urgency: 'low',
-      description: `${character.name} 想要購買燃料`
-    });
-  }
+    // 只在真正需要且有支付能力時生成選項
+    if (needAssessment.shouldBuy && currentCash >= needAssessment.minCashRequired) {
+      const purchaseAmount = calculatePurchaseAmount(currentAmount, comfortLevel, needAssessment.urgency);
+      const estimatedCost = config.baseResourceValues[resourceType] * purchaseAmount;
+
+      // 確保買得起
+      if (currentCash >= estimatedCost) {
+        options.push({
+          type: 'buy',
+          item: resourceType,
+          quantity: purchaseAmount,
+          basePrice: estimatedCost,
+          urgency: needAssessment.urgency,
+          characterName: character.name,
+          resourceType: resourceType
+        });
+      }
+    }
+  });
 }
 
 /**
  * 添加出售選項
  */
 function addSellingOptions(options, resources, character, config) {
-  Object.entries(resources).forEach(([resource, amount]) => {
-    if (resource === 'cash') return; // 現金不出售
+  Object.entries(resources).forEach(([resourceType, currentAmount]) => {
+    if (resourceType === 'cash') return; // 現金不出售
 
-    const comfortLevel = config.resourceComfortLevels[resource];
-    if (comfortLevel && amount > comfortLevel) {
-      const surplus = amount - comfortLevel;
-      options.push({
-        type: 'sell',
-        item: resource,
-        quantity: surplus,
-        basePrice: config.baseResourceValues[resource] * surplus,
-        urgency: 'low',
-        description: `${character.name} 有多餘的${config.resourceNames[resource]}`
-      });
+    const comfortLevel = config.resourceComfortLevels[resourceType];
+    if (!comfortLevel) return;
+
+    // 計算安全庫存（舒適度 + 20% 安全邊際）
+    const safetyStock = Math.ceil(comfortLevel * 1.2);
+
+    // 只有明顯超過安全庫存時才考慮出售
+    if (currentAmount > safetyStock) {
+      const availableForSale = currentAmount - safetyStock;
+
+      // 分批出售邏輯：每次最多出售可用量的60%
+      const maxSellAmount = Math.floor(availableForSale * 0.6);
+
+      if (maxSellAmount >= 1) {
+        const sellAmount = Math.max(1, Math.min(maxSellAmount, availableForSale));
+        const estimatedValue = config.baseResourceValues[resourceType] * sellAmount;
+
+        options.push({
+          type: 'sell',
+          item: resourceType,
+          quantity: sellAmount,
+          basePrice: estimatedValue,
+          urgency: 'low',
+          characterName: character.name,
+          resourceType: resourceType
+        });
+      }
     }
   });
 }
@@ -166,29 +164,149 @@ function addEmergencyOptions(options, resources, character, relationship, config
   // 只有關係度足夠的租客才會提出緊急交易
   if (relationship < config.emergencyTradeThresholds.minimumRelationship) return;
 
+  const currentCash = resources.cash || 0;
+  const currentFood = resources.food || 0;
+
   // 極度缺乏食物時的緊急求購
-  if (resources.food === 0 && resources.cash >= 8) {
+  if (currentFood === 0 && currentCash >= 8) {
     options.push({
       type: 'emergency',
       item: 'food',
       quantity: 3,
       basePrice: 8,
       urgency: 'critical',
-      description: `${character.name} 沒有食物了，願意用高價購買！`
     });
   }
 
   // 極度缺乏現金時的緊急出售
-  if (resources.cash === 0 && hasTradeableResources(resources)) {
+  if (currentCash <= 2 && hasTradeableResources(resources)) {
     const bestResource = getBestTradeableResource(resources);
-    options.push({
-      type: 'emergency',
-      item: bestResource,
-      quantity: 2,
-      basePrice: 5, // 低價出售
-      urgency: 'high',
-      description: `${character.name} 急需現金，願意低價出售資源`
-    });
+    if (bestResource && resources[bestResource] >= 2) {
+      const emergencyQuantity = 2;
+      const emergencyPrice = calculateEmergencyPrice(bestResource, emergencyQuantity, config);
+
+      options.push({
+        type: 'emergency',
+        item: bestResource,
+        quantity: emergencyQuantity,
+        basePrice: emergencyPrice,
+        urgency: 'high',
+      });
+    }
+  }
+}
+
+/**
+ * 計算緊急出售價格
+ * @param {string} resourceType - 資源類型
+ * @param {number} quantity - 出售數量
+ * @param {Object} config - 交易配置
+ * @returns {number} 緊急出售價格
+ */
+function calculateEmergencyPrice(resourceType, quantity, config) {
+  const baseValue = config.baseResourceValues[resourceType];
+  const normalPrice = baseValue * quantity;
+
+  // 緊急折扣係數配置（技術參數）
+  const emergencyDiscountRates = {
+    medical: 0.5,    // 醫療用品：50%折扣（保值性較高）
+    materials: 0.6,  // 建材：40%折扣（中等保值）
+    fuel: 0.6,       // 燃料：40%折扣（中等保值）
+    food: 0.7        // 食物：30%折扣（易於處理）
+  };
+
+  const discountRate = emergencyDiscountRates[resourceType] || 0.6;
+  const emergencyPrice = Math.floor(normalPrice * discountRate);
+
+  // 最低價格保護機制（技術邊界條件）
+  const minimumPrice = Math.max(2, Math.ceil(normalPrice * 0.3));
+
+  return Math.max(emergencyPrice, minimumPrice);
+}
+
+/**
+ * 工具函數：取得最佳可交易資源（優先高價值）
+ */
+function getBestTradeableResource(resources) {
+  const tradeablePriority = ['medical', 'materials', 'fuel', 'food'];
+
+  for (const resource of tradeablePriority) {
+    const minAmount = resource === 'medical' ? 1 : 2;
+    if (resources[resource] >= minAmount) {
+      return resource;
+    }
+  }
+  return null;
+}
+
+/**
+ * 計算需求等級
+ */
+function calculateNeedLevel(currentAmount, comfortLevel, characterType, resourceType) {
+  // 基礎需求閾值
+  const criticalThreshold = Math.ceil(comfortLevel * 0.2);  // 20% 為緊急
+  const lowThreshold = Math.ceil(comfortLevel * 0.5);       // 50% 為缺乏
+
+  // 角色特殊需求修正
+  const roleModifier = getRoleSpecificModifier(characterType, resourceType);
+  const adjustedCritical = Math.max(1, criticalThreshold + roleModifier);
+  const adjustedLow = Math.max(adjustedCritical + 1, lowThreshold + roleModifier);
+
+  // 需求評估
+  if (currentAmount <= adjustedCritical) {
+    return {
+      shouldBuy: true,
+      urgency: 'critical',
+      minCashRequired: 15, // 緊急情況最低現金要求
+      priority: 'high'
+    };
+  } else if (currentAmount <= adjustedLow) {
+    return {
+      shouldBuy: true,
+      urgency: 'medium',
+      minCashRequired: 25, // 一般情況較高現金要求
+      priority: 'normal'
+    };
+  } else {
+    return {
+      shouldBuy: false,
+      urgency: 'none',
+      minCashRequired: 0,
+      priority: 'none'
+    };
+  }
+}
+
+/**
+ * 角色特殊需求修正值
+ * 技術實作：基於角色類型的差異化需求
+ */
+function getRoleSpecificModifier(characterType, resourceType) {
+  const roleModifiers = {
+    doctor: { medical: 2, food: 0, materials: 0, fuel: 0 },
+    elder: { medical: 1, food: 1, materials: 0, fuel: 0 },
+    worker: { materials: 2, fuel: 1, food: 0, medical: 0 },
+    farmer: { fuel: 1, food: 0, materials: 0, medical: 0 },
+    soldier: { materials: 1, fuel: 1, food: 0, medical: 0 }
+  };
+
+  return roleModifiers[characterType]?.[resourceType] || 0;
+}
+
+/**
+ * 計算購買數量
+ * 技術策略：基於緊急程度的智慧採購量
+ */
+function calculatePurchaseAmount(currentAmount, comfortLevel, urgency) {
+  switch (urgency) {
+    case 'critical':
+      // 緊急情況：購買到舒適度的70%
+      return Math.ceil(comfortLevel * 0.7) - currentAmount;
+    case 'medium':
+      // 一般情況：購買到舒適度的50%
+      return Math.ceil(comfortLevel * 0.5) - currentAmount;
+    default:
+      return 1;
   }
 }
 
@@ -220,16 +338,6 @@ function hasTradeableResources(resources) {
   return resources.materials >= 2 || resources.medical >= 1 || resources.fuel >= 2;
 }
 
-/**
- * 工具函數：取得最佳可交易資源
- */
-function getBestTradeableResource(resources) {
-  if (resources.medical >= 1) return 'medical';
-  if (resources.materials >= 2) return 'materials';
-  if (resources.fuel >= 2) return 'fuel';
-  return 'materials';
-}
-
 // ==========================================
 // 主要交易管理類別
 // ==========================================
@@ -247,7 +355,7 @@ export class UniversalTrader extends BaseManager {
    * @param {Object} dataManager - 資料管理器實例
    * @param {Object} eventBus - 事件總線實例
    */
-  constructor(gameStateRef, resourceManager, dataManager, eventBus) {
+  constructor(gameStateRef, resourceManager, tenantManager, dataManager, eventBus) {
     super(gameStateRef, eventBus, "UniversalTrader");
 
     /** @type {Object} 資源管理器實例 */
@@ -255,6 +363,9 @@ export class UniversalTrader extends BaseManager {
 
     /** @type {Object} 資料管理器實例 */
     this.dataManager = dataManager;
+
+    /** @type {Object} 租客管理器實例 */
+    this.tenantManager = tenantManager;
 
     /** @type {Map<string, TradeOption[]>} 輕量每日快取 */
     this.dailyTradeCache = new Map();
@@ -406,7 +517,7 @@ export class UniversalTrader extends BaseManager {
         return [];
       }
 
-      const relationship = this.getTenantSatisfaction(character.name) || 50;
+      const relationship = this.getTenantSatisfaction(Number(character.id)) || 50;
       const config = this.getTradeConfig();
 
       // 使用純函數計算選項
@@ -439,11 +550,11 @@ export class UniversalTrader extends BaseManager {
       // 儲存快取
       this.dailyTradeCache.set(cacheKey, finalOptions);
 
-      this.logSuccess(`生成 ${finalOptions.length} 個交易選項給角色 ${character.name}`);
+      console.log(`生成 ${finalOptions.length} 個交易選項給角色 ${character.name}`);
       return finalOptions;
 
     } catch (error) {
-      this.logError("生成角色交易選項失敗", error);
+      console.log("生成角色交易選項失敗", error);
       return [];
     }
   }
@@ -642,7 +753,7 @@ export class UniversalTrader extends BaseManager {
     // 尋找能提供幫助的租客
     const helpfulTenant = allTenants.find(tenant =>
       tenant.id !== needyTenant?.id &&
-      this.getTenantSatisfaction(tenant.name) >= this.mutualAidHelpRelationship &&
+      this.getTenantSatisfaction(tenant.id) >= this.mutualAidHelpRelationship &&
       this.hasAbundantResources(tenant.personalResources)
     );
 
@@ -673,10 +784,11 @@ export class UniversalTrader extends BaseManager {
         type: 'auto_mutual_aid',
         subtype: 'food_aid',
         helperId: helpfulTenant.id,
+        helperName: helpfulTenant.name,
         recipientId: needyTenant.id,
+        recipientName: needyTenant.name,
         item: 'food',
         amount: 2,
-        description: `${helpfulTenant.name} 主動分享食物給 ${needyTenant.name}`,
         relationshipImpact: this.mutualAidRelationshipEffects.foodAid
       };
       return foodAidEvent;
@@ -689,10 +801,11 @@ export class UniversalTrader extends BaseManager {
         type: 'auto_mutual_aid',
         subtype: 'cash_loan',
         helperId: helpfulTenant.id,
+        helperName: helpfulTenant.name,
         recipientId: needyTenant.id,
+        recipientName: needyTenant.name,
         item: 'cash',
         amount: 5,
-        description: `${helpfulTenant.name} 借錢給 ${needyTenant.name}`,
         relationshipImpact: this.mutualAidRelationshipEffects.cashLoan
       };
       return cashLoanEvent;
@@ -705,10 +818,11 @@ export class UniversalTrader extends BaseManager {
         type: 'auto_mutual_aid',
         subtype: 'medical_aid',
         helperId: helpfulTenant.id,
+        helperName: helpfulTenant.name,
         recipientId: needyTenant.id,
+        recipientName: needyTenant.name,
         item: 'medical',
         amount: 1,
-        description: `${helpfulTenant.name} 給了醫療用品給老人 ${needyTenant.name}`,
         relationshipImpact: this.mutualAidRelationshipEffects.medicalAid
       };
       return medicalAidEvent;
@@ -736,8 +850,8 @@ export class UniversalTrader extends BaseManager {
     recipientChar.personalResources[item] = (recipientChar.personalResources[item] || 0) + amount;
 
     // 更新關係度
-    this.updateTenantSatisfaction(helperChar.name, relationshipImpact.helper);
-    this.updateTenantSatisfaction(recipientChar.name, relationshipImpact.recipient);
+    this.updateTenantSatisfaction(helperChar.id, relationshipImpact.helper);
+    this.updateTenantSatisfaction(recipientChar.id, relationshipImpact.recipient);
 
     // 記錄日誌
     this.addLog(aidEvent.description, "rent");
@@ -789,32 +903,24 @@ export class UniversalTrader extends BaseManager {
    * 根據ID尋找角色
    */
   findCharacterById(characterId) {
-    const allTenants = this.gameState.getAllTenants();
-    const tenant = allTenants.find(t => t.id === characterId);
-    if (tenant) return tenant;
-
-    const allVisitors = this.gameState.getStateValue('visitors', []);
-    const visitor = allVisitors.find(v => v.id === characterId);
-    if (visitor) return visitor;
-
-    return null;
+    return this.gameState.findPersonById(Number(characterId));
   }
 
   /**
    * 獲取租客滿意度
+   * @param {number} tenantId - 租客的唯一識別符
    */
-  getTenantSatisfaction(tenantName) {
-    const satisfaction = this.gameState.getStateValue(`tenantSatisfaction.${tenantName}`);
-    return satisfaction !== undefined ? satisfaction : 50;
+  getTenantSatisfaction(tenantId) {
+    return this.tenantManager.getTenantSatisfaction(tenantId);
   }
 
   /**
    * 更新租客滿意度
+   * @param {number} tenantId - 租客的唯一識別符
+   * @param {number} change - 滿意度的變化量
    */
-  updateTenantSatisfaction(tenantName, change) {
-    const current = this.getTenantSatisfaction(tenantName);
-    const newValue = Math.max(0, Math.min(100, current + change));
-    this.gameState.setStateValue(`tenantSatisfaction.${tenantName}`, newValue);
+  updateTenantSatisfaction(tenantId, change) {
+    this.tenantManager.modifyTenantSatisfaction(tenantId, change)
   }
 
   /**
@@ -822,7 +928,7 @@ export class UniversalTrader extends BaseManager {
    */
   updateRelationshipAfterTrade(character, tradeType, satisfaction) {
     if (satisfaction > 0) {
-      this.updateTenantSatisfaction(character.name, 1);
+      this.updateTenantSatisfaction(character.id, 1);
     }
   }
 
