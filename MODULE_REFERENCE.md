@@ -427,8 +427,29 @@ if (foodStatus.level === 'emergency') {
 
 ### TenantManager
 **位置**: `src/js/systems/TenantManager.js`
-**職責**: 租客生命週期管理與統一ID系統
-**依賴**: `BaseManager`, `GameState`, `ResourceManager`, `TradeManager`, `DataManager`, `EventBus`
+**職責**: 租客生命週期管理，透過內建 SatisfactionManager 專責處理滿意度邏輯
+**依賴**: `BaseManager`, `GameState`, `ResourceManager`, `TradeManager`, `DataManager`, `EventBus`, `SatisfactionManager`
+
+#### 架構設計
+TenantManager 採用組合模式，將滿意度相關邏輯委派給內建的 SatisfactionManager 專責處理：
+
+```javascript
+// 內部架構
+class TenantManager extends BaseManager {
+  constructor() {
+    this.satisfactionManager = new SatisfactionManager(gameState, eventBus, config);
+  }
+
+  // 滿意度相關方法委派給專責管理器
+  updateTenantSatisfaction(tenantId) {
+    return this.satisfactionManager.updateSatisfaction(tenantId);
+  }
+
+  getTenantSatisfaction(tenantId) {
+    return this.satisfactionManager.getSatisfaction(tenantId);
+  }
+}
+```
 
 #### 核心方法
 ```javascript
@@ -450,40 +471,20 @@ async hireTenant(applicantId, targetRoomId)
 async evictTenant(tenantId, isInfected = false, reason = '正常退租')
 
 /**
- * 滿意度調整
+ * 滿意度調整（委派給 SatisfactionManager）
  * @param {number} tenantId - 租客ID
  * @param {number} change - 滿意度變更量
  * @param {string} reason - 變更原因
- * @returns {boolean}
+ * @returns {number} 新的滿意度值
  */
-applySatisfactionChange(tenantId, change, reason)
+modifySatisfaction(tenantId, change, reason)
 
 /**
- * 統一個人ID管理
- * @returns {number} 新的個人ID
+ * 取得滿意度狀態（委派給 SatisfactionManager）
+ * @param {number} satisfaction - 滿意度數值
+ * @returns {SatisfactionStatus} 滿意度狀態分析
  */
-generatePersonId()
-
-/**
- * 註冊個人到系統
- * @param {number} id - 個人ID
- * @param {Object} person - 個人物件
- * @param {string} role - 角色標識 ('tenant', 'applicant', 'visitor')
- */
-registerPerson(id, person, role)
-
-/**
- * 根據ID取得個人
- * @param {number} id - 個人ID
- * @returns {Object|null} 個人物件
- */
-getPersonById(id)
-
-/**
- * 驗證ID系統完整性
- * @returns {Object} 驗證結果
- */
-validateIDSystemIntegrity()
+getSatisfactionStatus(satisfaction)
 
 /**
  * 尋找租客和房間
@@ -498,12 +499,29 @@ findTenantAndRoom(tenantId)
  * @returns {Array<Person>}
  */
 generateApplicants(count = Math.floor(Math.random() * 2) + 2)
+```
 
-/**
- * 重置每日狀態
- * @returns {void}
- */
-resetDailyStates()
+#### SatisfactionManager 整合
+TenantManager 內建的 SatisfactionManager 提供專業的滿意度處理能力：
+
+**主要功能**：
+- 多因子滿意度計算（房間狀況、個人資源、建築防禦等）
+- 滿意度歷史追蹤和趨勢分析
+- 自動警告機制（critical/warning 等級）
+- 快取優化的計算效能
+
+**委派方法**：
+```javascript
+// 滿意度更新
+tenantManager.updateTenantSatisfaction(tenantId);
+
+// 滿意度查詢
+const satisfaction = tenantManager.getTenantSatisfaction(tenantId);
+const status = tenantManager.getSatisfactionStatus(satisfaction);
+
+// 滿意度統計
+const avgSatisfaction = tenantManager.calculateAverageSatisfaction();
+const distribution = tenantManager.getSatisfactionDistribution();
 ```
 
 #### 使用範例
@@ -514,26 +532,20 @@ if (hiringResult.success) {
   console.log(`${hiringResult.tenant.name} 入住房間 ${hiringResult.roomId}`);
 }
 
-// ID管理
-const newId = tenantManager.generatePersonId();
-tenantManager.registerPerson(newId, personData, 'applicant');
+// 滿意度管理（內部委派給 SatisfactionManager）
+const newSatisfaction = tenantManager.modifySatisfaction(1, 10, '房間維修完成');
+const status = tenantManager.getSatisfactionStatus(newSatisfaction);
+console.log(`滿意度：${status.value} ${status.emoji} (${status.description})`);
 
-// 滿意度管理
-tenantManager.applySatisfactionChange(1, 10, '房間維修完成');
-
-// 系統診斷
-const integrity = tenantManager.validateIDSystemIntegrity();
-if (integrity.issues.length > 0) {
-  console.warn('ID系統發現問題:', integrity.issues);
-}
+// 驅逐處理
+const evictionResult = await tenantManager.evictTenant(3, true, '感染風險');
 ```
 
 #### 效能特性
-- **面試計算**: 包含複雜風險評估，大量申請者時注意效能
-- **滿意度追蹤**: 歷史記錄限制50筆
-- **關係計算**: 租客關係矩陣，建議最大租客數6人
-- **ID管理**: 統一的數字型ID系統，支援完整性驗證
-
+- **模組化設計**: 滿意度邏輯獨立於核心租客管理，提升可維護性
+- **計算優化**: SatisfactionManager 內建 5 秒快取機制，避免重複計算
+- **歷史管理**: 滿意度變更歷史限制在系統閾值內，防止記憶體洩漏
+- **事件效率**: 滿意度相關事件直接由 SatisfactionManager 發送，減少轉發層次
 ### TradeManager
 **位置**: `src/js/systems/TradeManager.js`
 **職責**: 統一交易系統入口，整合租金收取和租客交易
