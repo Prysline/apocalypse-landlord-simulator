@@ -18,36 +18,37 @@ utils/ (工具基礎層)
 ```
 
 ### 模組初始化序列
-main.js按照明確的依賴順序初始化所有模組：
+main.js按照嚴格的依賴順序進行模組初始化，確保依賴關係的正確性：
 
 ```javascript
 // 1. 核心基礎設施
-EventBus()
-DataManager()
+eventBus = new EventBus();
+dataManager = new DataManager();
 
-// 2. 狀態管理（依賴DataManager）
-GameState(dataResult.data)
+// 2. 狀態管理（依賴DataManager的初始化結果）
+gameState = new GameState(dataResult.data);
 
-// 3. 業務模組依賴注入
-ResourceManager(gameState, eventBus)
-TenantManager(gameState, resourceManager, dataManager, eventBus)
-TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus)
-SkillManager(gameState, eventBus, dataManager, resourceManager)
-DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager)
+// 3. 業務模組按依賴順序初始化
+resourceManager = new ResourceManager(gameState, eventBus);
+tenantManager = new TenantManager(gameState, resourceManager, dataManager, eventBus);
+tradeManager = new TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus);
+skillManager = new SkillManager(gameState, eventBus, dataManager, resourceManager);
+dayManager = new DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager);
 ```
 
 ### 依賴注入機制
-每個業務模組在建構函式中明確聲明所需依賴，避免運行時查找。TradeManager依賴TenantManager並內部協調RentManager和UniversalTrader兩個子模組，提供統一的交易API介面。
+每個業務模組在建構函式中明確聲明所需依賴，採用建構函式注入避免運行時查找。TradeManager協調三個內部子系統：RentManager（租金管理）、UniversalTrader（租客交易）、CommissionHandler（委託處理），並共享使用ExplorationManager（探索執行）提供委託探索功能，形成統一的交易API介面。
 
 ## 配置驅動系統
 
 ### 配置檔案結構
-DataManager管理四個JSON配置檔案：
+DataManager管理四個JSON配置檔案，支援動態配置更新：
 
 **rules.json** - 遊戲規則和平衡參數
 - `gameDefaults.initialResources` - 初始資源配置
 - `gameBalance.economy` - 經濟系統參數
 - `gameBalance.tenants` - 租客系統配置
+- `gameBalance.explorationSystem` - 探索系統配置
 - `characterGeneration` - 角色生成參數
 
 **tenants.json** - 租客類型定義
@@ -86,7 +87,7 @@ getGameRules()      // 取得遊戲規則配置
 getTenantTypes()    // 取得租客類型陣列
 getAllSkills()      // 取得完整技能集合
 getEventData()      // 取得事件資料集合
-getRuleValue(path)  // 支援路徑查詢：'gameDefaults.initialResources.food'
+getRuleValue(path)  // 支援路徑查詢：'gameBalance.explorationSystem.baseSuccessRate'
 ```
 
 ## EventBus事件通信
@@ -95,17 +96,17 @@ getRuleValue(path)  // 支援路徑查詢：'gameDefaults.initialResources.food'
 EventBus實現標準的發布/訂閱模式，支援模組間解耦通信。提供同步和非同步事件處理，內建事件歷史追蹤和統計功能。
 
 ### 智慧事件前綴策略
-BaseManager實作三層事件前綴自動解析：
+BaseManager實作三層事件前綴自動解析，實現混合分層策略：
 
 ```javascript
 // 系統級前綴（跨模組生命週期事件）
 SYSTEM_PREFIXES: ["system_", "game_", "day_"]
 
-// 業務領域前綴（跨模組業務流程）
-BUSINESS_PREFIXES: ["harvest_", "scavenge_"]
+// 業務領域前綴（跨模組業務流程，無專責管理器）
+BUSINESS_PREFIXES: ["harvest_"]
 
-// 模組專屬前綴（模組內部事件）
-MODULE_PREFIXES: ["resource_", "tenant_", "trade_"]
+// 模組專屬前綴（有對應管理器的功能領域）
+MODULE_PREFIXES: ["resource_", "tenant_", "trade_", "skill_", "exploration_"]
 ```
 
 事件名稱解析邏輯：
@@ -158,6 +159,24 @@ GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。�
 - TenantManager: "tenant"
 - SkillManager: "skill"
 - DayManager: "day"
+- ExplorationManager: "exploration"
+
+### 跨模組共享設計
+
+#### ExplorationManager 共享依賴架構
+ExplorationManager採用共享依賴模式，同時服務兩個不同的業務場景：
+
+**TradeManager委託探索**：
+- 通過CommissionHandler處理房東發起的委託邀約
+- 委託接受後委託給ExplorationManager執行探索
+- 處理委託報酬支付和統計追蹤
+
+**TenantManager自主探索**：
+- 透過setExplorationManager()後注入方式取得探索能力
+- 評估租客自主探索需求（食物短缺、經濟壓力）
+- 自動觸發探索並處理結果分配
+
+此設計避免了探索邏輯重複實作，確保探索機制的一致性和統計數據的統一管理。
 
 ## 業務模組架構
 
@@ -168,32 +187,49 @@ GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。�
 - 狀態評估：實時資源狀態評估和自動警告
 
 ### TradeManager - 統一交易入口
-協調RentManager和UniversalTrader實現完整交易功能：
+協調四個子系統實現完整交易生態：
 - **RentManager**: 租金計算、收取流程、優惠懲罰機制
 - **UniversalTrader**: 租客個人交易、互助協作
-- **統一API**: collectRent(), processMutualAid()等統一介面
+- **CommissionHandler**: 委託邀約處理、接受機率計算
+- **ExplorationManager**: 探索執行統一管理、統計追蹤（與TenantManager共享）
+- **統一API**: collectRent(), processMutualAid(), offerCommission()等統一介面
 
 ### TenantManager - 租客生命週期
-管理租客完整生命週期和相關系統：
+管理租客完整生命週期，採用組合模式整合專責子系統：
 - 租客管理：雇用/驅逐流程、狀態變更、個人資源管理
 - 申請者系統：申請者生成、面試評估、風險檢測
-- 滿意度系統：透過內建的 SatisfactionManager 專責處理滿意度計算、歷史追蹤、衝突預防
-- 關係管理：透過內建的 RelationshipManager 專責處理租客間關係值計算、狀態管理、清理維護
+- 滿意度系統：組合SatisfactionManager專責處理滿意度計算、歷史追蹤
+- 關係管理：組合RelationshipManager專責處理租客間關係值計算、狀態管理
+- 自主探索：探索觸發評估、優先級計算、夥伴配對邏輯（與TradeManager共享ExplorationManager）
 
-#### RelationshipManager - 租客關係專責管理
-專門處理租客間關係值的計算、狀態管理和清理維護：
+#### 專責管理器獨立化設計
+系統採用獨立模組組合模式，而非內建組件模式：
 
+**RelationshipManager** - 租客關係專責管理
+- **獨立檔案架構**：`src/js/systems/RelationshipManager.js`
 - **職業關係矩陣**：基於租客職業類型計算初始關係值
-- **關係值管理**：統一ID系統，支援關係值查詢、設置和調整
+- **統一ID系統**：支援關係值查詢、設置和調整
 - **事件響應**：監聽探索結果等事件，動態調整關係值
 - **清理機制**：租客離開時自動清理相關關係記錄
-- **狀態同步**：與 GameState 的雙向同步，確保資料一致性
+
+**SatisfactionManager** - 滿意度專責管理
+- **獨立檔案架構**：`src/js/systems/SatisfactionManager.js`
+- **滿意度計算**：多因子滿意度演算法
+- **歷史追蹤**：滿意度變更歷史記錄
+- **狀態分析**：滿意度等級評估和風險預警
 
 ### SkillManager - 技能執行引擎
 實現15個技能的執行邏輯，支援三種技能類型：
 - **主動技能**: 消耗資源，主動觸發強力效果
 - **被動技能**: 持續生效，提供穩定加成
 - **特殊技能**: 限制次數，帶來永久性改善
+
+### ExplorationManager - 探索系統核心
+統一管理所有探索相關功能：
+- **探索執行**：統一的探索請求處理和結果生成
+- **統計追蹤**：成功率趨勢、收益分析、參與者統計
+- **配置驅動**：基於rules.json的探索參數動態調整
+- **事件協調**：探索開始、完成、失敗事件的統一發送
 
 ### DayManager - 循環協調器
 作為頂層協調器，統籌各業務模組的每日循環：
@@ -202,6 +238,31 @@ GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。�
 3. 處理被動技能（SkillManager）
 4. 處理租客互助交易（TradeManager）
 5. 推進天數並觸發系統事件
+
+## 委託探索系統架構
+
+### 設計原理
+委託探索系統採用分離關注點設計，將委託決策和探索執行分離：
+
+- **CommissionHandler**: 專責委託邀約的評估、決策和管理
+- **ExplorationManager**: 專責探索過程的執行、統計和事件協調
+
+### 委託處理流程
+1. **邀約評估**: 基於租客狀態、關係度、資源急迫性計算接受機率
+2. **組隊邏輯**: 自動評估是否需要組隊，基於技能互補性匹配夥伴
+3. **決策執行**: 一次性隨機決策，避免重複計算
+4. **探索委託**: 接受後委託給ExplorationManager執行實際探索
+
+### 配置驅動特性
+探索系統完全依賴配置檔案驅動：
+
+```javascript
+// rules.json 配置路徑
+gameBalance.explorationSystem.exploration.baseSuccessRate
+gameBalance.explorationSystem.rewards.resourceRanges
+gameBalance.explorationSystem.acceptance.baseRate
+gameBalance.explorationSystem.teamwork.skillSynergyBonus
+```
 
 ## UI系統架構
 
@@ -217,6 +278,7 @@ UI系統採用三層分離架構，職責明確劃分：
 - 交易選項描述：購買、出售、緊急交易
 - 互助事件描述：食物援助、現金借貸、醫療協助
 - 交易執行描述：成功完成後的結果文本
+- 委託邀約描述：探索目標、報酬、風險評估
 
 ## 型別安全機制
 
@@ -232,6 +294,11 @@ UI系統採用三層分離架構，職責明確劃分：
 /**
  * 租客類型聯合型別
  * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
+ */
+
+/**
+ * 探索請求類型
+ * @typedef {'commission'|'autonomous'} ExplorationType
  */
 ```
 
@@ -275,6 +342,9 @@ gameApp.debug()
 gameApp.dataManager.getSystemStatus()
 gameApp.gameState.getStateStats()
 gameApp.eventBus.getStats()
+gameApp.tradeManager.getTradeStats()
+gameApp.tradeManager.getCommissionStats()
+gameApp.tradeManager.getExplorationStats()
 ```
 
 開發環境使用dev-test.html提供完整測試環境，URL參數`?debug=true`啟用詳細日誌模式。

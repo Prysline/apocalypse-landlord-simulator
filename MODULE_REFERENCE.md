@@ -27,7 +27,7 @@ BaseManager (基礎層)
 **直接依賴**（建構函數注入，生命週期耦合）
 - DayManager → 所有業務管理器
 - TenantManager → TradeManager + ResourceManager
-- TradeManager → RentManager + UniversalTrader + TenantManager
+- TradeManager → RentManager + UniversalTrader + CommissionHandler + ExplorationManager + TenantManager
 - 所有業務管理器 → BaseManager + GameState + EventBus
 
 **協作關係**（運行時調用，功能性協作）
@@ -651,8 +651,8 @@ const evictionResult = await tenantManager.evictTenant(3, true, '感染風險');
 
 ### TradeManager
 **位置**: `src/js/systems/TradeManager.js`
-**職責**: 統一交易系統入口，整合租金收取和租客交易
-**依賴**: `BaseManager`, `RentManager`, `UniversalTrader`, `ResourceManager`, `TenantManager`, `DataManager`, `EventBus`
+**職責**: 統一交易系統入口，整合租金收取、租客交易和委託探索系統
+**依賴**: `BaseManager`, `RentManager`, `UniversalTrader`, `CommissionHandler`, `ExplorationManager`, `ResourceManager`, `TenantManager`, `DataManager`, `EventBus`
 
 #### 核心方法
 ```javascript
@@ -683,10 +683,76 @@ async processMutualAid()
 getCharacterTradeOptions(characterId)
 
 /**
+ * 發起委託邀約（委託探索系統）
+ * @param {CommissionRequest} request - 委託請求
+ * @returns {Promise<Object>} 委託處理結果
+ */
+async offerCommission(request)
+
+/**
+ * 取得活躍委託列表
+ * @returns {Array} 活躍委託列表
+ */
+getActiveCommissions()
+
+/**
+ * 取得委託歷史
+ * @returns {Array} 完成歷史列表
+ */
+getCommissionHistory()
+
+/**
+ * 取得委託統計資訊
+ * @returns {Object} 委託統計
+ */
+getCommissionStats()
+
+/**
+ * 取得探索系統統計
+ * @returns {Object} 探索系統統計
+ */
+getExplorationStats()
+
+/**
  * 取得交易統計
  * @returns {TradeStats} 交易統計資料
  */
 getTradeStats()
+```
+
+#### 委託請求類型
+```javascript
+/**
+ * 委託請求參數
+ * @typedef {Object} CommissionRequest
+ * @property {string} tenantId - 目標租客ID
+ * @property {string} resourceType - 需要資源類型
+ * @property {number} targetAmount - 目標數量
+ * @property {Object} basePayment - 基礎報酬
+ * @property {Object} commission - 佣金
+ */
+
+/**
+ * 委託統計資料
+ * @typedef {Object} CommissionStats
+ * @property {number} activeCommissions - 活躍委託數量
+ * @property {number} totalCommissions - 總委託數量
+ * @property {number} successfulCommissions - 成功委託數量
+ * @property {number} successRate - 成功率
+ * @property {number} rejectedCommissions - 拒絕委託數量
+ */
+
+/**
+ * 探索系統統計
+ * @typedef {Object} ExplorationStats
+ * @property {number} totalExplorations - 總探索次數
+ * @property {number} successfulExplorations - 成功探索次數
+ * @property {number} commissionExplorations - 委託探索次數
+ * @property {number} autonomousExplorations - 自主探索次數
+ * @property {Object} totalResourcesObtained - 總獲得資源
+ * @property {number} totalParticipants - 總參與者數
+ * @property {number} injuryCount - 受傷次數
+ */
 ```
 
 #### 交易選項類型
@@ -730,13 +796,40 @@ options.forEach(option => {
 // 處理互助
 const mutualAidResult = await tradeManager.processMutualAid();
 console.log(`互助事件: ${mutualAidResult.events.length} 個`);
+
+// 委託探索系統
+const commissionRequest = {
+  tenantId: 'tenant_1',
+  resourceType: 'food',
+  targetAmount: 10,
+  basePayment: { cash: 50 },
+  commission: { food: 2, cash: 20 }
+};
+
+const commissionResult = await tradeManager.offerCommission(commissionRequest);
+if (commissionResult.success) {
+  console.log('委託被接受:', commissionResult.offer);
+} else {
+  console.log('委託被拒絕:', commissionResult.reason);
+}
+
+// 查詢委託狀態
+const activeCommissions = tradeManager.getActiveCommissions();
+const commissionStats = tradeManager.getCommissionStats();
+console.log(`活躍委託: ${activeCommissions.length}, 成功率: ${Math.round(commissionStats.successRate * 100)}%`);
+
+// 探索統計
+const explorationStats = tradeManager.getExplorationStats();
+console.log(`總探索次數: ${explorationStats.totalExplorations}, 委託探索: ${explorationStats.commissionExplorations}`);
 ```
 
 #### 效能特性
-- **子模組協調**: 統一管理 RentManager 和 UniversalTrader
-- **事件整合**: 統一發送交易相關事件
-- **統計追蹤**: 完整的交易統計和每日統計
-- **錯誤處理**: 統一的錯誤處理和回傳格式
+- **四系統整合**: 統一管理 RentManager、UniversalTrader、CommissionHandler、ExplorationManager
+- **委託探索系統**: 完整的委託邀約處理、接受機率計算、探索執行委託
+- **事件整合**: 統一發送交易相關事件和探索系統事件
+- **統計追蹤**: 完整的交易統計、委託統計和探索統計
+- **配置驅動**: 探索系統使用 `gameBalance.explorationSystem` 配置
+- **錯誤處理**: 統一的錯誤處理和回傳格式，支援系統健康檢查
 
 ### UniversalTrader
 **位置**: `src/js/systems/UniversalTrader.js`
@@ -810,6 +903,264 @@ mutualAidEvents.forEach(event => {
 - **輕量快取**: 交易選項動態生成，無持久化快取
 - **簡化狀態管理**: 最小化內部狀態，依賴外部狀態管理
 - **關係度計算**: 基於關係度的動態定價機制
+
+### CommissionHandler
+**位置**: `src/js/systems/CommissionHandler.js`
+**職責**: 委託探索處理器，處理委託邀約、接受機率計算
+**依賴**: `ExplorationManager`, `TenantManager`, `EventBus`
+**架構**: TradeManager 內部組件，配置驅動設計
+
+#### 核心方法
+```javascript
+/**
+ * 處理委託邀約（主要入口點）
+ * @param {Object} request - 委託請求
+ * @param {string} request.tenantId - 目標租客ID
+ * @param {string} request.resourceType - 需要資源類型
+ * @param {number} request.targetAmount - 目標數量
+ * @param {Object} request.basePayment - 基礎報酬
+ * @param {Object} request.commission - 佣金
+ * @returns {Promise<Object>} 處理結果
+ */
+async processCommissionOffer(request)
+
+/**
+ * 取得活躍委託列表
+ * @returns {Array<CommissionOffer>} 活躍委託
+ */
+getActiveCommissions()
+
+/**
+ * 取得委託歷史
+ * @returns {Array<Object>} 委託歷史記錄
+ */
+getCommissionHistory()
+
+/**
+ * 取得統計資訊
+ * @returns {Object} 統計資料
+ */
+getStats()
+
+/**
+ * 清理系統資源
+ */
+cleanup()
+```
+
+#### 委託邀約類型
+```javascript
+/**
+ * 委託邀約物件
+ * @typedef {Object} CommissionOffer
+ * @property {string} id - 邀約唯一ID
+ * @property {string} tenantId - 目標租客ID
+ * @property {string} resourceType - 需要的資源類型
+ * @property {number} targetAmount - 目標獲取數量
+ * @property {Object} basePayment - 基礎報酬
+ * @property {Object} commission - 佣金
+ * @property {string|null} partnerId - 組隊夥伴ID
+ * @property {string} status - 委託狀態
+ * @property {string} [decidedAt] - 決策時間
+ */
+
+/**
+ * 委託接受評估結果
+ * @typedef {Object} AcceptanceEvaluation
+ * @property {number} probability - 接受機率
+ * @property {string} refusalReason - 拒絕原因
+ */
+```
+
+#### 使用範例
+```javascript
+// 建立委託處理器（通常由 TradeManager 管理）
+const commissionHandler = new CommissionHandler(
+  tenantManager,
+  eventBus,
+  explorationConfig,
+  explorationManager
+);
+
+// 處理委託邀約
+const request = {
+  tenantId: 'tenant_1',
+  resourceType: 'food',
+  targetAmount: 10,
+  basePayment: { cash: 50 },
+  commission: { food: 2, cash: 20 }
+};
+
+const result = await commissionHandler.processCommissionOffer(request);
+if (result.success) {
+  console.log('委託被接受:', result.offer);
+  console.log('探索結果:', result.result);
+} else {
+  console.log('委託被拒絕:', result.reason);
+}
+
+// 查詢委託狀態
+const active = commissionHandler.getActiveCommissions();
+const history = commissionHandler.getCommissionHistory();
+const stats = commissionHandler.getStats();
+
+console.log(`活躍委託: ${active.length}`);
+console.log(`成功率: ${Math.round(stats.successRate * 100)}%`);
+```
+
+#### 效能特性
+- **配置驅動**: 使用 `gameBalance.explorationSystem` 配置接受機率計算
+- **事件監聽**: 自動監聽探索完成事件更新委託狀態
+- **歷史管理**: 限制委託歷史最近50筆記錄防止記憶體洩漏
+- **智慧組隊**: 自動評估組隊可能性提升探索成功率
+- **風險評估**: 基於租客職業、關係度、資源急迫性計算接受機率
+
+### ExplorationManager
+**位置**: `src/js/systems/ExplorationManager.js`
+**職責**: 探索系統管理器，提供探索執行的統一管理
+**依賴**: `BaseManager`, `ResourceManager`, `DataManager`, `EventBus`
+
+#### 核心方法
+```javascript
+/**
+ * 執行探索（統一入口點）
+ * @param {ExplorationRequest} request - 探索請求
+ * @returns {Promise<ExplorationResult>} 探索結果
+ */
+async executeExploration(request)
+
+/**
+ * 初始化探索管理器
+ * @returns {Promise<boolean>} 初始化是否成功
+ */
+async initialize()
+
+/**
+ * 取得探索統計
+ * @returns {Object} 探索統計資料
+ */
+getExplorationStats()
+
+/**
+ * 取得探索歷史
+ * @param {number} [limit=50] - 限制數量
+ * @returns {Array<ExplorationResult>} 探索歷史
+ */
+getExplorationHistory(limit = 50)
+
+/**
+ * 取得成功率趨勢
+ * @param {number} [days=7] - 分析天數
+ * @returns {Array<number>} 成功率趨勢
+ */
+getSuccessRateTrend(days = 7)
+
+/**
+ * 按類型取得探索統計
+ * @returns {Object} 按類型分組的統計
+ */
+getExplorationStatsByType()
+
+/**
+ * 清理系統資源
+ */
+cleanup()
+
+/**
+ * 重置統計資料
+ */
+resetStats()
+```
+
+#### 探索請求類型
+```javascript
+/**
+ * 探索參與者
+ * @typedef {Object} ExplorationParticipant
+ * @property {string} id - 參與者ID
+ * @property {string} name - 參與者姓名
+ * @property {string} type - 參與者類型
+ * @property {Object} personalResources - 個人資源
+ */
+
+/**
+ * 探索請求
+ * @typedef {Object} ExplorationRequest
+ * @property {string} type - 探索類型 ('commission'|'autonomous')
+ * @property {string} requestId - 請求ID
+ * @property {string} resourceType - 目標資源類型
+ * @property {number} targetAmount - 目標數量
+ * @property {Array<ExplorationParticipant>} participants - 參與者
+ * @property {string} priority - 優先級 ('low'|'medium'|'high'|'critical')
+ * @property {Object} [basePayment] - 基礎報酬（委託探索用）
+ * @property {Object} [commission] - 佣金（委託探索用）
+ */
+
+/**
+ * 探索結果
+ * @typedef {Object} ExplorationResult
+ * @property {boolean} success - 探索是否成功
+ * @property {string} completedAt - 完成時間戳記
+ * @property {Object} resourcesObtained - 總獲得資源
+ * @property {number} contractFulfillment - 合約履行數量
+ * @property {number} surplus - 超額數量
+ * @property {Array} participants - 參與者狀況
+ * @property {Array} relationshipChanges - 關係影響
+ * @property {string} type - 探索類型
+ * @property {string} requestId - 請求ID
+ */
+```
+
+#### 使用範例
+```javascript
+// 初始化探索管理器
+const explorationManager = new ExplorationManager(
+  gameState,
+  resourceManager,
+  eventBus,
+  dataManager
+);
+
+await explorationManager.initialize();
+
+// 執行委託探索
+const explorationRequest = {
+  type: 'commission',
+  requestId: 'commission_1',
+  resourceType: 'food',
+  targetAmount: 10,
+  participants: [
+    { id: 'tenant_1', name: '農夫張三', type: 'farmer', personalResources: {} },
+    { id: 'tenant_2', name: '軍人李四', type: 'soldier', personalResources: {} }
+  ],
+  priority: 'medium',
+  basePayment: { cash: 50 },
+  commission: { food: 2, cash: 20 }
+};
+
+const result = await explorationManager.executeExploration(explorationRequest);
+console.log(`探索${result.success ? '成功' : '失敗'}`);
+console.log('獲得資源:', result.resourcesObtained);
+
+// 查詢統計資料
+const stats = explorationManager.getExplorationStats();
+console.log(`總探索次數: ${stats.totalExplorations}`);
+console.log(`成功率: ${Math.round(stats.successRate * 100)}%`);
+console.log(`受傷率: ${Math.round(stats.injuryRate * 100)}%`);
+
+// 取得歷史和趨勢
+const history = explorationManager.getExplorationHistory(10);
+const trend = explorationManager.getSuccessRateTrend(7);
+const byType = explorationManager.getExplorationStatsByType();
+```
+
+#### 效能特性
+- **配置載入**: 使用 `gameBalance.explorationSystem` 配置，支援預設配置回退
+- **統計追蹤**: 完整的探索統計、成功率計算、受傷追蹤
+- **歷史管理**: 限制探索歷史最近100筆記錄，支援趨勢分析
+- **事件整合**: 發送探索開始、完成、失敗等事件供其他系統監聽
+- **支付處理**: 自動處理基礎報酬支付和佣金分配
+- **關係影響**: 處理探索結果對租客關係的影響
 
 ### SkillManager
 **位置**: `src/js/systems/SkillManager.js`

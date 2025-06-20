@@ -106,11 +106,11 @@ export class BaseManager {
       // 系統級前綴（系統生命週期事件，跨所有模組）
       SYSTEM_PREFIXES: ["system_", "game_", "day_"],
 
-      // 業務領域前綴（跨模組業務流程事件）
-      BUSINESS_PREFIXES: ["harvest_", "scavenge_"],
+      // 業務領域前綴（跨模組業務流程，無專責管理器）
+      BUSINESS_PREFIXES: ["harvest_"],
 
-      // 模組專屬前綴（模組內部事件）
-      MODULE_PREFIXES: ["resource_", "tenant_", "trade_"],
+      // 模組專屬前綴（有對應管理器的功能領域）
+      MODULE_PREFIXES: ["resource_", "tenant_", "trade_", "skill_", "exploration_"],
     };
 
     // 驗證必要依賴
