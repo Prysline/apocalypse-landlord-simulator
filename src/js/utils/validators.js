@@ -58,7 +58,7 @@
 /**
  * 交易操作配置
  * @typedef {Object} TradeOperation
- * @property {'rent'|'merchant'|'caravan'|'mutual_aid'} type - 交易類型
+ * @property {'rent'|'merchant'|'caravan'|'mutual_aid'|'commission'} type - 交易類型
  * @property {string} from - 來源方
  * @property {string} to - 目標方
  * @property {Array} [items] - 交易物品

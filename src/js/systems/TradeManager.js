@@ -2,13 +2,14 @@
 
 /**
  * @fileoverview TradeManager.js - 統一交易管理器
- * 職責：統一交易入口，整合租金收取和租客交易系統
- * 架構：繼承 BaseManager，協調 RentManager 和 UniversalTrader
+ * 職責：統一交易入口，整合租金收取、租客交易和委託探索系統
  */
 
 import BaseManager from "./BaseManager.js";
 import RentManager from "./RentManager.js";
 import UniversalTrader from "./UniversalTrader.js";
+import CommissionHandler from "./CommissionHandler.js";
+import ExplorationManager from "./ExplorationManager.js";
 
 /**
  * 交易統計資料
@@ -16,6 +17,7 @@ import UniversalTrader from "./UniversalTrader.js";
  * @property {number} rentTransactions - 租金交易次數
  * @property {number} resourceTransactions - 資源交易次數
  * @property {number} mutualAidEvents - 互助事件次數
+ * @property {number} commissionOffers - 委託邀約次數
  * @property {number} totalValue - 總交易價值
  * @property {DailyStats} dailyStats - 每日統計
  */
@@ -27,7 +29,18 @@ import UniversalTrader from "./UniversalTrader.js";
  * @property {number} rentCollected - 收取的租金
  * @property {number} resourceTrades - 資源交易數量
  * @property {number} mutualAidEvents - 互助事件數量
+ * @property {number} commissionsProcessed - 處理的委託數量
  * @property {number} totalDailyValue - 當日總價值
+ */
+
+/**
+ * 委託請求參數
+ * @typedef {Object} CommissionRequest
+ * @property {string} tenantId - 目標租客ID
+ * @property {string} resourceType - 需要資源類型
+ * @property {number} targetAmount - 目標數量
+ * @property {Object} basePayment - 基礎報酬
+ * @property {Object} commission - 佣金
  */
 
 /**
@@ -41,6 +54,7 @@ export class TradeManager extends BaseManager {
    * 建立 TradeManager 實例
    * @param {Object} gameStateRef - 遊戲狀態參考
    * @param {Object} resourceManager - 資源管理器實例
+   * @param {Object} tenantManager - 租客管理器實例
    * @param {Object} dataManager - 資料管理器實例
    * @param {Object} eventBus - 事件總線實例
    */
@@ -62,17 +76,25 @@ export class TradeManager extends BaseManager {
     /** @type {UniversalTrader|null} 租客交易器 */
     this.universalTrader = null;
 
+    /** @type {ExplorationManager|null} 探索系統管理器 */
+    this.explorationManager = null;
+
+    /** @type {CommissionHandler|null} 委託處理器 */
+    this.commissionHandler = null;
+
     /** @type {TradeStats} 交易統計 */
     this.tradeStats = {
       rentTransactions: 0,
       resourceTransactions: 0,
       mutualAidEvents: 0,
+      commissionOffers: 0,
       totalValue: 0,
       dailyStats: {
         day: 1,
         rentCollected: 0,
         resourceTrades: 0,
         mutualAidEvents: 0,
+        commissionsProcessed: 0,
         totalDailyValue: 0,
       },
     };
@@ -125,6 +147,24 @@ export class TradeManager extends BaseManager {
     this.onEvent("trade_autoMutualAidExecuted", (eventObj) => {
       this.updateStats("mutual_aid", 0); // 互助事件不計入金額統計
     });
+
+    // 監聽探索完成事件（統一處理）
+    this.onEvent("exploration_completed", (eventObj) => {
+      const { type, result } = eventObj.data;
+
+      if (type === 'commission') {
+        this.updateStats("commission", 0); // 委託不直接計入金額，單獨統計
+        this.logSuccess(`委託探索完成: ${eventObj.data.requestId}`);
+      } else if (type === 'autonomous') {
+        console.log(`自主探索完成: ${result.success ? '成功' : '失敗'}`);
+      }
+    }, { skipPrefix: true });
+
+    // 監聽探索開始事件
+    this.onEvent("exploration_started", (eventObj) => {
+      const { type, participants, resourceType } = eventObj.data;
+      console.log(`${type === 'commission' ? '委託' : '自主'}探索開始: ${participants.length} 人探索 ${resourceType}`);
+    }, { skipPrefix: true });
   }
 
   /**
@@ -135,6 +175,8 @@ export class TradeManager extends BaseManager {
     return {
       rentManagerReady: this.rentManager?.isInitialized() || false,
       universalTraderReady: this.universalTrader?.isInitialized() || false,
+      explorationManagerReady: this.explorationManager?.isInitialized() || false,
+      commissionHandlerReady: !!this.commissionHandler,
       totalTransactions: this.getTotalTransactions(),
       systemHealth: this.validateSystemHealth(),
       tradeStats: { ...this.tradeStats },
@@ -165,7 +207,7 @@ export class TradeManager extends BaseManager {
       // 標記初始化完成
       this.markInitialized(true);
 
-      this.logSuccess("TradeManager v3.0 統一交易系統初始化完成");
+      this.logSuccess("TradeManager 統一交易系統初始化完成");
       return true;
     } catch (error) {
       this.logError("TradeManager 初始化失敗", error);
@@ -179,7 +221,7 @@ export class TradeManager extends BaseManager {
    * @returns {Promise<void>}
    */
   async initializeSubModules() {
-    // 初始化租金管理器
+    // 1. 建立租金管理器
     this.rentManager = new RentManager(
       this.gameState,
       this.resourceManager,
@@ -187,12 +229,7 @@ export class TradeManager extends BaseManager {
       this.eventBus
     );
 
-    const rentInitSuccess = await this.rentManager.initialize();
-    if (!rentInitSuccess) {
-      throw new Error("RentManager 初始化失敗");
-    }
-
-    // 初始化租客交易器
+    // 2. 建立租客交易器
     this.universalTrader = new UniversalTrader(
       this.gameState,
       this.resourceManager,
@@ -201,12 +238,88 @@ export class TradeManager extends BaseManager {
       this.eventBus
     );
 
-    const traderInitSuccess = await this.universalTrader.initialize();
-    if (!traderInitSuccess) {
-      throw new Error("UniversalTrader 初始化失敗");
+    // 3. 建立探索系統管理器（核心組件）
+    await this._initializeExplorationManager();
+
+    // 4. 建立委託處理器（依賴探索引擎）
+    await this._initializeCommissionHandler();
+
+    // 5. 初始化子模組
+    const initResults = await Promise.all([
+      this.rentManager.initialize(),
+      this.universalTrader.initialize(),
+    ]);
+
+    if (initResults.some(result => !result)) {
+      this.logWarning("部分子模組初始化失敗，系統將以降級模式運行");
     }
 
     this.logSuccess("所有子模組初始化完成");
+  }
+
+  /**
+   * 初始化探索系統管理器
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _initializeExplorationManager() {
+    try {
+      // 建立探索管理器實例
+      this.explorationManager = new ExplorationManager(
+        this.gameState,
+        this.resourceManager,
+        this.eventBus,
+        this.dataManager
+      );
+
+      // 初始化探索管理器
+      const initSuccess = await this.explorationManager.initialize();
+      if (!initSuccess) {
+        throw new Error('探索管理器初始化失敗');
+      }
+
+      this.logSuccess("探索系統管理器初始化完成");
+
+    } catch (error) {
+      this.logError("探索系統管理器初始化失敗", error);
+      this.explorationManager = null;
+      throw error;
+    }
+  }
+
+  /**
+   * 初始化委託處理器
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _initializeCommissionHandler() {
+    try {
+      if (!this.explorationManager) {
+        throw new Error('探索系統管理器未初始化，無法建立委託處理器');
+      }
+
+      // 載入探索系統配置
+      const explorationConfig = this.dataManager.getRuleValue('gameBalance.explorationSystem');
+
+      if (!explorationConfig) {
+        throw new Error('explorationSystem 配置未找到');
+      }
+
+      // 建立委託處理器實例
+      this.commissionHandler = new CommissionHandler(
+        this.resourceManager,
+        this.tenantManager,
+        this.eventBus,
+        explorationConfig
+      );
+
+      this.logSuccess("委託處理器初始化完成");
+
+    } catch (error) {
+      this.logError("委託處理器初始化失敗", error);
+      this.commissionHandler = null;
+      throw error;
+    }
   }
 
   /**
@@ -303,14 +416,115 @@ export class TradeManager extends BaseManager {
   }
 
   // ==========================================
+  // 委託探索 API
+  // ==========================================
+
+  /**
+   * 發起委託邀約
+   * @param {CommissionRequest} request - 委託請求
+   * @returns {Promise<Object>} 委託處理結果
+   */
+  async offerCommission(request) {
+    if (!this.commissionHandler) {
+      return {
+        success: false,
+        error: '委託系統未初始化'
+      };
+    }
+
+    try {
+      const result = await this.commissionHandler.processCommissionOffer(request);
+
+      // 更新統計
+      this.tradeStats.commissionOffers++;
+      this.tradeStats.dailyStats.commissionsProcessed++;
+
+      console.log(`委託邀約處理完成: ${result.success ? '接受' : '拒絕'}`);
+
+      return result;
+    } catch (error) {
+      this.logError("委託邀約處理失敗", error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 取得活躍委託列表
+   * @returns {Array} 活躍委託列表
+   */
+  getActiveCommissions() {
+    if (!this.commissionHandler) {
+      return [];
+    }
+    return this.commissionHandler.getActiveCommissions();
+  }
+
+  /**
+   * 取得委託歷史
+   * @returns {Array} 完成歷史列表
+   */
+  getCommissionHistory() {
+    if (!this.commissionHandler) {
+      return [];
+    }
+    return this.commissionHandler.getCommissionHistory();
+  }
+
+  /**
+   * 取得委託統計資訊
+   * @returns {Object} 委託統計
+   */
+  getCommissionStats() {
+    if (!this.commissionHandler) {
+      return {
+        activeCommissions: 0,
+        totalCommissions: 0,
+        successfulCommissions: 0,
+        successRate: 0
+      };
+    }
+    return this.commissionHandler.getStats();
+  }
+
+  /**
+   * 取得探索系統統計（更新 API）
+   * @returns {Object} 探索系統統計
+   */
+  getExplorationStats() {
+    if (!this.explorationManager) {
+      return {
+        totalExplorations: 0,
+        successfulExplorations: 0,
+        successRate: 0
+      };
+    }
+    return this.explorationManager.getExplorationStats();
+  }
+
+  /**
+   * 取得探索歷史（更新 API）
+   * @param {number} [limit=20] - 限制數量
+   * @returns {Array} 探索歷史記錄
+   */
+  getExplorationHistory(limit = 20) {
+    if (!this.explorationManager) {
+      return [];
+    }
+    return this.explorationManager.getExplorationHistory(limit);
+  }
+
+  // ==========================================
   // 統計與狀態管理
   // ==========================================
 
   /**
    * 更新交易統計
-   * @param {"rent"|"resource"|"mutual_aid"} type - 交易類型
-   * @param {number} value - 交易價值
-   * @returns {void}
+  * @param {string} type - 統計類型
+   * @param {number} value - 數值
+   * @private
    */
   updateStats(type, value) {
     this.tradeStats.totalValue += value;
@@ -329,6 +543,10 @@ export class TradeManager extends BaseManager {
         this.tradeStats.mutualAidEvents++;
         this.tradeStats.dailyStats.mutualAidEvents++;
         break;
+      case "commission":
+        this.tradeStats.commissionOffers++;
+        this.tradeStats.dailyStats.commissionsProcessed++;
+        break;
     }
   }
 
@@ -342,6 +560,7 @@ export class TradeManager extends BaseManager {
       rentCollected: 0,
       resourceTrades: 0,
       mutualAidEvents: 0,
+      commissionsProcessed: 0,
       totalDailyValue: 0,
     };
 
@@ -356,7 +575,8 @@ export class TradeManager extends BaseManager {
     return (
       this.tradeStats.rentTransactions +
       this.tradeStats.resourceTransactions +
-      this.tradeStats.mutualAidEvents
+      this.tradeStats.mutualAidEvents +
+      this.tradeStats.commissionOffers
     );
   }
 
@@ -373,6 +593,14 @@ export class TradeManager extends BaseManager {
 
     if (!this.universalTrader?.isInitialized()) {
       issues.push("UniversalTrader 未正確初始化");
+    }
+
+    if (!!this.explorationManager) {
+      issues.push("ExplorationManager 未正確初始化");
+    }
+
+    if (!!this.commissionHandler) {
+      issues.push("CommissionHandler 未正確初始化");
     }
 
     return {
@@ -394,6 +622,71 @@ export class TradeManager extends BaseManager {
           : 0,
       systemHealth: this.validateSystemHealth(),
     };
+  }
+
+  // ==========================================
+  // 除錯和監控
+  // ==========================================
+
+  /**
+   * 除錯資訊輸出
+   * @returns {void}
+   */
+  debugInfo() {
+    if (!this.isDebugMode()) return;
+
+    console.group("🔄 TradeManager 除錯資訊");
+    console.log("📊 統計資料:", this.tradeStats);
+    console.log("⚙️ 子模組狀態:", this.getExtendedStatus());
+    console.log("📋 委託狀態:", this.getCommissionStats());
+    console.groupEnd();
+  }
+
+  /**
+   * 清理資源
+   * @returns {void}
+   */
+  cleanup() {
+    // 清理子模組
+    if (this.rentManager) {
+      this.rentManager.cleanup();
+      this.rentManager = null;
+    }
+
+    if (this.universalTrader) {
+      this.universalTrader.cleanup();
+      this.universalTrader = null;
+    }
+
+    if (this.explorationManager) {
+      this.explorationManager.cleanup();
+      this.explorationManager = null;
+    }
+
+    if (this.commissionHandler) {
+      this.commissionHandler.cleanup();
+      this.commissionHandler = null;
+    }
+
+    // 重置統計
+    this.tradeStats = {
+      rentTransactions: 0,
+      resourceTransactions: 0,
+      mutualAidEvents: 0,
+      commissionOffers: 0,
+      totalValue: 0,
+      dailyStats: {
+        day: 1,
+        rentCollected: 0,
+        resourceTrades: 0,
+        mutualAidEvents: 0,
+        commissionsProcessed: 0,
+        totalDailyValue: 0,
+      },
+    };
+
+    // 調用父類清理
+    super.cleanup();
   }
 }
 

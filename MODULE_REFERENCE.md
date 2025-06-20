@@ -428,16 +428,19 @@ if (foodStatus.level === 'emergency') {
 ### TenantManager
 **位置**: `src/js/systems/TenantManager.js`
 **職責**: 租客生命週期管理，透過內建 SatisfactionManager 專責處理滿意度邏輯
-**依賴**: `BaseManager`, `GameState`, `ResourceManager`, `TradeManager`, `DataManager`, `EventBus`, `SatisfactionManager`
+**依賴**: `BaseManager`, `GameState`, `ResourceManager`, `DataManager`, `EventBus`, `SatisfactionManager`, `RelationshipManager`
 
 #### 架構設計
-TenantManager 採用組合模式，將滿意度相關邏輯委派給內建的 SatisfactionManager 專責處理：
+TenantManager 採用組合模式，將複雜功能委派給專責子系統處理：
 
 ```javascript
 // 內部架構
 class TenantManager extends BaseManager {
   constructor() {
+    // 滿意度專責管理
     this.satisfactionManager = new SatisfactionManager(gameState, eventBus, config);
+    // 關係專責管理
+    this.relationshipManager = new RelationshipManager(gameState, eventBus, config);
   }
 
   // 滿意度相關方法委派給專責管理器
@@ -445,8 +448,9 @@ class TenantManager extends BaseManager {
     return this.satisfactionManager.updateSatisfaction(tenantId);
   }
 
-  getTenantSatisfaction(tenantId) {
-    return this.satisfactionManager.getSatisfaction(tenantId);
+  // 關係管理方法委派給專責管理器
+  getRelationshipValue(tenantId1, tenantId2) {
+    return this.relationshipManager.getRelationshipValue(tenantId1, tenantId2);
   }
 }
 ```
@@ -499,6 +503,89 @@ findTenantAndRoom(tenantId)
  * @returns {Array<Person>}
  */
 generateApplicants(count = Math.floor(Math.random() * 2) + 2)
+
+/**
+ * 取得租客間關係值（委派給 RelationshipManager）
+ * @param {string|number} tenantId1 - 租客1 ID
+ * @param {string|number} tenantId2 - 租客2 ID
+ * @returns {number} 關係值 (0-100)
+ */
+getRelationshipValue(tenantId1, tenantId2)
+
+/**
+ * 設置租客間關係值（委派給 RelationshipManager）
+ * @param {string|number} tenantId1 - 租客1 ID
+ * @param {string|number} tenantId2 - 租客2 ID
+ * @param {number} value - 關係值 (0-100)
+ * @param {string} [reason] - 變更原因
+ * @returns {boolean} 設置是否成功
+ */
+setRelationshipValue(tenantId1, tenantId2, value, reason = '關係更新')
+
+/**
+ * 調整租客間關係值（委派給 RelationshipManager）
+ * @param {string|number} tenantId1 - 租客1 ID
+ * @param {string|number} tenantId2 - 租客2 ID
+ * @param {number} change - 變更量
+ * @param {string} [reason] - 變更原因
+ * @returns {number} 新的關係值
+ */
+adjustRelationshipValue(tenantId1, tenantId2, change, reason = '關係調整')
+
+/**
+ * 取得租客的所有關係值（委派給 RelationshipManager）
+ * @param {string|number} tenantId - 租客 ID
+ * @returns {Object} 關係值映射
+ */
+getTenantRelationships(tenantId)
+
+/**
+ * 檢查自主探索觸發（每日循環調用）
+ * @returns {Array<AutonomousExplorationTrigger>} 觸發的自主探索列表
+ */
+checkAutonomousExploration()
+
+/**
+ * 取得可用租客列表
+ * @returns {Array<Object>} 可用租客列表（不在任務中、健康、非冷卻狀態）
+ */
+getAvailableTenants()
+
+/**
+ * 修改租客個人資源
+ * @param {string} tenantId - 租客ID
+ * @param {string} resourceType - 資源類型
+ * @param {number} amount - 變更數量（可為負數）
+ * @param {string} reason - 修改原因
+ * @returns {boolean} 修改是否成功
+ */
+modifyPersonalResource(tenantId, resourceType, amount, reason)
+
+/**
+ * 取得自主探索統計
+ * @returns {Object} 統計資料
+ */
+getAutonomousExplorationStats()
+```
+
+#### RelationshipManager 整合
+TenantManager 內建的 RelationshipManager 提供專業的租客關係管理能力：
+
+**主要功能**：
+- 基於職業類型的初始關係值計算（soldier-doctor: 65, farmer-worker: 70等）
+- 統一ID系統確保關係鍵值一致性（sortedIds 機制）
+- 自動清理已離開租客的關係記錄
+- 與 GameState 雙向同步，支援關係值持久化
+
+**委派方法**：
+```javascript
+// 關係值管理
+const relationship = tenantManager.getRelationshipValue(tenantId1, tenantId2);
+tenantManager.setRelationshipValue(tenantId1, tenantId2, 75, '協作成功');
+const newValue = tenantManager.adjustRelationshipValue(tenantId1, tenantId2, 5, '互助行為');
+
+// 關係網絡查詢
+const allRelationships = tenantManager.getTenantRelationships(tenantId);
 ```
 
 #### SatisfactionManager 整合
@@ -537,15 +624,31 @@ const newSatisfaction = tenantManager.modifySatisfaction(1, 10, '房間維修完
 const status = tenantManager.getSatisfactionStatus(newSatisfaction);
 console.log(`滿意度：${status.value} ${status.emoji} (${status.description})`);
 
+// 關係管理（內部委派給 RelationshipManager）
+const relationship = tenantManager.getRelationshipValue('tenant_1', 'tenant_2');
+tenantManager.adjustRelationshipValue('tenant_1', 'tenant_2', 10, '成功協作');
+console.log(`關係值：${relationship} → ${relationship + 10}`);
+
+// 自主探索檢查（每日循環觸發）
+const triggers = tenantManager.checkAutonomousExploration();
+triggers.forEach(trigger => {
+  console.log(`${trigger.tenantId} 觸發自主探索，優先級：${trigger.priority}`);
+});
+
+// 個人資源管理
+tenantManager.modifyPersonalResource('tenant_1', 'food', 5, '探索獲得');
+
 // 驅逐處理
 const evictionResult = await tenantManager.evictTenant(3, true, '感染風險');
 ```
 
 #### 效能特性
-- **模組化設計**: 滿意度邏輯獨立於核心租客管理，提升可維護性
-- **計算優化**: SatisfactionManager 內建 5 秒快取機制，避免重複計算
-- **歷史管理**: 滿意度變更歷史限制在系統閾值內，防止記憶體洩漏
-- **事件效率**: 滿意度相關事件直接由 SatisfactionManager 發送，減少轉發層次
+- **組合模式架構**: 滿意度和關係管理邏輯獨立於核心租客管理，降低單一職責負載
+- **專責計算優化**: SatisfactionManager 內建 5 秒快取機制，RelationshipManager 使用 Map 結構提升查詢效能
+- **記憶體管理**: 滿意度歷史、關係記錄和自主探索歷史均限制在系統閾值內，防止記憶體洩漏
+- **事件效率**: 專責管理器直接發送相關事件，避免多層轉發降低效能
+- **自主探索優化**: 冷卻機制避免頻繁觸發，可用租客篩選機制提升執行效率
+
 ### TradeManager
 **位置**: `src/js/systems/TradeManager.js`
 **職責**: 統一交易系統入口，整合租金收取和租客交易

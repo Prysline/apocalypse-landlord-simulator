@@ -25,7 +25,7 @@
 
 /**
  * 交易類型聯合型別
- * @typedef {'rent'|'merchant'|'caravan'|'mutual_aid'} TradeType
+ * @typedef {'rent'|'merchant'|'caravan'|'mutual_aid'|'commission'} TradeType
  */
 
 /**
