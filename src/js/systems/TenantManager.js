@@ -400,6 +400,7 @@ export class TenantManager extends BaseManager {
     };
 
     if (isInfected) {
+      // 感染者驅逐：收取處理費用 + 消毒 + 遺留物品
       result.penalty = this.config.evictionPenalty;
 
       if (this.resourceManager.hasEnoughResource("medical", 2)) {
@@ -409,7 +410,25 @@ export class TenantManager extends BaseManager {
         this.addLog("缺乏醫療用品，房間可能存在感染風險", "danger");
         room.needsRepair = true;
       }
+
+      // 感染者被驅逐時遺留個人物品
+      if (tenant.personalResources) {
+        result.leftBehind = { ...tenant.personalResources };
+
+        Object.keys(result.leftBehind).forEach((resourceType) => {
+          const amount = result.leftBehind[resourceType];
+          if (amount > 0) {
+            this.resourceManager.modifyResource(resourceType, amount, "tenant_leftBehind");
+          }
+        });
+
+        const totalLeftBehind = Object.values(result.leftBehind).reduce((sum, val) => sum + val, 0);
+        if (totalLeftBehind > 0) {
+          this.addLog(`${tenant.name} 倉促離開，遺留了個人物品`, "event");
+        }
+      }
     } else {
+      // 正常離開：可能退還押金，租客帶走所有物品
       if (Math.random() < this.config.refundRate) {
         result.refund = Math.floor(tenant.rent * this.config.refundRate);
         if (result.refund > 0) {
@@ -417,24 +436,17 @@ export class TenantManager extends BaseManager {
           this.addLog(`退還 ${tenant.name} 的押金 ${result.refund}`, "event");
         }
       }
-    }
 
-    if (tenant.personalResources) {
-      result.leftBehind = { ...tenant.personalResources };
-
-      Object.keys(result.leftBehind).forEach((resourceType) => {
-        const amount = result.leftBehind[resourceType];
-        if (amount > 0) {
-          this.resourceManager.modifyResource(resourceType, amount, "tenant_leftBehind");
+      // 正常離開時，租客帶走所有個人物品，不遺留任何東西
+      if (tenant.personalResources) {
+        const totalPersonalResources = Object.values(tenant.personalResources).reduce((sum, val) => sum + val, 0);
+        if (totalPersonalResources > 0) {
+          this.addLog(`${tenant.name} 帶走了所有個人物品`, "event");
         }
-      });
-
-      const totalLeftBehind = Object.values(result.leftBehind).reduce((sum, val) => sum + val, 0);
-      if (totalLeftBehind > 0) {
-        this.addLog(`${tenant.name} 留下了個人物品`, "event");
       }
     }
 
+    // 清理租客資料
     this.gameState.state.people.delete(tenant.id);
     this.gameState.state.roles.tenants.delete(room.id);
     this.gameState.state.roles.tenantRooms.delete(tenant.id);
