@@ -522,6 +522,9 @@ export class GameState {
    * @returns {Object|null} 角色物件或null
    */
   findPersonById(personId) {
+    if (typeof personId === 'string') {
+      personId = Number(personId);
+    }
     return this.state.people.get(personId);
   }
 

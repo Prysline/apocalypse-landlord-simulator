@@ -309,10 +309,18 @@ export default class UIModal {
     </div>
   `;
 
+    let optionsHTML = null
     // 交易選項列表
-    const optionsHTML = tradeOptions.map(option =>
-      this._generateTradeOptionCard(option)
-    ).join('');
+    if (tradeOptions.length === 0) {
+      optionsHTML = `
+        <p class="no-trades">目前沒有可用的交易選項。</p>
+        <small>提示：提高關係度或等待角色資源狀況變化可能產生新的交易機會。</small>
+      `;
+    } else {
+      optionsHTML = tradeOptions.map(option =>
+        this._generateTradeOptionCard(option)
+      ).join('');
+    }
 
     containerEl.innerHTML = `
     ${characterInfo}
@@ -346,6 +354,19 @@ export default class UIModal {
     const canAfford = currentCash >= visitor.rent;
     const typeIcon = this.uiCore ? this.uiCore.getIcon(visitor.type, 'tenant') : '';
 
+    // 檢查交易狀態（如果尚未預檢查）
+    let hasTradeOptions = visitor._hasTradeOptions;
+    if (hasTradeOptions === undefined && this.gameApp?.tradeManager) {
+      const tradeOptions = this.gameApp.tradeManager.getCharacterTradeOptions(visitor.id);
+      hasTradeOptions = tradeOptions && tradeOptions.length > 0;
+    }
+
+    // 設定交易按鈕狀態
+    const tradeButtonDisabled = !hasTradeOptions;
+    const tradeButtonText = hasTradeOptions ? '💱 交易' : '💱 暫無交易';
+    const tradeButtonClass = hasTradeOptions ? 'btn-info' : 'btn-disabled';
+    const tradeButtonTitle = hasTradeOptions ? '與訪客進行資源交易' : '暫無可用交易';
+
     return `
       <div class="applicant ${visitor.revealedInfection ? 'infected' : ''}">
         <strong>${visitor.name}</strong> ${typeIcon} - ${visitor.typeName}<br>
@@ -360,11 +381,12 @@ export default class UIModal {
           ${visitor.revealedInfected ? '雇用 (危險)' : '雇用'}
           ${!canAfford ? ' (資金不足)' : ''}
         </button>
-        <button class="btn btn-info"
-                onclick="uiCore.showTradeModal(${visitor.id})"
-                title="與訪客進行資源交易">
-          💱 交易
-        </button>
+      <button class="btn ${tradeButtonClass}"
+              onclick="uiCore.showTradeModal(${visitor.id})"
+              title="${tradeButtonTitle}"
+              ${tradeButtonDisabled ? 'disabled' : ''}>
+        ${tradeButtonText}
+      </button>
       </div>
     `;
   }
@@ -487,7 +509,7 @@ export default class UIModal {
         <div class="trade-option-actions">
           <button
             class="btn ${option.canAfford ? 'btn-primary' : 'btn-disabled'}"
-            onclick="uiCore?.executeTradeOption('${option.id}')"
+            onclick="uiCore?.executeTrade('${option.id}')"
             ${!option.canAfford ? 'disabled' : ''}
             title="${option.canAfford ? '執行交易' : '資源不足'}"
           >
@@ -577,6 +599,468 @@ export default class UIModal {
    */
   _getCharacterIcon(characterType) {
     return this.uiCore ? this.uiCore.getIcon(characterType, 'tenant') : '👤';
+  }
+
+  /**
+   * 設定委託模態框內容
+   */
+  setCommissionModalContent() {
+    // 初始化表單
+    this.resetCommissionForm();
+
+    // 生成租客選擇區域
+    const tenantGrid = this._generateTenantSelectionGrid();
+    const tenantSelection = document.getElementById('tenantSelection');
+    if (tenantSelection) {
+      tenantSelection.innerHTML = tenantGrid;
+    }
+
+    // 初始化其他頁籤為載入狀態
+    const activeTab = document.getElementById('activeCommissionsList');
+    const historyTab = document.getElementById('commissionHistoryList');
+    const statsTab = document.getElementById('commissionStatsGrid');
+
+    if (activeTab) activeTab.innerHTML = '<div class="loading">載入中...</div>';
+    if (historyTab) historyTab.innerHTML = '<div class="loading">載入中...</div>';
+    if (statsTab) statsTab.innerHTML = '<div class="loading">載入中...</div>';
+  }
+
+  /**
+   * 重置委託表單
+   */
+  resetCommissionForm() {
+    const form = document.getElementById('commissionForm');
+    if (!form) return;
+
+    // 重置表單值
+    form.reset();
+
+    // 重置租客選擇
+    document.querySelectorAll('.tenant-select-card').forEach(card => {
+      card.classList.remove('selected');
+    });
+
+    // 隱藏預覽
+    const preview = document.getElementById('commissionPreview');
+    if (preview) preview.style.display = 'none';
+
+    // 清空訊息
+    const messages = document.getElementById('formMessages');
+    if (messages) messages.innerHTML = '';
+  }
+
+  // =================== 分頁填充 ===================
+  /**
+   * 填充活躍委託頁籤
+   * @param {Array} commissions - 活躍委託列表
+   */
+  _populateActiveCommissionsTab(commissions) {
+    const container = document.getElementById('activeCommissionsTab');
+    if (!container) return;
+
+    if (!commissions || commissions.length === 0) {
+      container.innerHTML = '目前沒有活躍的委託任務';
+      return;
+    }
+
+    const commissionsHTML = commissions.map(commission =>
+      this._generateCommissionCard(commission, 'active')
+    ).join('');
+
+    container.innerHTML = commissionsHTML;
+  }
+
+  /**
+   * 填充歷史記錄頁籤
+   * @param {Array} history - 委託歷史
+   */
+  _populateCommissionHistoryTab(history) {
+    const container = document.getElementById('commissionHistoryList');
+    if (!container) return;
+
+    if (!history || history.length === 0) {
+      container.innerHTML = '<div class="empty-state">暫無委託歷史記錄</div>';
+      return;
+    }
+
+    // 只顯示最近20筆
+    const recentHistory = history.slice(-20).reverse();
+
+    const historyHTML = recentHistory.map(record => {
+      const commission = record.offer;
+      const result = record.result;
+      return this._generateCommissionCard(commission, 'history', result);
+    }).join('');
+
+    container.innerHTML = historyHTML;
+  }
+
+  /**
+   * 填充統計資訊頁籤
+   * @param {Object} stats - 統計資料
+   */
+  _populateCommissionStatsTab(stats) {
+    const container = document.getElementById('commissionStatsGrid');
+    if (!container) return;
+
+    const successRate = stats.totalCommissions > 0
+      ? Math.round(stats.successRate * 100)
+      : 0;
+
+    const failedCount = stats.totalCommissions - stats.successfulCommissions - (stats.rejectedCommissions || 0);
+
+    container.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-value">${stats.activeCommissions}</div>
+      <div class="stat-label">進行中</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-value">${stats.totalCommissions}</div>
+      <div class="stat-label">總計委託</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value">${stats.successfulCommissions}</div>
+      <div class="stat-label">成功完成</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📈</div>
+      <div class="stat-value">${successRate}%</div>
+      <div class="stat-label">成功率</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-icon">🚫</div>
+      <div class="stat-value">${stats.rejectedCommissions || 0}</div>
+      <div class="stat-label">被拒絕</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-icon">❌</div>
+      <div class="stat-value">${failedCount}</div>
+      <div class="stat-label">探索失敗</div>
+    </div>
+  `;
+  }
+  // =================== HTML 生成 ===================
+
+  /**
+   * 生成租客選擇網格
+   * @returns {string} HTML字串
+   * @private
+   */
+  _generateTenantSelectionGrid() {
+    const tenants = this.gameApp?.gameState?.getAllTenants() || [];
+
+    if (tenants.length === 0) {
+      return '<div class="empty-state">暫無可派遣租客</div>';
+    }
+
+    // 篩選可用租客
+    const availableTenants = tenants.filter(tenant => {
+      if (tenant.infected) return false;
+      if (tenant.onMission) return false;
+
+      // 檢查是否已有活躍委託
+      const activeCommissions = this.gameApp.tradeManager?.getActiveCommissions() || [];
+      return !activeCommissions.some(c =>
+        c.tenantId === tenant.id || c.partnerId === tenant.id
+      );
+    });
+
+    if (availableTenants.length === 0) {
+      return '<div class="empty-state">所有租客都在忙碌中或無法派遣</div>';
+    }
+
+    return availableTenants.map(tenant => {
+      const satisfaction = tenant.satisfaction || 50;
+      const riskTolerance = this._getTenantRiskTolerance(tenant.type);
+
+      return `
+      <div class="tenant-card" data-tenant-id="${tenant.id}"
+           onclick="window.uiCore?.handleTenantSelection('${tenant.id}')">
+        <div class="tenant-header">
+          <span class="tenant-name">${this.uiCore.getIcon(tenant.type, 'tenantHuman')}${tenant.name}</span>
+        </div>
+        <div class="tenant-info">
+        <div class="tenant-satisfaction">滿意度：${this._getSatisfactionEmoji(satisfaction)}${satisfaction}</div>
+        <div class="tenant-type">${tenant.typeName || tenant.type} • 風險容忍：${riskTolerance}</div>
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  /**
+   * 生成委託卡片
+   * @param {Object} commission - 委託物件
+   * @param {string} context - 顯示情境 ('active' | 'history')
+   * @param {Object} [result] - 探索結果（歷史記錄用）
+   * @returns {string} HTML字串
+   * @private
+   */
+  _generateCommissionCard(commission, context, result = null) {
+    const tenant = this.gameApp?.gameState?.findPersonById(commission.tenantId);
+    const partner = commission.partnerId ?
+      this.gameApp?.gameState?.findPersonById(commission.partnerId) : null;
+
+    const statusInfo = this._getCommissionStatusInfo(commission.status);
+    const resourceIcon = this.uiCore?.getIcon(commission.resourceType, 'resource') || '';
+    const resourceName = this.uiCore?.getResourceName(commission.resourceType) || commission.resourceType;
+
+    // 組裝參與者名單
+    const participants = [tenant?.name || '未知租客'];
+    if (partner) participants.push(partner.name);
+
+    // 結果區塊
+    let resultSection = '';
+    if (context === 'history' && result) {
+      const resultClass = result.success ? 'success' : 'failed';
+      const resultText = result.success ?
+        `成功獲得 ${resourceName} x${result.actualGained || 0}` :
+        '探索失敗';
+
+      resultSection = `
+      <div class="commission-result ${resultClass}">
+        <strong>結果：</strong> ${resultText}
+        ${result.surplus > 0 ? `<br><small>超額完成 +${result.surplus}</small>` : ''}
+      </div>
+    `;
+    }
+
+    // 進度條（活躍委託）
+    let progressBar = '';
+    if (context === 'active' && commission.status === 'exploring') {
+      progressBar = `
+      <div class="commission-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 60%;"></div>
+        </div>
+        <small>探索進行中...</small>
+      </div>
+    `;
+    }
+
+    return `
+    <div class="commission-card ${statusInfo.class}">
+      <div class="commission-header">
+        <h4 class="commission-title">
+          ${resourceIcon} ${resourceName}委託 #${commission.id.split('_')[1] || '???'}
+        </h4>
+        <span class="commission-status ${statusInfo.class}">
+          ${statusInfo.icon} ${statusInfo.text}
+        </span>
+      </div>
+
+      <div class="commission-body">
+        <div class="commission-details">
+          <div class="detail-row">
+            <span class="detail-label">派遣人員：</span>
+            <span class="detail-value">${participants.join(' + ')}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">目標數量：</span>
+            <span class="detail-value">${commission.targetAmount} 單位</span>
+          </div>
+          ${commission.decidedAt ? `
+            <div class="detail-row">
+              <span class="detail-label">決定時間：</span>
+              <span class="detail-value">${new Date(commission.decidedAt).toLocaleString()}</span>
+            </div>
+          ` : ''}
+        </div>
+
+        ${progressBar}
+
+        <div class="commission-rewards">
+          <div class="reward-section">
+            <strong>基礎報酬：</strong> ${this._formatReward(commission.basePayment)}
+          </div>
+          <div class="reward-section">
+            <strong>委託佣金：</strong> ${this._formatReward(commission.commission)}
+          </div>
+        </div>
+
+        ${resultSection}
+      </div>
+    </div>
+  `;
+  }
+
+  // =================== 表單管理 ===================
+
+  /**
+   * 取得委託表單資料
+   * @returns {Object|null} 表單資料
+   */
+  getCommissionFormData() {
+    const form = document.getElementById('commissionForm');
+    if (!form) return null;
+
+    // 取得選中的租客
+    const selectedTenant = document.querySelector('.tenant-card.selected');
+    if (!selectedTenant) return null;
+
+    const tenantId = selectedTenant.getAttribute('data-tenant-id');
+
+    const result =  {
+      selectedTenant: tenantId,
+      targetResource: document.getElementById('targetResource').value,
+      targetAmount: document.getElementById('targetAmount').value,
+      basePayment: {
+        food: document.getElementById('basePaymentFood').value || '0',
+        materials: document.getElementById('basePaymentMaterials').value || '0',
+        medical: document.getElementById('basePaymentMedical').value || '0',
+        fuel: document.getElementById('basePaymentFuel').value || '0'
+      },
+      commission: {
+        cash: document.getElementById('commissionCash').value || '0',
+        medical: document.getElementById('commissionMedical').value || '0'
+      }
+    };
+
+    return result
+  }
+
+  /**
+   * 驗證委託表單資料
+   * @param {Object} formData - 表單資料
+   * @returns {Object} 驗證結果
+   */
+  validateCommissionFormData(formData) {
+    const errors = [];
+
+    if (!formData.selectedTenant) {
+      errors.push({ field: 'tenant', message: '請選擇委託對象' });
+    }
+
+    if (!formData.targetResource) {
+      errors.push({ field: 'resource', message: '請選擇目標資源' });
+    }
+
+    const targetAmount = parseInt(formData.targetAmount);
+    if (isNaN(targetAmount) || targetAmount < 1 || targetAmount > 50) {
+      errors.push({ field: 'amount', message: '目標數量必須在 1-50 之間' });
+    }
+
+    // 檢查是否至少有一種報酬
+    const hasBasePayment = Object.values(formData.basePayment).some(v => parseInt(v) > 0);
+    const hasCommission = Object.values(formData.commission).some(v => parseInt(v) > 0);
+
+    if (!hasBasePayment && !hasCommission) {
+      errors.push({ field: 'payment', message: '請至少設定一種報酬' });
+    }
+
+    // 檢查資源是否足夠
+    if (this.gameApp?.gameState) {
+      const resources = this.gameApp.gameState.getStateValue('resources', {});
+
+      // 檢查基礎報酬
+      for (const [resource, amount] of Object.entries(formData.basePayment)) {
+        const required = parseInt(amount);
+        const available = resources[resource] || 0;
+        if (required > available) {
+          errors.push({
+            field: `basePayment_${resource}`,
+            message: `${this.uiCore?.getResourceName(resource) || resource} 不足（需要 ${required}，擁有 ${available}）`
+          });
+        }
+      }
+
+      // 檢查佣金
+      const cashRequired = parseInt(formData.commission.cash);
+      if (cashRequired > resources.cash) {
+        errors.push({
+          field: 'commission_cash',
+          message: `現金不足（需要 ${cashRequired}，擁有 ${resources.cash}）`
+        });
+      }
+
+      const medicalRequired = parseInt(formData.commission.medical);
+      if (medicalRequired > resources.medical) {
+        errors.push({
+          field: 'commission_medical',
+          message: `醫療用品不足（需要 ${medicalRequired}，擁有 ${resources.medical}）`
+        });
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors
+    };
+  }
+
+  // =================== 輔助方法 ===================
+  /**
+   * 取得委託狀態資訊
+   * @param {string} status - 狀態代碼
+   * @returns {Object} 狀態資訊物件
+   * @private
+   */
+  _getCommissionStatusInfo(status) {
+    const statusMap = {
+      offered: { text: '邀約中', class: 'status-pending', icon: '⏳' },
+      accepted: { text: '已接受', class: 'status-accepted', icon: '✅' },
+      rejected: { text: '已拒絕', class: 'status-rejected', icon: '❌' },
+      exploring: { text: '探索中', class: 'status-exploring', icon: '🔍' },
+      completed: { text: '已完成', class: 'status-completed', icon: '🎉' },
+      failed: { text: '失敗', class: 'status-failed', icon: '💔' }
+    };
+
+    return statusMap[status] || { text: '未知', class: 'status-unknown', icon: '❓' };
+  }
+
+  /**
+   * 取得租客風險容忍度
+   * @param {string} tenantType - 租客類型
+   * @returns {string} 風險容忍度描述
+   * @private
+   */
+  _getTenantRiskTolerance(tenantType) {
+    const toleranceMap = {
+      'soldier': '高',
+      'worker': '中',
+      'farmer': '中',
+      'doctor': '低',
+      'elder': '低'
+    };
+
+    return toleranceMap[tenantType] || '未知';
+  }
+
+  /**
+   * 取得滿意度表情符號
+   * @param {number} satisfaction - 滿意度
+   * @returns {string} 表情符號
+   * @private
+   */
+  _getSatisfactionEmoji(satisfaction) {
+    if (satisfaction >= 80) return '😊';
+    if (satisfaction >= 60) return '🙂';
+    if (satisfaction >= 40) return '😐';
+    if (satisfaction >= 20) return '☹️';
+    return '😡';
+  }
+
+  /**
+   * 格式化報酬顯示
+   * @param {Object} reward - 報酬物件
+   * @returns {string} 格式化文字
+   * @private
+   */
+  _formatReward(reward) {
+    const items = [];
+
+    for (const [resource, amount] of Object.entries(reward)) {
+      if (parseInt(amount) > 0) {
+        const icon = this.uiCore?.getIcon(resource, 'resource') || '';
+        const name = this.uiCore?.getResourceName(resource) || resource;
+        items.push(`${icon} ${name} x${amount}`);
+      }
+    }
+
+    return items.length > 0 ? items.join(', ') : '無';
   }
 
   // =================== 狀態查詢 ===================

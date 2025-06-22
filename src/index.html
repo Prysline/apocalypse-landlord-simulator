@@ -103,6 +103,7 @@
         <button class="btn btn-danger" id="nextDayBtn">
           🌙 下一天
         </button>
+        <button class="btn" id="showCommissionBtn">📋 委託探索</button>
       </div>
 
       <!-- 遊戲日誌 -->
@@ -176,18 +177,18 @@
     </div>
   </div>
 
-<!-- 交易模態框 -->
-<div class="modal" id="tradeModal">
-  <div class="modal-content">
-    <h3 id="tradeModalTitle">租客交易</h3>
-    <div id="tradeModalContent">
-      <div id="tradeOptionsContainer">載入交易資訊中...</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="uiCore?.closeModal('tradeModal')">關閉</button>
+  <!-- 交易模態框 -->
+  <div class="modal" id="tradeModal">
+    <div class="modal-content">
+      <h3 id="tradeModalTitle">租客交易</h3>
+      <div id="tradeModalContent">
+        <div id="tradeOptionsContainer">載入交易資訊中...</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="uiCore?.closeModal('tradeModal')">關閉</button>
+      </div>
     </div>
   </div>
-</div>
 
   <!-- 技能模態框 -->
   <div class="modal" id="skillModal">
@@ -200,17 +201,149 @@
     </div>
   </div>
 
-  <!-- 搜刮派遣模態框 -->
-  <div class="modal" id="scavengeModal">
+  <!-- 委託探索模態框 -->
+  <div class="modal" id="commissionModal">
     <div class="modal-content">
-      <h3>選擇派遣人員</h3>
-      <p>剩餘派遣次數: <span id="remainingScavenges">2</span></p>
-      <div id="availableTenants"></div>
-      <div class="modal-actions">
-        <button class="btn" onclick="uiCore?.closeModal()">取消</button>
+      <div class="modal-header">
+        <h3 class="modal-title">📋委託探索系統</h3>
       </div>
+
+      <!-- 頁籤導航 -->
+      <div class="commission-tabs">
+        <button class="tab-btn active" data-tab="newCommission">發起委託</button>
+        <button class="tab-btn" data-tab="activeCommissions">活躍委託(<span id="activeCommissionsCount">0</span>)</button>
+        <button class="tab-btn" data-tab="commissionHistory">歷史記錄(<span id="commissionHistoryCount">0</span>)</button>
+        <button class="tab-btn" data-tab="commissionStats">統計資訊</button>
+      </div>
+
+      <!-- 發起委託頁籤 -->
+      <div class="tab-content active" id="newCommissionTab">
+        <form class="commission-form" id="commissionForm">
+          <!-- 目標資源選擇 -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="targetResource">目標資源</label>
+              <select id="targetResource" required>
+                <option value="food">🍞 食物</option>
+                <option value="materials">🔧 材料</option>
+                <option value="medical">💊 醫療用品</option>
+                <option value="fuel">⛽ 燃料</option>
+              </select>
+            </div>
+            <!-- 目標數量 -->
+            <div class="form-group">
+              <label for="targetAmount">目標數量</label>
+              <input type="number" id="targetAmount" min="1" max="50" value="10" required>
+            </div>
+          </div>
+
+          <!-- 基礎報酬配置 -->
+          <div class="form-group">
+            <label>基礎報酬</label>
+            <div class="resource-grid">
+              <div class="resource-input">
+                <span>💰</span>
+                <input type="number" id="basePaymentCash" min="0" value="5">
+              </div>
+              <div class="resource-input">
+                <span>🍞</span>
+                <input type="number" id="basePaymentFood" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>🔧</span>
+                <input type="number" id="basePaymentMaterials" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>💊</span>
+                <input type="number" id="basePaymentMedical" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>⛽</span>
+                <input type="number" id="basePaymentFuel" min="0" value="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- 委託佣金配置 -->
+          <div class="form-group">
+            <label>委託佣金</label>
+            <div class="resource-grid">
+              <div class="resource-input">
+                <span>💰</span>
+                <input type="number" id="commissionCash" min="0" value="5">
+              </div>
+              <div class="resource-input">
+                <span>🍞</span>
+                <input type="number" id="commissionFood" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>🔧</span>
+                <input type="number" id="commissionMaterials" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>💊</span>
+                <input type="number" id="commissionMedical" min="0" value="0">
+              </div>
+              <div class="resource-input">
+                <span>⛽</span>
+                <input type="number" id="commissionFuel" min="0" value="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- 租客選擇區域 -->
+          <div class="form-group">
+            <label>選擇委託對象</label>
+            <div class="tenant-selection" id="tenantSelection">
+              <!-- 由UIModal動態生成 -->
+            </div>
+          </div>
+
+          <!-- 委託預覽 -->
+          <div class="commission-preview" id="commissionPreview" style="display: none;">
+            <!-- 由JavaScript動態生成 -->
+          </div>
+      </div>
+
+      <!-- 系統訊息 -->
+      <div id="formMessages"></div>
+
+      <!-- 活躍委託頁籤 -->
+      <div class="tab-content" id="activeCommissionsTab">
+        <div id="activeCommissionsList">
+          <!-- 由UIModal動態生成 -->
+        </div>
+      </div>
+
+      <!-- 歷史記錄頁籤 -->
+      <div class="tab-content" id="commissionHistoryTab">
+        <div class="commission-history" id="commissionHistoryList">
+          <!-- 由UIModal動態生成 -->
+        </div>
+      </div>
+
+      <!-- 統計資訊頁籤 -->
+      <div class="tab-content" id="commissionStatsTab">
+        <div class="stats-grid" id="commissionStatsGrid">
+          <!-- 由UIModal動態生成 -->
+        </div>
+      </div>
+
+      <!-- 表單操作 -->
+      <div class="form-actions tab-actions active" id="newCommissionAction">
+        <button type="button" class="btn" onclick="uiCore.modal.resetCommissionForm()">重置</button>
+        <button class="btn btn-primary" id="submitCommission">發送委託邀約</button>
+        <button type="button" class="btn" onclick="uiCore?.closeModal('commissionModal')">關閉</button>
+      </div>
+
+      <div class="form-actions tab-actions" id="commissionAction">
+        <button type="button" class="btn" onclick="uiCore?.closeModal('commissionModal')">關閉</button>
+      </div>
+      </form>
     </div>
   </div>
+  </div>
+
 
   <!-- 確認對話框 -->
   <div class="modal" id="confirmModal">

@@ -1288,6 +1288,9 @@ export class TenantManager extends BaseManager {
    * 所有其他方法都應該使用這個基礎 API
    */
   findTenantAndRoom(tenantId) {
+    if (typeof tenantId === 'string') {
+      tenantId = Number(tenantId)
+    }
     const rooms = this.gameState.getStateValue("rooms", []);
 
     for (const room of rooms) {
@@ -1298,6 +1301,10 @@ export class TenantManager extends BaseManager {
     }
 
     return null;
+  }
+
+  getTenant(tenantId) {
+    return this.findTenantAndRoom(tenantId).tenant
   }
 
   findApplicantById(applicantId) {

@@ -516,6 +516,26 @@ export class TradeManager extends BaseManager {
     return this.explorationManager.getExplorationHistory(limit);
   }
 
+  canAffordCommission(basePayment, commission) {
+    const resources = this.gameState.getStateValue('resources', {});
+
+    // 檢查基礎報酬
+    for (const [resourceType, amount] of Object.entries(basePayment)) {
+      if ((resources[resourceType] || 0) < amount) {
+        return { canAfford: false, missingResource: resourceType, shortfall: amount - (resources[resourceType] || 0) };
+      }
+    }
+
+    // 檢查佣金
+    for (const [resourceType, amount] of Object.entries(commission)) {
+      if ((resources[resourceType] || 0) < amount) {
+        return { canAfford: false, missingResource: resourceType, shortfall: amount - (resources[resourceType] || 0) };
+      }
+    }
+
+    return { canAfford: true };
+  }
+
   // ==========================================
   // 統計與狀態管理
   // ==========================================

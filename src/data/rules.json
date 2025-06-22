@@ -719,6 +719,79 @@
         "medium": "14px"
       },
       "lineHeight": 1.2
+    },
+    "commission": {
+      "texts": {
+        "offerTitle": "委託探索邀約",
+        "managementTitle": "委託探索管理",
+        "resourceTypeLabel": "需要資源",
+        "targetAmountLabel": "目標數量",
+        "basePaymentLabel": "基礎報酬",
+        "commissionLabel": "額外佣金",
+        "tenantSelectionLabel": "選擇目標租客",
+        "statusLabels": {
+          "pending": "等待回應",
+          "accepted": "已接受",
+          "rejected": "已拒絕",
+          "completed": "已完成",
+          "failed": "失敗"
+        },
+        "buttons": {
+          "offer": "發起委託",
+          "manage": "管理委託",
+          "confirm": "確認委託",
+          "cancel": "取消",
+          "close": "關閉"
+        },
+        "messages": {
+          "noTenants": "目前沒有可用的租客進行委託探索",
+          "insufficientResources": "資源不足，無法提供承諾的報酬",
+          "formIncomplete": "請檢查委託設定是否完整",
+          "offerAccepted": "接受了委託！探索即將開始。",
+          "offerRejected": "拒絕了委託。原因：",
+          "systemError": "委託系統暫時不可用"
+        }
+      },
+      "display": {
+        "maxHistoryItems": 20,
+        "autoRefreshInterval": 5000,
+        "resourceInputMax": {
+          "food": 99,
+          "materials": 99,
+          "medical": 99,
+          "fuel": 99,
+          "cash": 999999
+        },
+        "defaultValues": {
+          "basePayment": {
+            "food": 5,
+            "materials": 2,
+            "medical": 0,
+            "fuel": 0,
+            "cash": 0
+          },
+          "commission": {
+            "food": 0,
+            "materials": 0,
+            "medical": 1,
+            "fuel": 0,
+            "cash": 10
+          }
+        },
+        "riskToleranceTexts": {
+          "soldier": "高風險容忍度",
+          "worker": "中等風險容忍度",
+          "farmer": "中等風險容忍度",
+          "doctor": "低風險容忍度",
+          "elder": "低風險容忍度"
+        }
+      },
+      "notifications": {
+        "enabled": true,
+        "duration": 5000,
+        "fadeOutDelay": 4500,
+        "maxNotifications": 3
+      }
     }
   },
   "progression": {

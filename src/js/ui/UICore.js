@@ -47,6 +47,9 @@ export default class UICore {
       await this.display.initialize();
       await this.modal.initialize();
 
+      // 等待所有關鍵子系統完全就緒
+      await this._waitForCriticalSubsystems();
+
       this.bindEvents();
       this.bindDebugEvents();
       this._setupGameStateListeners();
@@ -65,6 +68,63 @@ export default class UICore {
     }
   }
 
+  /**
+   * 等待關鍵子系統完全初始化
+   * @private
+   */
+  async _waitForCriticalSubsystems() {
+    console.log('⏳ 等待關鍵子系統初始化...');
+
+    const criticalSystems = [
+      {
+        name: 'TradeManager',
+        checker: () => this.gameApp.tradeManager?.isInitialized(),
+        subChecker: () => this.gameApp.tradeManager?.universalTrader?.isConfigurationLoaded()
+      },
+      {
+        name: 'TenantManager',
+        checker: () => this.gameApp.tenantManager?.isInitialized()
+      },
+      {
+        name: 'ResourceManager',
+        checker: () => this.gameApp.resourceManager?.isInitialized()
+      },
+      {
+        name: 'SkillManager',
+        checker: () => this.gameApp.skillManager?.isInitialized()
+      }
+    ];
+
+    const maxAttempts = 50; // 最多等待5秒
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const notReady = criticalSystems.filter(system => {
+        const mainReady = system.checker();
+        const subReady = system.subChecker ? system.subChecker() : true;
+        return !mainReady || !subReady;
+      });
+
+      if (notReady.length === 0) {
+        console.log('✅ 所有關鍵子系統已就緒');
+        return;
+      }
+
+      console.log(`⏳ 等待系統: ${notReady.map(s => s.name).join(', ')}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    // 如果等待超時，拋出錯誤
+    const stillNotReady = criticalSystems.filter(system => {
+      const mainReady = system.checker();
+      const subReady = system.subChecker ? system.subChecker() : true;
+      return !mainReady || !subReady;
+    });
+
+    throw new Error(`關鍵子系統初始化超時: ${stillNotReady.map(s => s.name).join(', ')}`);
+  }
+
   // =================== 統一對外介面 - 模態框控制 ===================
 
   /**
@@ -73,6 +133,16 @@ export default class UICore {
   showVisitors() {
     this.closeModal()
     const visitors = this.gameApp.gameState?.getStateValue('applicants', []) || [];
+
+    // 預檢查所有訪客的交易狀態
+    if (!this.gameApp.tradeManager) return;
+
+    visitors.forEach(visitor => {
+      // 檢查每個訪客的交易選項
+      const tradeOptions = this.gameApp.tradeManager.getCharacterTradeOptions(visitor.id);
+      visitor._hasTradeOptions = tradeOptions && tradeOptions.length > 0;
+    });
+
     this.modal.setVisitorContent(visitors);
     this.modal.show('visitorModal');
   }
@@ -147,10 +217,59 @@ export default class UICore {
       this.modal.setTradeContent(character, formattedOptions);
       this.modal.show('tradeModal');
 
+      // 立即更新所有相關按鈕狀態
+      this._updateAllTradeButtonStates(character.id, formattedOptions.length > 0);
+
       console.log(`顯示 ${character.name} 的交易選項，共 ${formattedOptions.length} 個`);
     } catch (error) {
       console.error("顯示交易模態框失敗:", error);
       this.gameApp.gameState?.addLog("無法顯示交易選項", "danger");
+    }
+  }
+
+  /**
+   * 更新所有相關交易按鈕狀態
+   * @param {string} characterId - 角色ID
+   * @param {boolean} hasTradeOptions - 是否有交易選項
+   * @private
+   */
+  _updateAllTradeButtonStates(characterId, hasTradeOptions) {
+    // 更新租客詳情模態框中的交易按鈕
+    this.display.updateTenantModalTradeButton(characterId, hasTradeOptions);
+
+    // 更新訪客列表中的交易按鈕
+    this._updateVisitorTradeButton(characterId, hasTradeOptions);
+  }
+
+  /**
+   * 更新訪客列表中的交易按鈕狀態
+   * @param {string} characterId - 角色ID
+   * @param {boolean} hasTradeOptions - 是否有交易選項
+   * @private
+   */
+  _updateVisitorTradeButton(characterId, hasTradeOptions) {
+    // 尋找訪客列表中的交易按鈕
+    const visitorModal = document.getElementById('visitorModal');
+    if (!visitorModal) return;
+
+    const tradeButton = visitorModal.querySelector(`button[onclick*="showTradeModal(${characterId})"]`);
+    if (!tradeButton) return;
+
+    // 更新按鈕狀態
+    tradeButton.disabled = !hasTradeOptions;
+    tradeButton.title = hasTradeOptions ? '與訪客進行資源交易' : '暫無可用交易';
+
+    // 更新按鈕文字
+    const buttonText = hasTradeOptions ? '💱 交易' : '💱 暫無交易';
+    tradeButton.innerHTML = buttonText;
+
+    // 更新按鈕樣式
+    if (hasTradeOptions) {
+      tradeButton.classList.remove('btn-disabled');
+      tradeButton.classList.add('btn-info');
+    } else {
+      tradeButton.classList.remove('btn-info');
+      tradeButton.classList.add('btn-disabled');
     }
   }
 
@@ -554,6 +673,10 @@ export default class UICore {
         soldier: '🛡️', doctor: '⚕️', worker: '🔧',
         farmer: '🌾', trader: '💼', elder: '👴'
       },
+      tenantHuman: {
+        soldier: '👮‍♂️', doctor: '👨‍⚕️', worker: '👩‍🔧',
+        farmer: '🧑‍🌾', trader: '👨‍💼', elder: '👴'
+      },
       resource: {
         cash: '💰', food: '🍖', materials: '🔧',
         medical: '💊', fuel: '⛽'
@@ -697,7 +820,7 @@ export default class UICore {
   getResourceName(resourceType) {
     const config = this._getPersonalWealthConfig();
     const resourceNames = config.resourceNames || {
-      food: '食物', materials: '建材', medical: '醫療',
+      food: '食物', materials: '建材', medical: '醫療用品',
       fuel: '燃料', cash: '現金'
     };
 
@@ -725,6 +848,9 @@ export default class UICore {
     this.bindButton('harvestYardBtn', () => this.harvestYard());
     this.bindButton('showSkillBtn', () => this.showSkills());
     this.bindButton('nextDayBtn', () => this.nextDay());
+    this.bindButton('showCommissionBtn', () => this.showCommissionModal());
+
+    this.bindCommissionEvents()
 
     // 房間點擊事件
     document.addEventListener('click', (e) => {
@@ -803,6 +929,612 @@ export default class UICore {
     }, 1000);
   }
 
+
+  addLog(message, type = "default") {
+    this.gameApp.gameState.addLog(message, type)
+  }
+
+  // =================== 委託探索系統對外介面 ===================
+
+  /**
+   * 顯示委託探索模態框
+   */
+  showCommissionModal() {
+    this.closeModal();
+    this.modal.setCommissionModalContent();
+    this.modal.show('commissionModal');
+    // 預設顯示發起委託頁籤
+    this.switchCommissionTab('newCommission');
+  }
+
+  /**
+   * 處理租客選擇
+   * @param {string} tenantId - 租客ID
+   */
+  handleTenantSelection(tenantId) {
+    // 更新選擇狀態
+    const tenantGrid = document.getElementById('tenantSelection');
+    if (!tenantGrid) return;
+
+    tenantGrid.querySelectorAll('.tenant-card').forEach(card => {
+      const isSelected = card.getAttribute('data-tenant-id') === tenantId;
+      card.classList.toggle('selected', isSelected);
+    });
+
+    // 更新預覽
+    this.updateCommissionPreview();
+  }
+
+  /**
+   * 處理資源輸入變更
+   * @param {Event} event - 輸入事件
+   */
+  handleResourceInputChange(event) {
+    // 防抖處理
+    clearTimeout(this.commissionPreviewTimer);
+    this.commissionPreviewTimer = setTimeout(() => {
+      this.updateCommissionPreview();
+    }, 300);
+  }
+
+  // =================== 資料格式化 ===================
+
+  /**
+   * 格式化委託資料為API格式
+   * @param {Object} formData - 表單資料
+   * @returns {Object} API請求格式
+   */
+  formatCommissionDataForAPI(formData) {
+    return {
+      tenantId: formData.selectedTenant,
+      resourceType: formData.targetResource,
+      targetAmount: parseInt(formData.targetAmount),
+      basePayment: {
+        cash: parseInt(formData.commission.cash) || 0,
+        food: parseInt(formData.basePayment.food) || 0,
+        materials: parseInt(formData.basePayment.materials) || 0,
+        medical: parseInt(formData.basePayment.medical) || 0,
+        fuel: parseInt(formData.basePayment.fuel) || 0
+      },
+      commission: {
+        cash: parseInt(formData.commission.cash) || 0,
+        food: parseInt(formData.basePayment.food) || 0,
+        materials: parseInt(formData.basePayment.materials) || 0,
+        medical: parseInt(formData.basePayment.medical) || 0,
+        fuel: parseInt(formData.basePayment.fuel) || 0
+      }
+    };
+  }
+
+  /**
+   * 格式化委託資料供顯示
+   * @param {Object} commission - 委託物件
+   * @returns {Object} 顯示格式
+   */
+  formatCommissionForDisplay(commission) {
+    const tenant = this.gameApp.gameState.findPersonById(commission.tenantId);
+    const status = this.getCommissionStatusText(commission.status);
+
+    return {
+      id: commission.id,
+      tenantName: tenant?.name || '未知租客',
+      resourceType: this.getResourceName(commission.resourceType),
+      targetAmount: commission.targetAmount,
+      statusText: status.text,
+      statusClass: status.class,
+      basePaymentText: this.formatRewardText(commission.basePayment),
+      commissionText: this.formatRewardText(commission.commission),
+      decidedAt: commission.decidedAt ? new Date(commission.decidedAt).toLocaleString() : null
+    };
+  }
+
+  /**
+   * 格式化報酬文字
+   * @param {Object} reward - 報酬物件
+   * @returns {string} 格式化文字
+   */
+  formatRewardText(reward) {
+    const items = [];
+
+    for (const [resource, amount] of Object.entries(reward)) {
+      if (amount > 0) {
+        const icon = this.getIcon(resource, 'resource');
+        const name = this.getResourceName(resource);
+        items.push(`${icon} ${name} x${amount}`);
+      }
+    }
+
+    return items.length > 0 ? items.join(', ') : '無';
+  }
+
+  /**
+   * 獲取委託狀態文字
+   * @param {string} status - 狀態代碼
+   * @returns {Object} 狀態資訊
+   */
+  getCommissionStatusText(status) {
+    const statusMap = {
+      offered: { text: '邀約中', class: 'status-pending' },
+      accepted: { text: '已接受', class: 'status-active' },
+      rejected: { text: '已拒絕', class: 'status-rejected' },
+      exploring: { text: '探索中', class: 'status-exploring' },
+      completed: { text: '已完成', class: 'status-success' },
+      failed: { text: '失敗', class: 'status-failed' }
+    };
+
+    return statusMap[status] || { text: '未知', class: 'status-unknown' };
+  }
+
+  // =================== 內部輔助方法 ===================
+
+  /**
+   * 更新委託預覽
+   * @private
+   */
+  updateCommissionPreview() {
+    const formData = this.modal?.getCommissionFormData();
+    if (!formData || !formData.selectedTenant) {
+      // 隱藏預覽並委託 UIDisplay 更新
+      if (this.display) {
+        this.display.updateCommissionPreview(null);
+      }
+      return;
+    }
+
+    // 計算預覽資料
+    const previewData = this.calculateCommissionPreview(formData);
+
+    // 委託 UIDisplay 處理 DOM 更新
+    if (this.display && previewData) {
+      this.display.updateCommissionPreview(previewData);
+    }
+  }
+
+  // =================== 初始化綁定 ===================
+
+  /**
+   * 綁定委託相關事件（在 bindEvents 方法中調用）
+   */
+  bindCommissionEvents() {
+    // 頁籤切換
+    document.querySelectorAll('.commission-tabs .tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tab = e.target.getAttribute('data-tab');
+        if (tab) {
+          this.switchCommissionTab(tab);
+        };
+      });
+    });
+
+    // 表單提交
+    const form = document.getElementById('commissionForm');
+    if (form) {
+      form.addEventListener('submit', (e) => this.handleCommissionFormSubmit(e));
+    }
+
+    // 綁定所有資源輸入的變更事件
+    const resourceInputSelectors = [
+      '#targetResource', '#targetAmount',
+      '#basePaymentCash', '#basePaymentFood', '#basePaymentMaterials', '#basePaymentMedical', '#basePaymentFuel',
+      '#commissionCash', '#commissionFood', '#commissionMaterials', '#commissionMedical', '#commissionFuel'
+    ];
+
+    resourceInputSelectors.forEach(selector => {
+      const input = document.querySelector(selector);
+      if (input) {
+        input.addEventListener('input', (e) => this.handleResourceInputChange(e));
+        input.addEventListener('change', (e) => this.handleResourceInputChange(e));
+      }
+    });
+
+    console.log('🔗 委託事件監聽器綁定完成');
+  }
+
+  // =================== 委託模態框訊息顯示（架構一致性重構） ===================
+
+  /**
+   * 顯示委託成功訊息（統一介面）
+   * @param {string} message - 成功訊息
+   */
+  showCommissionSuccess(message) {
+    this.addCommissionMessage(message, 'success');
+  }
+
+  /**
+   * 顯示委託錯誤訊息（統一介面）
+   * @param {string} message - 錯誤訊息
+   */
+  showCommissionError(message) {
+    this.addCommissionMessage(message, 'error');
+  }
+
+  /**
+   * 新增委託訊息（模仿 gameState.addLog 的設計模式）
+   * @param {string} message - 訊息內容
+   * @param {string} type - 訊息類型 ('success' | 'error' | 'warning' | 'info')
+   */
+  addCommissionMessage(message, type = 'info') {
+    if (!this.display) return;
+
+    // 創建訊息物件（與日誌格式保持一致）
+    const messageData = {
+      message: message,
+      type: type,
+      timestamp: Date.now(),
+      id: `commission_msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    // 委託給 UIDisplay 處理DOM操作
+    this.display.updateCommissionMessage(messageData);
+  }
+
+  /**
+   * 重置委託表單（委託人提供的介面）
+   */
+  resetCommissionForm() {
+    if (this.modal) {
+      this.modal.resetCommissionForm();
+    }
+  }
+
+  // =================== 委託表單驗證與預覽更新 ===================
+
+  /**
+   * 驗證委託表單並更新按鈕狀態
+   * @returns {boolean} 表單是否有效
+   */
+  validateAndUpdateCommissionForm() {
+    const formData = this.modal?.getCommissionFormData();
+    const validation = this.modal?.validateCommissionFormData(formData);
+
+    const isValid = validation?.valid && formData?.selectedTenant;
+
+    // 委託 UIDisplay 處理 DOM 更新
+    if (this.display) {
+      this.display.updateCommissionFormState({
+        isValid,
+        formData,
+        validation
+      });
+    }
+
+    // 如果表單有效，計算預覽資料並委託顯示
+    if (isValid) {
+      this.updateCommissionPreview();
+    }
+
+    return isValid;
+  }
+
+  /**
+   * 計算委託預覽資料
+   * @param {Object} formData - 表單資料
+   * @returns {Object|null} 預覽資料
+   */
+  calculateCommissionPreview(formData) {
+    if (!formData?.selectedTenant) return null;
+
+    // 取得租客資訊
+    const tenant = this.gameApp.gameState?.findPersonById(formData.selectedTenant);
+    if (!tenant) return null;
+
+    // 委託 TradeManager 進行業務計算
+    const businessResults = this._delegateToTradeManager(formData, tenant);
+    if (!businessResults) return null;
+
+    // 返回格式化的預覽資料（UI 層職責）
+    return {
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        type: tenant.type,
+        typeName: tenant.typeName || tenant.type
+      },
+      targetResource: formData.targetResource,
+      targetAmount: formData.targetAmount,
+      acceptanceProbability: Math.round(businessResults.acceptanceProbability * 100),
+      possiblePartner: businessResults.possiblePartner ? {
+        id: businessResults.possiblePartner.id,
+        name: businessResults.possiblePartner.name,
+        type: businessResults.possiblePartner.type,
+        typeName: businessResults.possiblePartner.typeName || businessResults.possiblePartner.type
+      } : null,
+      resourceIcon: this.getIcon(formData.targetResource, 'resource'),
+      resourceName: this.getResourceName(formData.targetResource),
+      tenantIcon: this.getIcon(tenant.type, 'tenantHuman'),
+      partnerIcon: businessResults.possiblePartner ? this.getIcon(businessResults.possiblePartner.type, 'tenantHuman') : null,
+      probabilityClass: this._getProbabilityClass(Math.round(businessResults.acceptanceProbability * 100))
+    };
+  }
+
+  /**
+   * 委託 TradeManager 進行業務邏輯計算
+   * @param {Object} formData - 表單資料
+   * @param {Object} tenant - 租客物件
+   * @returns {Object|null} 業務計算結果
+   * @private
+   */
+  _delegateToTradeManager(formData, tenant) {
+    // 檢查 TradeManager 可用性
+    const tradeManager = this.gameApp.tradeManager;
+    if (!tradeManager?.commissionHandler) {
+      console.error('TradeManager.commissionHandler 不可用');
+      return null;
+    }
+
+    const commissionHandler = tradeManager.commissionHandler;
+
+    try {
+      // 1. 檢查租客可用性（使用業務系統邏輯）
+      const availability = commissionHandler._checkTenantAvailability(tenant.id);
+      if (!availability?.available) {
+        console.warn(`租客不可用: ${availability?.reason || '未知原因'}`);
+        return { acceptanceProbability: 0, possiblePartner: null };
+      }
+
+      // 2. 評估組隊可能性（使用業務系統邏輯）
+      const possiblePartner = commissionHandler._evaluateTeamFormation(tenant.id);
+
+      // 3. 構建臨時委託邀約供計算使用
+      const temporaryOffer = {
+        tenantId: tenant.id,
+        resourceType: formData.targetResource,
+        targetAmount: parseInt(formData.targetAmount),
+        basePayment: this._normalizePayment(formData.basePayment),
+        commission: this._normalizePayment(formData.commission),
+        partnerId: possiblePartner?.id || null
+      };
+
+      // 4. 計算接受機率（使用業務系統邏輯）
+      const acceptance = commissionHandler._calculateAcceptanceProbability(temporaryOffer);
+
+      if (!acceptance || typeof acceptance.probability !== 'number') {
+        console.error('業務系統返回無效的接受機率');
+        return null;
+      }
+
+      return {
+        acceptanceProbability: acceptance.probability,
+        possiblePartner
+      };
+
+    } catch (error) {
+      console.error('委託業務系統計算失敗:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 發送委託邀約請求（使用 TradeManager API）
+   * @param {Object} request - 委託請求
+   */
+  async requestCommissionOffer(request) {
+    if (!this.gameApp?.tradeManager) {
+      this.showCommissionError('交易系統未初始化');
+      return;
+    }
+
+    try {
+      const submitBtn = document.getElementById('submitCommission');
+      if (submitBtn) submitBtn.disabled = true;
+
+      // 使用 TradeManager 的公開 API
+      const result = await this.gameApp.tradeManager.offerCommission(request);
+
+      if (result.success) {
+        this.showCommissionSuccess('委託邀約已發送！租客已接受任務。');
+        this.resetCommissionForm();
+
+        // 切換到活躍委託頁籤
+        setTimeout(() => {
+          this.switchCommissionTab('activeCommissions');
+        }, 1500);
+      } else {
+        const reason = result.reason || '委託被拒絕';
+        this.showCommissionError(`委託失敗：${reason}`);
+      }
+    } catch (error) {
+      console.error('委託邀約失敗:', error);
+      this.showCommissionError('發送委託時發生錯誤');
+    } finally {
+      const submitBtn = document.getElementById('submitCommission');
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  /**
+   * 取得委託統計資料（使用 TradeManager API）
+   * @returns {Promise<Object>} 統計資料
+   */
+  async fetchCommissionStats() {
+    if (!this.gameApp?.tradeManager) {
+      console.warn('TradeManager 不可用，無法取得委託統計');
+      return {
+        activeCommissions: 0,
+        totalCommissions: 0,
+        successfulCommissions: 0,
+        successRate: 0
+      };
+    }
+
+    try {
+      return this.gameApp.tradeManager.getCommissionStats();
+    } catch (error) {
+      console.error('取得委託統計失敗:', error);
+      return {
+        activeCommissions: 0,
+        totalCommissions: 0,
+        successfulCommissions: 0,
+        successRate: 0
+      };
+    }
+  }
+
+  // =================== 重構處理委託表單提交以使用 TradeManager API ===================
+
+  /**
+   * 處理委託表單提交（使用 TradeManager API）
+   * @param {Event} event - 表單事件
+   */
+  async handleCommissionFormSubmit(event) {
+    event.preventDefault();
+
+    const formData = this.modal.getCommissionFormData();
+    if (!formData) {
+      this.showCommissionError('請填寫所有必要欄位');
+      return;
+    }
+
+    const validation = this.modal.validateCommissionFormData(formData);
+    if (!validation.valid) {
+      if (this.display) {
+        this.display.highlightCommissionErrors(validation.errors.map(error => error.message));
+      }
+      return;
+    }
+
+    // 格式化為 TradeManager 的 API 格式
+    const request = this.formatCommissionDataForAPI(formData);
+
+    // 使用 TradeManager API 發送委託邀約
+    await this.requestCommissionOffer(request);
+  }
+
+  // =================== 委託分頁切換時使用 TradeManager API ===================
+
+  /**
+   * 切換委託頁籤
+   * @param {string} tabName - 頁籤名稱
+   */
+  switchCommissionTab(tabName) {
+    const validTabs = ['newCommission', 'activeCommissions', 'commissionHistory', 'commissionStats'];
+    if (!validTabs.includes(tabName)) return;
+
+    // 更新頁籤按鈕狀態
+    document.querySelectorAll('.commission-tabs .tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+
+    // 切換頁籤內容
+    document.querySelectorAll('#commissionModal .tab-content').forEach(content => {
+      const isTarget = content.id === `${tabName}Tab`;
+      content.classList.toggle('active', isTarget);
+    });
+
+    document.querySelectorAll('#commissionModal .tab-actions').forEach(action => {
+      const isNewCommissionForm = tabName === 'newCommission';
+      const isNewCommissionAction = action.id === 'newCommissionAction'
+      action.classList.toggle('active', isNewCommissionForm === isNewCommissionAction);
+    })
+
+    if (!this.gameApp?.tradeManager) return;
+
+    // 根據頁籤載入對應資料（使用 TradeManager API）
+    if (tabName === 'activeCommissions') {
+      const commissions = this.gameApp.tradeManager.getActiveCommissions();
+      this.modal._populateActiveCommissionsTab(commissions);
+    } else if (tabName === 'commissionHistory') {
+      const history = this.gameApp.tradeManager.getCommissionHistory();
+      this.modal._populateCommissionHistoryTab(history);
+    } else if (tabName === 'commissionStats') {
+      const stats = this.gameApp.tradeManager.getCommissionStats();
+      this.modal._populateCommissionStatsTab(stats);
+    }
+  }
+
+  /**
+   * 計算報酬總價值
+   * @param {Object} basePayment - 基礎報酬
+   * @param {Object} commission - 佣金
+   * @returns {number} 總價值
+   * @private
+   */
+  _calculatePaymentValue(basePayment, commission) {
+    const resourceValues = { food: 2, materials: 3, medical: 4, fuel: 3, cash: 1 };
+
+    let totalValue = 0;
+
+    // 計算基礎報酬價值
+    for (const [resource, amount] of Object.entries(basePayment)) {
+      totalValue += parseInt(amount || 0) * (resourceValues[resource] || 1);
+    }
+
+    // 計算佣金價值
+    for (const [resource, amount] of Object.entries(commission)) {
+      totalValue += parseInt(amount || 0) * (resourceValues[resource] || 1);
+    }
+
+    return totalValue;
+  }
+
+  /**
+   * 尋找可能的組隊夥伴
+   * @param {Object} primaryTenant - 主要租客
+   * @param {string} targetResource - 目標資源
+   * @returns {Object|null} 組隊夥伴或null
+   * @private
+   */
+  _findPossiblePartner(primaryTenant, targetResource) {
+    const allTenants = this.gameApp.gameState?.getAllTenants() || [];
+
+    // 技能互補對照表
+    const complementarySkills = {
+      food: ['farmer', 'worker'],
+      materials: ['worker', 'soldier'],
+      medical: ['doctor'],
+      fuel: ['worker', 'trader']
+    };
+
+    const beneficialTypes = complementarySkills[targetResource] || [];
+
+    // 尋找不同類型的可用租客
+    const availablePartners = allTenants.filter(tenant => {
+      return tenant.id !== primaryTenant.id &&
+        !tenant.infected &&
+        !tenant.onMission &&
+        beneficialTypes.includes(tenant.type);
+    });
+
+    // 返回滿意度最高的夥伴
+    if (availablePartners.length > 0) {
+      return availablePartners.reduce((best, current) => {
+        const currentSatisfaction = this.gameApp.gameState?.getStateValue(`tenantSatisfaction.${current.name}`, 50) || 50;
+        const bestSatisfaction = this.gameApp.gameState?.getStateValue(`tenantSatisfaction.${best.name}`, 50) || 50;
+        return currentSatisfaction > bestSatisfaction ? current : best;
+      });
+    }
+
+    return null;
+  }
+
+  /**
+   * 正規化支付物件（確保所有字段為數字）
+   * @param {Object} payment - 支付物件
+   * @returns {Object} 正規化後的支付物件
+   * @private
+   */
+  _normalizePayment(payment) {
+    const normalized = {};
+    for (const [key, value] of Object.entries(payment || {})) {
+      normalized[key] = parseInt(value) || 0;
+    }
+    return normalized;
+  }
+
+  /**
+   * 取得機率CSS類別
+   * @param {number} probability - 機率百分比
+   * @returns {string} CSS類別名稱
+   * @private
+   */
+  _getProbabilityClass(probability) {
+    if (probability >= 70) return 'prob-high';
+    if (probability >= 50) return 'prob-medium';
+    if (probability >= 30) return 'prob-low';
+    return 'prob-very-low';
+  }
+
+
   // =================== 除錯功能 ===================
 
   bindDebugEvents() {
@@ -853,7 +1585,7 @@ export default class UICore {
     if (this.gameApp?.tenantManager?.generateApplicants) {
       const applicants = this.gameApp.tenantManager.generateApplicants();
       this.gameApp.gameState.setStateValue('applicants', applicants)
-      this.gameApp.gameState?.addLog('除錯：重新生成訪客','success');
+      this.gameApp.gameState?.addLog('除錯：重新生成訪客', 'success');
       this.updateAll();
     }
   }

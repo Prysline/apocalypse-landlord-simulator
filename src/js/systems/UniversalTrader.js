@@ -515,7 +515,7 @@ export class UniversalTrader extends BaseManager {
       }
 
       // 除錯輸出：顯示成功載入的配置
-      console.log(`✓ 配置項目載入成功: ${config}，類型: ${typeof value}`);
+      // console.log(`✓ 配置項目載入成功: ${config}，類型: ${typeof value}`);
     }
 
     return true;

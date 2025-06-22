@@ -111,7 +111,6 @@ class GameApplication {
       this.eventBus
     );
     await this.tenantManager.initialize();
-    console.log("✅ TenantManager 初始化完成");
 
     // 交易管理器
     this.tradeManager = new TradeManager(
@@ -122,7 +121,6 @@ class GameApplication {
       this.eventBus
     );
     await this.tradeManager.initialize();
-    console.log("✅ TradeManager 初始化完成");
 
     // 技能管理器
     this.skillManager = new SkillManager(
@@ -132,7 +130,6 @@ class GameApplication {
       this.resourceManager
     );
     await this.skillManager.initialize();
-    console.log("✅ SkillManager 初始化完成");
 
     // 每日循環管理器
     this.dayManager = new DayManager(
@@ -144,7 +141,6 @@ class GameApplication {
       this.skillManager
     );
     this.dayManager.initialize();
-    console.log("✅ DayManager 初始化完成");
 
     console.log("🔧 業務模組初始化完成");
   }
