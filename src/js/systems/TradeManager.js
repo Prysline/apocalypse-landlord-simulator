@@ -366,6 +366,7 @@ export class TradeManager extends BaseManager {
     try {
       // 解析交易選項
       const [characterId] = tradeOptionId.split('_');
+      console.log(characterId)
       const tradeOptions = this.universalTrader.getCharacterTradeOptions(characterId);
       const selectedOption = tradeOptions.find(option => option.id === tradeOptionId);
 

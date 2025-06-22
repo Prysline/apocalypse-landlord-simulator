@@ -585,6 +585,10 @@ export class TenantManager extends BaseManager {
     return this.satisfactionManager.getSatisfactionStatus(satisfaction);
   }
 
+  modifyTenantSatisfaction(tenantId, change, reason = null) {
+    this.satisfactionManager.modifySatisfaction(tenantId, change, reason)
+  }
+
   calculateAverageSatisfaction() {
     return this.satisfactionManager.calculateAverageSatisfaction();
   }

@@ -621,11 +621,11 @@ export class UniversalTrader extends BaseManager {
       let result = { success: false };
 
       switch (type) {
-        case 'buy': // 房東購買資源
+        case 'sell': // 角色想賣資源=>房東購買資源
           result = this.executeBuy(character, item, quantity, price);
           break;
 
-        case 'sell': // 房東出售資源
+        case 'buy': // 角色想購資源=>房東出售資源
           result = this.executeSell(character, item, quantity, price);
           break;
 
@@ -683,7 +683,7 @@ export class UniversalTrader extends BaseManager {
     return {
       success: true,
       transaction: {
-        type: 'buy',
+        type: 'sell',
         item: item,
         quantity: quantity,
         price: price,
@@ -721,7 +721,7 @@ export class UniversalTrader extends BaseManager {
     return {
       success: true,
       transaction: {
-        type: 'sell',
+        type: 'buy',
         item: item,
         quantity: quantity,
         price: price,
@@ -952,7 +952,7 @@ export class UniversalTrader extends BaseManager {
    * @param {number} change - 滿意度的變化量
    */
   updateTenantSatisfaction(tenantId, change) {
-    this.tenantManager.modifyTenantSatisfaction(tenantId, change)
+    this.tenantManager.modifyTenantSatisfaction(tenantId, change, '進行交易')
   }
 
   /**

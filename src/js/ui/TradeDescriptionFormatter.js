@@ -131,10 +131,10 @@ export class TradeDescriptionFormatter {
 
     switch (type) {
       case 'buy':
-        return `從 ${characterName} 購買 ${quantity} ${resourceName}，花費 $${price}`;
+        return `向 ${characterName} 出售 ${quantity} ${resourceName}，獲得 $${price}`;
 
       case 'sell':
-        return `向 ${characterName} 出售 ${quantity} ${resourceName}，獲得 $${price}`;
+        return `從 ${characterName} 購買 ${quantity} ${resourceName}，花費 $${price}`;
 
       case 'emergency':
         if (price < quantity * 3) { // 簡單判斷是否為低價出售

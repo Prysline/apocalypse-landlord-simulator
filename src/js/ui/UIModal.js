@@ -487,7 +487,7 @@ export default class UIModal {
         <div class="trade-option-actions">
           <button
             class="btn ${option.canAfford ? 'btn-primary' : 'btn-disabled'}"
-            onclick="uiCore?.executeTradeOption('${option.id}')"
+            onclick="uiCore?.executeTrade('${option.id}')"
             ${!option.canAfford ? 'disabled' : ''}
             title="${option.canAfford ? '執行交易' : '資源不足'}"
           >
