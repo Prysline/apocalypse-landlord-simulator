@@ -3,6 +3,8 @@
  * 職責：模態框生命週期管理、內容動態生成
  */
 
+import systemLogger from '../utils/SystemLogger.js';
+
 export default class UIModal {
   constructor(gameApp, uiCore = null) {
     this.gameApp = gameApp;
@@ -13,7 +15,7 @@ export default class UIModal {
   }
 
   async initialize() {
-    console.log('✅ UIModal 初始化完成');
+    systemLogger.success('✅ UIModal 初始化完成');
   }
 
   // =================== 核心模態框方法 ===================
@@ -281,7 +283,7 @@ export default class UIModal {
     const containerEl = document.getElementById('tradeOptionsContainer');
 
     if (!titleEl || !containerEl) {
-      console.error("交易模態框元素未找到");
+      systemLogger.error("交易模態框元素未找到");
       return;
     }
 
@@ -633,7 +635,7 @@ export default class UIModal {
     if (!form) return;
 
     // 重置表單值
-    form.reset();
+    /** @type {HTMLFormElement} */(form).reset();
 
     // 重置租客選擇
     document.querySelectorAll('.tenant-select-card').forEach(card => {
@@ -903,19 +905,19 @@ export default class UIModal {
 
     const tenantId = selectedTenant.getAttribute('data-tenant-id');
 
-    const result =  {
+    const result = {
       selectedTenant: tenantId,
-      targetResource: document.getElementById('targetResource').value,
-      targetAmount: document.getElementById('targetAmount').value,
+      targetResource: /** @type {HTMLInputElement} */(document.getElementById('targetResource')).value,
+      targetAmount: /** @type {HTMLInputElement} */(document.getElementById('targetAmount')).value,
       basePayment: {
-        food: document.getElementById('basePaymentFood').value || '0',
-        materials: document.getElementById('basePaymentMaterials').value || '0',
-        medical: document.getElementById('basePaymentMedical').value || '0',
-        fuel: document.getElementById('basePaymentFuel').value || '0'
+        food: /** @type {HTMLInputElement} */(document.getElementById('basePaymentFood')).value || '0',
+        materials: /** @type {HTMLInputElement} */(document.getElementById('basePaymentMaterials')).value || '0',
+        medical: /** @type {HTMLInputElement} */(document.getElementById('basePaymentMedical')).value || '0',
+        fuel: /** @type {HTMLInputElement} */(document.getElementById('basePaymentFuel')).value || '0'
       },
       commission: {
-        cash: document.getElementById('commissionCash').value || '0',
-        medical: document.getElementById('commissionMedical').value || '0'
+        cash: /** @type {HTMLInputElement} */(document.getElementById('commissionCash')).value || '0',
+        medical: /** @type {HTMLInputElement} */(document.getElementById('commissionMedical')).value || '0'
       }
     };
 
@@ -1083,7 +1085,7 @@ export default class UIModal {
   // =================== 除錯支援 ===================
 
   debug() {
-    console.log('💬 UIModal 狀態:', {
+    systemLogger.debug('💬 UIModal 狀態:', {
       activeModal: this.activeModal,
       modalStack: this.modalStack
     });

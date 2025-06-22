@@ -9,6 +9,7 @@ import BaseManager from "./BaseManager.js";
 import SatisfactionManager from "./SatisfactionManager.js";
 import { getValidator } from "../utils/validators.js";
 import RelationshipManager from "./RelationshipManager.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -130,7 +131,7 @@ export class TenantManager extends BaseManager {
       logErrors: true,
     });
 
-    console.log("🏘️ TenantManager 初始化中...");
+    systemLogger.info("🏘️ TenantManager 初始化中...");
   }
 
   // ==========================================
@@ -209,7 +210,7 @@ export class TenantManager extends BaseManager {
       }
     }, { skipPrefix: true });
 
-    console.log("✅ TenantManager 事件監聽器設置完成");
+    systemLogger.success("✅ TenantManager 事件監聽器設置完成");
   }
 
   // ==========================================
@@ -217,7 +218,7 @@ export class TenantManager extends BaseManager {
   // ==========================================
 
   async initialize() {
-    console.log("👥 載入租客管理系統配置...");
+    systemLogger.info("👥 載入租客管理系統配置...");
 
     await this.loadConfigurations();
     this.initializeSatisfactionManager();
@@ -225,7 +226,6 @@ export class TenantManager extends BaseManager {
     this.setupEventListeners();
 
     this.markInitialized(true);
-    console.log("✅ TenantManager 初始化完成");
 
     return true;
   }
@@ -248,7 +248,7 @@ export class TenantManager extends BaseManager {
       refundRate: 0.5,
     };
 
-    console.log("📋 租客系統配置載入完成");
+    systemLogger.success("📋 租客系統配置載入完成");
   }
 
   initializeSatisfactionManager() {
@@ -265,7 +265,7 @@ export class TenantManager extends BaseManager {
 
     // 初始化滿意度管理器
     this.satisfactionManager.initialize();
-    console.log("😊 滿意度管理器初始化完成");
+    systemLogger.success("😊 滿意度管理器初始化完成");
   }
 
   initializeTenantData() {
@@ -314,7 +314,7 @@ export class TenantManager extends BaseManager {
       throw new Error("系統未初始化");
     }
 
-    console.log(`👤 開始雇用租客ID: ${applicantId}`);
+    systemLogger.debug(`👤 開始雇用租客ID: ${applicantId}`);
 
     const applicant = this.findApplicantById(applicantId);
     if (!applicant) {
@@ -325,7 +325,7 @@ export class TenantManager extends BaseManager {
       };
     }
 
-    console.log(`✅ 找到申請者: ${applicant.name} (${applicant.type})`);
+    systemLogger.debug(`✅ 找到申請者: ${applicant.name} (${applicant.type})`);
 
     this.validateHiring(applicant, targetRoomId);
     const room = this.assignRoom(targetRoomId);
@@ -462,7 +462,7 @@ export class TenantManager extends BaseManager {
       throw new Error("系統未初始化");
     }
 
-    console.log(`🚪 開始驅逐租客ID: ${tenantId} (原因: ${reason})`);
+    systemLogger.info(`🚪 開始驅逐租客ID: ${tenantId} (原因: ${reason})`);
 
     const tenantInfo = this.findTenantAndRoom(tenantId);
     if (!tenantInfo) {
@@ -615,7 +615,7 @@ export class TenantManager extends BaseManager {
     }
 
     this.gameState.setStateValue("applicants", applicants, "生成新申請者");
-    console.log(`👥 生成了 ${applicants.length} 個申請者`);
+    systemLogger.info(`👥 生成了 ${applicants.length} 個申請者`);
     return applicants;
   }
 
@@ -1463,7 +1463,7 @@ export class TenantManager extends BaseManager {
 
     // 調用父類清理
     super.cleanup();
-    console.log("TenantManager 已清理");
+    systemLogger.success("TenantManager 已清理");
   }
 }
 

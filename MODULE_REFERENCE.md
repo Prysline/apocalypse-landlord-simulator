@@ -102,12 +102,13 @@ BaseManager (基礎層)
 ### DataManager
 **位置**: `src/js/core/DataManager.js`
 **職責**: 統一資料管理核心
-**依賴**: 無外部依賴
+**依賴**: `SystemLogger`, `LoadingManager`, `utils/constants.js`, `utils/helpers.js`
 
 #### 主要方法
 ```javascript
 /**
  * 初始化並載入所有配置檔案
+ * 整合LoadingManager提供載入進度追蹤
  * @returns {Promise<LoadResult>}
  */
 async initialize()
@@ -137,11 +138,23 @@ getTenantTypes()
  * @returns {Array<SkillConfig>}
  */
 getAllSkills()
+
+/**
+ * 驗證已載入資料的完整性
+ * @private
+ * @returns {void}
+ * @throws {Error} 當資料結構不正確時
+ */
+_validateLoadedData()
 ```
 
 #### 使用範例
 ```javascript
+import systemLogger from '../utils/SystemLogger.js';
+
 const dataManager = new DataManager();
+
+// 初始化會自動整合LoadingManager
 const result = await dataManager.initialize();
 
 if (result.success) {
@@ -152,13 +165,33 @@ if (result.success) {
   // 技能配置篩選
   const allSkills = dataManager.getAllSkills();
   const doctorSkills = allSkills.filter(skill => skill.tenantType === 'doctor');
+
+  systemLogger.success('DataManager 初始化完成');
+} else {
+  systemLogger.error('DataManager 初始化失敗', result.error);
 }
 ```
 
+#### 初始化流程
+```javascript
+// initialize() 方法的標準化流程
+const loadingSteps = [
+  { id: 'init', name: '準備初始化' },
+  { id: 'parallel_load', name: '載入配置檔案' },
+  { id: 'validation', name: '驗證資料完整性' },
+  { id: 'finalize', name: '完成初始化' }
+];
+
+// 自動整合LoadingManager提供進度追蹤
+// 使用SystemLogger取代MESSAGE_TEMPLATES輸出
+```
+
 #### 效能特性
-- **載入方式**: 並行載入四個配置檔案，任一失敗進入後備模式
+- **載入方式**: 並行載入四個配置檔案，整合LoadingManager進度追蹤
 - **記憶體使用**: 配置資料常駐記憶體，約2-3MB
-- **錯誤恢復**: 配置載入失敗時自動進入後備模式
+- **錯誤處理**: 快速失敗策略，使用SystemLogger統一錯誤輸出
+- **資料驗證**: 載入後自動驗證資料結構完整性
+- **UI整合**: 透過LoadingManager提供載入畫面和UI鎖定機制
 
 ### GameState
 **位置**: `src/js/core/GameState.js`
@@ -302,6 +335,403 @@ const result = await eventBus.emitAsync('system_shutdown', { reason: 'user_reque
 - **監聽器限制**: 單一事件監聽器建議不超過10個
 - **事件頻率**: 高頻事件建議使用節流控制
 - **記憶體管理**: 事件歷史限制50筆記錄
+
+### SystemLogger
+**位置**: `src/js/utils/SystemLogger.js`
+**職責**: 統一系統級訊息管理，與遊戲日誌完全分離
+**依賴**: `utils/constants.js`
+
+#### 主要方法
+```javascript
+/**
+ * 輸出資訊日誌
+ * @param {string} message - 日誌訊息
+ * @param {string|Object} [extra] - 額外資訊（字串或物件）
+ * @param {Object} [data] - 結構化資料物件
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+info(message, extra, data, options)
+
+/**
+ * 輸出警告日誌
+ * @param {string} message - 警告訊息
+ * @param {string|Object} [extra] - 額外資訊（字串或物件）
+ * @param {Object} [data] - 結構化資料物件
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+warn(message, extra, data, options)
+
+/**
+ * 輸出錯誤日誌
+ * @param {string} message - 錯誤訊息
+ * @param {Error|string} [error] - 錯誤物件或詳細資訊
+ * @param {Object} [data] - 額外的除錯資料
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+error(message, error, data, options)
+
+/**
+ * 輸出成功日誌
+ * @param {string} message - 成功訊息
+ * @param {string|Object} [extra] - 額外資訊（字串或物件）
+ * @param {Object} [data] - 結構化資料物件
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+success(message, extra, data, options)
+
+/**
+ * 輸出除錯日誌（僅在除錯模式下顯示）
+ * @param {string} message - 除錯訊息
+ * @param {string|Object} [extra] - 額外資訊（字串或物件）
+ * @param {Object} [data] - 結構化資料物件
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+debug(message, extra, data, options)
+```
+
+#### 分組功能方法
+```javascript
+/**
+ * 開始日誌分組
+ * @param {string} label - 分組標籤
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+group(label, options)
+
+/**
+ * 開始收合的日誌分組
+ * @param {string} label - 分組標籤
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {void}
+ */
+groupCollapsed(label, options)
+
+/**
+ * 結束當前日誌分組
+ * @returns {void}
+ */
+groupEnd()
+
+/**
+ * 帶自動結束的分組執行器
+ * @param {string} label - 分組標籤
+ * @param {Function} executor - 要在分組中執行的函數
+ * @param {boolean} [collapsed=false] - 是否預設收合
+ * @param {SystemLogOptions} [options] - 日誌選項
+ * @returns {Promise<any>|any} 執行器的返回值
+ */
+async withGroup(label, executor, collapsed, options)
+```
+
+#### MESSAGE_TEMPLATES 便捷方法
+```javascript
+/**
+ * 輸出系統初始化訊息
+ * @returns {void}
+ */
+initializing()
+
+/**
+ * 輸出系統就緒訊息
+ * @returns {void}
+ */
+ready()
+
+/**
+ * 輸出系統錯誤訊息
+ * @param {string} errorMessage - 錯誤描述
+ * @returns {void}
+ */
+systemError(errorMessage)
+
+/**
+ * 輸出資料載入訊息
+ * @param {string} dataType - 資料類型
+ * @returns {void}
+ */
+dataLoading(dataType)
+
+/**
+ * 輸出資料載入完成訊息
+ * @param {string} dataType - 資料類型
+ * @returns {void}
+ */
+dataLoaded(dataType)
+
+/**
+ * 輸出資料載入錯誤訊息
+ * @param {string} dataType - 資料類型
+ * @param {string} errorMessage - 錯誤描述
+ * @returns {void}
+ */
+dataError(dataType, errorMessage)
+```
+
+#### 配置管理方法
+```javascript
+/**
+ * 設定除錯模式
+ * @param {boolean} enabled - 是否啟用除錯模式
+ * @returns {void}
+ */
+setDebugMode(enabled)
+
+/**
+ * 設定預設前綴
+ * @param {string} prefix - 新的預設前綴
+ * @returns {void}
+ */
+setDefaultPrefix(prefix)
+
+/**
+ * 取得當前配置狀態
+ * @returns {Object} 配置狀態
+ */
+getStatus()
+```
+
+#### 使用範例
+```javascript
+import systemLogger from '../utils/SystemLogger.js';
+
+// 基本日誌輸出
+systemLogger.info('系統準備完成');
+systemLogger.warn('配置檔案部分缺失');
+systemLogger.error('載入失敗', new Error('檔案不存在'));
+systemLogger.success('初始化成功');
+
+// 多參數輸出（支援除錯資料）
+systemLogger.debug(
+  '發送事件完成',
+  '[跨模組事件]',
+  { eventName: 'resource_modified', data: { type: 'food', amount: 10 } }
+);
+
+// MESSAGE_TEMPLATES 便捷方法
+systemLogger.initializing();
+systemLogger.dataLoading('租客資料');
+systemLogger.dataLoaded('租客資料');
+systemLogger.ready();
+
+// 分組功能
+systemLogger.group('系統初始化流程');
+systemLogger.info('載入配置檔案');
+systemLogger.info('建立管理器');
+systemLogger.groupEnd();
+
+// 自動管理分組
+systemLogger.withGroup('DataManager 除錯資訊', () => {
+  systemLogger.info('配置檔案數量: 4');
+  systemLogger.info('載入狀態: 完成');
+
+  systemLogger.withGroup('詳細統計', () => {
+    systemLogger.debug('rules.json: 載入成功');
+    systemLogger.debug('tenants.json: 載入成功');
+  });
+});
+
+// 配置管理
+systemLogger.setDebugMode(true);
+systemLogger.setDefaultPrefix('🔧 GAME');
+
+// 狀態查詢
+const status = systemLogger.getStatus();
+console.log('除錯模式:', status.debugEnabled);
+```
+
+#### 技術特性
+- **訊息分離**: 系統級訊息與遊戲日誌完全分離，避免混淆
+- **多參數支援**: 支援 console.debug 風格的多參數輸出格式
+- **智能參數檢測**: 自動識別參數類型，正確處理字串、物件和選項
+- **分組管理**: 完整的分組功能，支援手動和自動管理模式
+- **錯誤處理**: 內建緊急後備機制，確保日誌輸出不會失敗
+- **配置驅動**: 支援動態配置前綴、除錯模式和輸出格式
+
+#### 效能特性
+- **輸出效能**: 單次日誌輸出 <1ms，分組操作 <5ms
+- **記憶體使用**: 零持久狀態存儲，最小記憶體佔用
+- **錯誤隔離**: 日誌系統錯誤不影響業務邏輯執行
+- **除錯模式**: debug() 方法在非除錯模式下零開銷
+- **格式化成本**: 訊息格式化 <1ms，支援複雜物件展示
+
+#### AI 編碼支援特性
+- **方法完整性**: 提供 info/warn/error/success 全套方法，避免 "方法不存在" 錯誤
+- **參數寬鬆性**: 支援 1-4 個參數的彈性調用方式，適應不同編碼習慣
+- **智能容錯**: 參數類型自動檢測和容錯處理，減少調用錯誤
+- **便捷別名**: MESSAGE_TEMPLATES 便捷方法減少重複編碼
+
+### LoadingManager
+**位置**: `src/js/core/LoadingManager.js`
+**職責**: 初始化流程協調管理器，統一管理系統初始化、載入進度顯示、UI狀態控制
+**依賴**: `SystemLogger`
+
+#### 核心方法
+```javascript
+/**
+ * 開始初始化流程
+ * @param {Array<LoadingStep>} steps - 初始化步驟列表
+ * @param {LoadingConfig} [config] - 載入配置
+ * @returns {Promise<boolean>} 初始化是否成功
+ */
+async startInitialization(steps, config = {})
+
+/**
+ * 更新步驟進度
+ * @param {string} stepId - 步驟ID
+ * @param {boolean} [completed=true] - 是否完成
+ * @param {string} [error] - 錯誤訊息
+ * @returns {void}
+ */
+updateProgress(stepId, completed = true, error = null)
+
+/**
+ * 完成初始化流程
+ * @returns {void}
+ */
+finishInitialization()
+
+/**
+ * 取消初始化流程
+ * @param {string} [reason='使用者取消'] - 取消原因
+ * @returns {void}
+ */
+cancelInitialization(reason = '使用者取消')
+
+/**
+ * 取得當前載入狀態
+ * @returns {Object} 載入狀態資訊
+ */
+getStatus()
+```
+
+#### 型別定義
+```javascript
+/**
+ * 載入步驟資訊
+ * @typedef {Object} LoadingStep
+ * @property {string} id - 步驟唯一識別碼
+ * @property {string} name - 步驟顯示名稱
+ * @property {boolean} completed - 是否已完成
+ * @property {string} [error] - 錯誤訊息
+ */
+
+/**
+ * 載入配置
+ * @typedef {Object} LoadingConfig
+ * @property {boolean} [showProgress=true] - 是否顯示進度條
+ * @property {boolean} [lockUI=true] - 是否鎖定UI
+ * @property {number} [timeout=10000] - 載入超時時間（毫秒）
+ * @property {string} [loadingText='系統初始化中...'] - 載入提示文字
+ */
+```
+
+#### 使用範例
+```javascript
+// 基本使用流程
+const steps = [
+  { id: 'rules', name: '載入遊戲規則' },
+  { id: 'tenants', name: '載入租客資料' },
+  { id: 'skills', name: '載入技能資料' },
+  { id: 'events', name: '載入事件資料' }
+];
+
+// 啟動初始化
+await loadingManager.startInitialization(steps);
+
+// 逐步更新進度
+try {
+  await loadConfig("rules");
+  loadingManager.updateProgress('rules');
+
+  await loadGameData("tenants");
+  loadingManager.updateProgress('tenants');
+
+  // 其他載入步驟...
+
+} catch (error) {
+  loadingManager.updateProgress('rules', false, error.message);
+}
+
+// 自訂配置使用
+const customConfig = {
+  showProgress: true,
+  lockUI: true,
+  timeout: 15000,
+  loadingText: '正在準備遊戲環境...'
+};
+
+await loadingManager.startInitialization(steps, customConfig);
+
+// 狀態查詢
+const status = loadingManager.getStatus();
+console.log(`載入進度: ${status.progress}%`);
+console.log(`已完成步驟: ${status.completedSteps}/${status.totalSteps}`);
+```
+
+#### 整合範例（DataManager）
+```javascript
+// DataManager.js 整合示例
+async initialize() {
+  if (this.isInitialized) {
+    return { success: true, data: this.getAllData() };
+  }
+
+  const loadingSteps = [
+    { id: 'init', name: '準備初始化' },
+    { id: 'parallel_load', name: '載入配置檔案' },
+    { id: 'validation', name: '驗證資料完整性' },
+    { id: 'finalize', name: '完成初始化' }
+  ];
+
+  try {
+    await loadingManager.startInitialization(loadingSteps);
+
+    systemLogger.initializing();
+    loadingManager.updateProgress('init');
+
+    const loadPromises = [
+      this.loadConfig("rules"),
+      this.loadGameData("tenants"),
+      this.loadGameData("skills"),
+      this.loadGameData("events"),
+    ];
+
+    await Promise.all(loadPromises);
+    loadingManager.updateProgress('parallel_load');
+
+    this._validateLoadedData();
+    loadingManager.updateProgress('validation');
+
+    this.isInitialized = true;
+    systemLogger.ready();
+    loadingManager.updateProgress('finalize');
+
+    return { success: true, data: this.getAllData() };
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    systemLogger.systemError(errorMessage);
+    loadingManager.cancelInitialization(`資料載入失敗: ${errorMessage}`);
+    throw new Error(`資料載入失敗，請檢查配置檔案：${errorMessage}`);
+  }
+}
+```
+
+#### 效能特性
+- **UI控制機制**: 載入期間自動鎖定遊戲按鈕，防止非同步操作衝突
+- **進度追蹤精度**: 支援步驟級進度追蹤，提供實時載入反饋
+- **超時保護**: 預設10秒超時機制，避免無限等待情況
+- **錯誤隔離**: 單一步驟失敗不影響整體清理機制，確保UI狀態正確恢復
+- **記憶體管理**: 載入完成後自動清理計時器和臨時狀態，避免記憶體洩漏
+- **載入畫面最佳化**: DOM操作集中管理，最小化重排和重繪影響
+- **狀態查詢效率**: 即時狀態計算，無額外快取開銷
+
 
 ## 💼 業務模組API參考
 

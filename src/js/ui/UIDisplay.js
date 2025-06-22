@@ -3,6 +3,7 @@
  * 職責：遊戲狀態映射、DOM更新
  */
 
+import systemLogger from '../utils/SystemLogger.js';
 export default class UIDisplay {
   constructor(gameApp, uiCore = null) {
     this.gameApp = gameApp;
@@ -12,7 +13,7 @@ export default class UIDisplay {
 
   async initialize() {
     this.cacheElements();
-    console.log('✅ UIDisplay 初始化完成');
+    systemLogger.success('✅ UIDisplay 初始化完成');
   }
 
   cacheElements() {
@@ -255,6 +256,7 @@ export default class UIDisplay {
     const tenantModal = document.getElementById('tenantModal');
     if (!tenantModal) return;
 
+    /** @type {HTMLButtonElement} */
     const tradeButton = tenantModal.querySelector(`button[onclick*="showTradeModal('${characterId}')"]`);
     if (!tradeButton) return;
 
@@ -347,28 +349,24 @@ export default class UIDisplay {
     // 根據分頁類型進行特定更新
     switch (tabId) {
       case 'newCommission':
-        // 直接內聯實作（少於5行且單一調用）
         const submitBtn = document.getElementById('submitCommission');
         if (submitBtn) {
           const hasAvailableTenants = data.availableTenants && data.availableTenants.length > 0;
-          submitBtn.disabled = !hasAvailableTenants;
+          /** @type {HTMLButtonElement} */(submitBtn).disabled = !hasAvailableTenants;
           submitBtn.title = hasAvailableTenants ? '發送委託邀約' : '目前沒有可用的租客';
         }
         break;
       case 'activeCommissions':
-        // 直接內聯實作（少於5行且單一調用）
         const activeCommissions = data.activeCommissions || [];
-        console.log(`活躍委託數量: ${activeCommissions.length}`);
+        systemLogger.debug(`活躍委託數量: ${activeCommissions.length}`);
         break;
       case 'commissionHistory':
-        // 直接內聯實作（少於5行且單一調用）
         const history = data.history || [];
-        console.log(`歷史記錄數量: ${history.length}`);
+        systemLogger.debug(`歷史記錄數量: ${history.length}`);
         break;
       case 'commissionStats':
-        // 直接內聯實作（少於5行且單一調用）
         const stats = data.stats || {};
-        console.log(`統計資料:`, stats);
+        systemLogger.debug(`統計資料:`, stats);
         break;
     }
   }
@@ -417,6 +415,7 @@ export default class UIDisplay {
     const commissionModal = document.getElementById('commissionModal');
     if (commissionModal && commissionModal.style.display !== 'none') {
       // 刷新當前活躍分頁的資料
+      /** @type {HTMLElement} */
       const activeTab = document.querySelector('.tab-button.active');
       if (activeTab && this.uiCore) {
         const tabName = activeTab.dataset.tab;
@@ -429,7 +428,7 @@ export default class UIDisplay {
       this.uiCore.fetchCommissionStats().then(stats => {
         this.updateCommissionStatusPanel(stats);
       }).catch(error => {
-        console.warn('刷新委託統計失敗:', error);
+        systemLogger.warn('刷新委託統計失敗:', error);
       });
     }
   }
@@ -545,7 +544,7 @@ export default class UIDisplay {
     // 更新提交按鈕狀態
     const submitBtn = document.getElementById('submitCommission');
     if (submitBtn) {
-      submitBtn.disabled = !isValid;
+      /** @type {HTMLButtonElement} */(submitBtn).disabled = !isValid;
       submitBtn.textContent = isValid ? '發送委託邀約' : '請完善表單資訊';
       submitBtn.title = isValid ? '發送委託邀約給選中的租客' : '請先選擇租客並填寫必要資訊';
     }
@@ -730,7 +729,7 @@ export default class UIDisplay {
   // =================== 除錯支援 ===================
 
   debug() {
-    console.log('🖥️ UIDisplay 狀態:', {
+    systemLogger.debug('🖥️ UIDisplay 狀態:', {
       elements: this.elements.size,
       gameState: !!this.gameApp?.gameState
     });

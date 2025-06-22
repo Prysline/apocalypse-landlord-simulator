@@ -5,6 +5,7 @@
  * 職責：提供探索執行的統一管理，包含執行、統計、事件協調
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import BaseManager from "./BaseManager.js";
 
 /**
@@ -743,12 +744,12 @@ export class ExplorationManager extends BaseManager {
   debugInfo() {
     if (!this.isDebugMode()) return;
 
-    console.group('🔍 ExplorationManager 除錯資訊');
-    console.log('📊 探索統計:', this.getExplorationStats());
-    console.log('📈 成功率趨勢:', this.getSuccessRateTrend(5));
-    console.log('📋 按類型統計:', this.getExplorationStatsByType());
-    console.log('⚙️ 系統狀態:', this.getExtendedStatus());
-    console.groupEnd();
+    systemLogger.withGroup('🔍 ExplorationManager 除錯資訊', () => {
+      systemLogger.debug('📊 探索統計:', this.getExplorationStats());
+      systemLogger.debug('📈 成功率趨勢:', this.getSuccessRateTrend(5));
+      systemLogger.debug('📋 按類型統計:', this.getExplorationStatsByType());
+      systemLogger.debug('⚙️ 系統狀態:', this.getExtendedStatus());
+    });
   }
 }
 

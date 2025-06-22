@@ -7,6 +7,7 @@
  */
 
 import { getNestedValue, createNestedUpdate, deepClone } from '../utils/helpers.js';
+import systemLogger from '../utils/SystemLogger.js';
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -207,7 +208,7 @@ export class GameState {
     /** @type {boolean} 狀態鎖定機制（防止並發修改） */
     this.isLocked = false;
 
-    console.log("GameState 初始化完成");
+    systemLogger.success("GameState 初始化完成");
   }
 
   /**
@@ -354,7 +355,7 @@ export class GameState {
       const value = getNestedValue(this.state, path, defaultValue);
       return value !== undefined ? value : defaultValue;
     } catch (error) {
-      console.warn(`取得狀態值失敗: ${path}`, error);
+      systemLogger.warn(`取得狀態值失敗: ${path}`, error);
       return defaultValue;
     }
   }
@@ -368,7 +369,7 @@ export class GameState {
    */
   setState(updates, reason = "狀態更新") {
     if (this.isLocked) {
-      console.warn("狀態被鎖定，無法更新");
+      systemLogger.warn("狀態被鎖定，無法更新");
       return false;
     }
 
@@ -393,7 +394,7 @@ export class GameState {
 
       return true;
     } catch (error) {
-      console.error("狀態更新失敗:", error);
+      systemLogger.error("狀態更新失敗:", error);
       return false;
     } finally {
       this.isLocked = false;
@@ -422,12 +423,12 @@ export class GameState {
   modifyResource(resourceType, amount, reason = "資源變更") {
     // 型別檢查
     if (!this._isValidResourceType(resourceType)) {
-      console.error(`無效的資源類型: ${resourceType}`);
+      systemLogger.error(`無效的資源類型: ${resourceType}`);
       return false;
     }
 
     if (typeof amount !== "number") {
-      console.error(`無效的數量類型: ${typeof amount}`);
+      systemLogger.error(`無效的數量類型: ${typeof amount}`);
       return false;
     }
 
@@ -660,7 +661,7 @@ export class GameState {
         try {
           callback(data);
         } catch (error) {
-          console.error(`訂閱者回調錯誤 (${eventType}):`, error);
+          systemLogger.error(`訂閱者回調錯誤 (${eventType}):`, error);
         }
       });
     }
@@ -756,7 +757,7 @@ export class GameState {
 
       return true;
     } catch (error) {
-      console.error('一致性檢查失敗:', error);
+      systemLogger.error('一致性檢查失敗:', error);
       return false;
     }
   }
@@ -821,7 +822,7 @@ export class GameState {
     this.state = this._createInitialState(initialData);
     this.changeHistory = [];
     this._notifySubscribers("state_reset", { newState: this.getState() });
-    console.log("遊戲狀態已重設");
+    systemLogger.info("遊戲狀態已重設");
   }
 
   /**
@@ -857,7 +858,7 @@ export class GameState {
       metadata: exportedData.metadata,
     });
 
-    console.log("狀態匯入完成");
+    systemLogger.info("狀態匯入完成");
   }
 }
 

@@ -176,12 +176,12 @@ export class RentManager extends BaseManager {
       );
 
       // 提供具體修復建議
-      console.error("🔧 RentManager 配置修復建議：");
-      console.error("1. 確認 rules.json 中的 gameBalance.economy.rentPayment 包含：");
-      console.error("   - resourceExchangeRates: { food: 1.5, materials: 3, medical: 4, fuel: 3 }");
-      console.error("   - reinforcementBonus: 0.2");
-      console.error("   - resourceProcessingOrder: ['food', 'materials', 'medical', 'fuel']");
-      console.error("2. 確認 gameBalance.personalWealth.resourceNames 存在");
+      systemLogger.error("🔧 RentManager 配置修復建議：");
+      systemLogger.error("1. 確認 rules.json 中的 gameBalance.economy.rentPayment 包含：");
+      systemLogger.error("   - resourceExchangeRates: { food: 1.5, materials: 3, medical: 4, fuel: 3 }");
+      systemLogger.error("   - reinforcementBonus: 0.2");
+      systemLogger.error("   - resourceProcessingOrder: ['food', 'materials', 'medical', 'fuel']");
+      systemLogger.error("2. 確認 gameBalance.personalWealth.resourceNames 存在");
 
       throw error;
     }

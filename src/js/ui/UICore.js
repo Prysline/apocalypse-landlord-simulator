@@ -4,6 +4,7 @@
  * 所有 HTML onclick 都調用 UICore 的方法
  */
 
+import systemLogger from '../utils/SystemLogger.js';
 import { TradeDescriptionFormatter } from './TradeDescriptionFormatter.js';
 import UIDisplay from './UIDisplay.js';
 import UIModal from './UIModal.js';
@@ -29,13 +30,13 @@ export default class UICore {
     };
 
     this.updateTimer = null;
-    console.log("🎨 UICore 已初始化");
+    systemLogger.success("🎨 UICore 已初始化");
   }
 
   // =================== 核心初始化 ===================
 
   async initialize() {
-    console.log('🎨 UICore 初始化開始');
+    systemLogger.info('🎨 UICore 初始化開始');
 
     try {
       await this._waitForGameApp();
@@ -61,9 +62,9 @@ export default class UICore {
       this.isReady = true;
       this.uiState.systemReady = true;
 
-      console.log('✅ UICore 初始化完成');
+      systemLogger.success('✅ UICore 初始化完成');
     } catch (error) {
-      console.error("❌ UICore 初始化失敗:", error);
+      systemLogger.error("❌ UICore 初始化失敗:", error);
       throw error;
     }
   }
@@ -73,7 +74,7 @@ export default class UICore {
    * @private
    */
   async _waitForCriticalSubsystems() {
-    console.log('⏳ 等待關鍵子系統初始化...');
+    systemLogger.info('⏳ 等待關鍵子系統初始化...');
 
     const criticalSystems = [
       {
@@ -106,11 +107,11 @@ export default class UICore {
       });
 
       if (notReady.length === 0) {
-        console.log('✅ 所有關鍵子系統已就緒');
+        systemLogger.success('✅ 所有關鍵子系統已就緒');
         return;
       }
 
-      console.log(`⏳ 等待系統: ${notReady.map(s => s.name).join(', ')}`);
+      systemLogger.info(`⏳ 等待系統: ${notReady.map(s => s.name).join(', ')}`);
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
@@ -220,9 +221,9 @@ export default class UICore {
       // 立即更新所有相關按鈕狀態
       this._updateAllTradeButtonStates(character.id, formattedOptions.length > 0);
 
-      console.log(`顯示 ${character.name} 的交易選項，共 ${formattedOptions.length} 個`);
+      systemLogger.info(`顯示 ${character.name} 的交易選項，共 ${formattedOptions.length} 個`);
     } catch (error) {
-      console.error("顯示交易模態框失敗:", error);
+      systemLogger.error("顯示交易模態框失敗:", error);
       this.gameApp.gameState?.addLog("無法顯示交易選項", "danger");
     }
   }
@@ -256,8 +257,8 @@ export default class UICore {
     if (!tradeButton) return;
 
     // 更新按鈕狀態
-    tradeButton.disabled = !hasTradeOptions;
-    tradeButton.title = hasTradeOptions ? '與訪客進行資源交易' : '暫無可用交易';
+    /** @type {HTMLButtonElement} */(tradeButton).disabled = !hasTradeOptions;
+    /** @type {HTMLButtonElement} */(tradeButton).title = hasTradeOptions ? '與訪客進行資源交易' : '暫無可用交易';
 
     // 更新按鈕文字
     const buttonText = hasTradeOptions ? '💱 交易' : '💱 暫無交易';
@@ -312,7 +313,7 @@ export default class UICore {
   evictTenant(tenantId, isInfected = false) {
     const tenantInfo = this.gameApp.tenantManager.findTenantAndRoom(tenantId);
     if (!tenantInfo) {
-      console.error('找不到租客');
+      systemLogger.error('找不到租客');
       return;
     }
 
@@ -328,7 +329,7 @@ export default class UICore {
           this.closeAllModals();
           this.updateAll();
         } catch (error) {
-          console.error("驅逐租客失敗:", error);
+          systemLogger.error("驅逐租客失敗:", error);
           this.gameApp.gameState?.addLog("驅逐租客失敗", "danger");
         }
       }
@@ -354,16 +355,15 @@ export default class UICore {
      * @param {number} tenantId - 租客ID
      */
   async useSkillWithTenant(skillId, tenantId, options = {}) {
-    console.log(`使用技能: ${skillId}, 租客ID: ${tenantId}`);
-    console.log(options)
+    systemLogger.debug(`使用技能: ${skillId}, 租客ID: ${tenantId}`);
     if (!this.gameApp?.skillManager?.executeSkill) {
-      console.error("技能系統未載入或無法執行技能");
+      systemLogger.error("技能系統未載入或無法執行技能");
       this.gameApp.gameState?.addLog("技能系統未載入", "danger");
       return;
     }
 
     try {
-      console.log(`執行技能: ${skillId}, 租客ID: ${tenantId}`);
+      systemLogger.info(`執行技能: ${skillId}, 租客ID: ${tenantId}`);
 
       // 直接執行技能，不需要查找租客ID
       const result = await this.gameApp.skillManager.executeSkill(tenantId, skillId, options);
@@ -374,15 +374,14 @@ export default class UICore {
 
       // 添加日誌
       if (this.gameApp.gameState) {
-        console.log(result)
         if (result.success) {
-          console.log(`成功使用技能: ${result.skillId || skillId}`, "skill");
+          this.addLog(`成功使用技能: ${result.skillId || skillId}`, "skill");
         } else {
-          console.log(`無法使用技能: ${result.error || '未知錯誤'}`, "danger");
+          this.addLog(`無法使用技能: ${result.error || '未知錯誤'}`, "danger");
         }
       }
     } catch (error) {
-      console.error("執行技能失敗:", error);
+      systemLogger.error("執行技能失敗:", error);
       this.gameApp.gameState?.addLog("執行技能失敗", "danger");
     }
   }
@@ -398,7 +397,7 @@ export default class UICore {
         return;
       }
 
-      console.log(`執行交易: ${tradeOptionId}`);
+      systemLogger.info(`執行交易: ${tradeOptionId}`);
 
       // 執行交易
       const result = await this.gameApp.tradeManager.executeResourceTrade(tradeOptionId);
@@ -412,15 +411,15 @@ export default class UICore {
         this.closeModal('tradeModal');
         this.updateAll();
 
-        console.log(`交易執行成功: ${description}`);
+        systemLogger.success(`交易執行成功: ${description}`);
       } else {
         // 交易失敗
         this.gameApp.gameState?.addLog(`交易失敗: ${result.error}`, "danger");
-        console.error(`交易失敗: ${result.error}`);
+        systemLogger.error(`交易失敗: ${result.error}`);
       }
 
     } catch (error) {
-      console.error("執行交易失敗:", error);
+      systemLogger.error("執行交易失敗:", error);
       this.gameApp.gameState?.addLog("交易系統錯誤", "danger");
     }
   }
@@ -439,7 +438,7 @@ export default class UICore {
         }
       }
     } catch (error) {
-      console.error('收租失敗:', error);
+      systemLogger.error('收租失敗:', error);
       this.gameApp.gameState?.addLog('收租系統錯誤', 'danger');
     }
     this.updateAll(); // 確保UI更新
@@ -641,9 +640,9 @@ export default class UICore {
           ...gameRules.gameDefaults.resources.criticalThresholds
         };
       }
-      console.log("📊 閾值配置載入完成");
+      systemLogger.success("📊 閾值配置載入完成");
     } catch (error) {
-      console.warn("⚠️ 使用預設閾值配置");
+      systemLogger.warn("⚠️ 使用預設閾值配置");
     }
   }
 
@@ -876,7 +875,7 @@ export default class UICore {
     this.bindButton("confirmYes", () => this.handleConfirmYes());
     this.bindButton("confirmNo", () => this.closeModal());
 
-    console.log("🔗 事件監聽器綁定完成");
+    systemLogger.success("🔗 事件監聽器綁定完成");
   }
 
   bindButton(id, handler) {
@@ -1099,7 +1098,7 @@ export default class UICore {
     // 頁籤切換
     document.querySelectorAll('.commission-tabs .tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const tab = e.target.getAttribute('data-tab');
+        const tab = /** @type {HTMLElement} */(e.target).getAttribute('data-tab');
         if (tab) {
           this.switchCommissionTab(tab);
         };
@@ -1127,7 +1126,7 @@ export default class UICore {
       }
     });
 
-    console.log('🔗 委託事件監聽器綁定完成');
+    systemLogger.success('🔗 委託事件監聽器綁定完成');
   }
 
   // =================== 委託模態框訊息顯示（架構一致性重構） ===================
@@ -1258,7 +1257,7 @@ export default class UICore {
     // 檢查 TradeManager 可用性
     const tradeManager = this.gameApp.tradeManager;
     if (!tradeManager?.commissionHandler) {
-      console.error('TradeManager.commissionHandler 不可用');
+      systemLogger.error('TradeManager.commissionHandler 不可用');
       return null;
     }
 
@@ -1268,7 +1267,7 @@ export default class UICore {
       // 1. 檢查租客可用性（使用業務系統邏輯）
       const availability = commissionHandler._checkTenantAvailability(tenant.id);
       if (!availability?.available) {
-        console.warn(`租客不可用: ${availability?.reason || '未知原因'}`);
+        systemLogger.warn(`租客不可用: ${availability?.reason || '未知原因'}`);
         return { acceptanceProbability: 0, possiblePartner: null };
       }
 
@@ -1289,7 +1288,7 @@ export default class UICore {
       const acceptance = commissionHandler._calculateAcceptanceProbability(temporaryOffer);
 
       if (!acceptance || typeof acceptance.probability !== 'number') {
-        console.error('業務系統返回無效的接受機率');
+        systemLogger.error('業務系統返回無效的接受機率');
         return null;
       }
 
@@ -1299,7 +1298,7 @@ export default class UICore {
       };
 
     } catch (error) {
-      console.error('委託業務系統計算失敗:', error);
+      systemLogger.error('委託業務系統計算失敗:', error);
       return null;
     }
   }
@@ -1316,7 +1315,7 @@ export default class UICore {
 
     try {
       const submitBtn = document.getElementById('submitCommission');
-      if (submitBtn) submitBtn.disabled = true;
+      if (submitBtn) /** @type {HTMLButtonElement} */(submitBtn).disabled = true;
 
       // 使用 TradeManager 的公開 API
       const result = await this.gameApp.tradeManager.offerCommission(request);
@@ -1334,11 +1333,11 @@ export default class UICore {
         this.showCommissionError(`委託失敗：${reason}`);
       }
     } catch (error) {
-      console.error('委託邀約失敗:', error);
+      systemLogger.error('委託邀約失敗:', error);
       this.showCommissionError('發送委託時發生錯誤');
     } finally {
       const submitBtn = document.getElementById('submitCommission');
-      if (submitBtn) submitBtn.disabled = false;
+      if (submitBtn) /** @type {HTMLButtonElement} */(submitBtn).disabled = false;
     }
   }
 
@@ -1348,7 +1347,7 @@ export default class UICore {
    */
   async fetchCommissionStats() {
     if (!this.gameApp?.tradeManager) {
-      console.warn('TradeManager 不可用，無法取得委託統計');
+      systemLogger.warn('TradeManager 不可用，無法取得委託統計');
       return {
         activeCommissions: 0,
         totalCommissions: 0,
@@ -1360,7 +1359,7 @@ export default class UICore {
     try {
       return this.gameApp.tradeManager.getCommissionStats();
     } catch (error) {
-      console.error('取得委託統計失敗:', error);
+      systemLogger.error('取得委託統計失敗:', error);
       return {
         activeCommissions: 0,
         totalCommissions: 0,
@@ -1602,8 +1601,8 @@ export default class UICore {
   }
 
   debug() {
-    console.log('🔧 UICore 狀態:', this.getStatus());
-    console.log('📊 閾值配置:', this.thresholds);
+    systemLogger.debug('🔧 UICore 狀態:', this.getStatus());
+    systemLogger.debug('📊 閾值配置:', this.thresholds);
   }
 
   destroy() {

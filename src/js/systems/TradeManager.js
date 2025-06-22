@@ -10,6 +10,7 @@ import RentManager from "./RentManager.js";
 import UniversalTrader from "./UniversalTrader.js";
 import CommissionHandler from "./CommissionHandler.js";
 import ExplorationManager from "./ExplorationManager.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * 交易統計資料
@@ -156,14 +157,14 @@ export class TradeManager extends BaseManager {
         this.updateStats("commission", 0); // 委託不直接計入金額，單獨統計
         this.logSuccess(`委託探索完成: ${eventObj.data.requestId}`);
       } else if (type === 'autonomous') {
-        console.log(`自主探索完成: ${result.success ? '成功' : '失敗'}`);
+        this.addLog(`自主探索完成: ${result.success ? '成功' : '失敗'}`);
       }
     }, { skipPrefix: true });
 
     // 監聽探索開始事件
     this.onEvent("exploration_started", (eventObj) => {
       const { type, participants, resourceType } = eventObj.data;
-      console.log(`${type === 'commission' ? '委託' : '自主'}探索開始: ${participants.length} 人探索 ${resourceType}`);
+      this.addLog(`${type === 'commission' ? '委託' : '自主'}探索開始: ${participants.length} 人探索 ${resourceType}`);
     }, { skipPrefix: true });
   }
 
@@ -439,7 +440,7 @@ export class TradeManager extends BaseManager {
       this.tradeStats.commissionOffers++;
       this.tradeStats.dailyStats.commissionsProcessed++;
 
-      console.log(`委託邀約處理完成: ${result.success ? '接受' : '拒絕'}`);
+      systemLogger.info(`委託邀約處理完成: ${result.success ? '接受' : '拒絕'}`);
 
       return result;
     } catch (error) {
@@ -655,11 +656,11 @@ export class TradeManager extends BaseManager {
   debugInfo() {
     if (!this.isDebugMode()) return;
 
-    console.group("🔄 TradeManager 除錯資訊");
-    console.log("📊 統計資料:", this.tradeStats);
-    console.log("⚙️ 子模組狀態:", this.getExtendedStatus());
-    console.log("📋 委託狀態:", this.getCommissionStats());
-    console.groupEnd();
+    systemLogger.withGroup("🔄 TradeManager 除錯資訊", () => {
+      systemLogger.debug("📊 統計資料:", this.tradeStats);
+      systemLogger.debug("⚙️ 子模組狀態:", this.getExtendedStatus());
+      systemLogger.debug("📋 委託狀態:", this.getCommissionStats());
+    })
   }
 
   /**

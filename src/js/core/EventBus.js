@@ -6,6 +6,7 @@
  */
 
 import { SYSTEM_LIMITS } from "../utils/constants.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -108,7 +109,7 @@ export class EventBus {
      */
     this.isActive = true;
 
-    console.log("EventBus 初始化完成");
+    systemLogger.success("EventBus 初始化完成");
   }
 
   /**
@@ -130,7 +131,7 @@ export class EventBus {
     }
 
     if (!this.isActive) {
-      console.warn("EventBus 已停用，無法新增監聽器");
+      systemLogger.warn("EventBus 已停用，無法新增監聽器");
       return null;
     }
 
@@ -169,7 +170,7 @@ export class EventBus {
     }
 
     if (!this.isActive) {
-      console.warn("EventBus 已停用，無法新增監聽器");
+      systemLogger.warn("EventBus 已停用，無法新增監聽器");
       return null;
     }
 
@@ -178,7 +179,7 @@ export class EventBus {
     // 建立一次性監聽器
     const onceWrapper = (/** @type {EventObject} */ eventObj) => {
       if (hasExecuted) {
-        console.debug(
+        systemLogger.debug(
           `[EventBus] 一次性監聽器已執行，忽略重複調用: ${eventType}`
         );
         return;
@@ -194,7 +195,7 @@ export class EventBus {
         // 執行原始監聽器
         return listener(eventObj);
       } catch (error) {
-        console.error(`[EventBus] 一次性監聽器執行錯誤 (${eventType}):`, error);
+        systemLogger.error(`[EventBus] 一次性監聽器執行錯誤 (${eventType}):`, error);
         throw error;
       }
     };
@@ -212,7 +213,7 @@ export class EventBus {
   off(eventType, listener = null) {
     // 型別保護
     if (typeof eventType !== "string") {
-      console.warn("事件類型必須是字串");
+      systemLogger.warn("事件類型必須是字串");
       return false;
     }
 
@@ -261,7 +262,7 @@ export class EventBus {
     }
 
     if (!this.isActive) {
-      console.warn("EventBus 已停用，無法發送事件");
+      systemLogger.warn("EventBus 已停用，無法發送事件");
       return {
         success: false,
         error: "EventBus 已停用",
@@ -294,7 +295,7 @@ export class EventBus {
           const result = listener(eventObj);
           results.push({ success: true, result });
         } catch (error) {
-          console.error(`事件監聽器錯誤 (${eventType}):`, error);
+          systemLogger.error(`事件監聽器錯誤 (${eventType}):`, error);
           results.push({
             success: false,
             error: error instanceof Error ? error : new Error(String(error)),
@@ -312,7 +313,7 @@ export class EventBus {
         results,
       };
     } catch (error) {
-      console.error(`事件發送失敗 (${eventType}):`, error);
+      systemLogger.error(`事件發送失敗 (${eventType}):`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -337,7 +338,7 @@ export class EventBus {
     }
 
     if (!this.isActive) {
-      console.warn("EventBus 已停用，無法發送事件");
+      systemLogger.warn("EventBus 已停用，無法發送事件");
       return {
         success: false,
         error: "EventBus 已停用",
@@ -365,7 +366,7 @@ export class EventBus {
           const result = await listener(eventObj);
           return { success: true, result };
         } catch (error) {
-          console.error(`非同步事件監聽器錯誤 (${eventType}):`, error);
+          systemLogger.error(`非同步事件監聽器錯誤 (${eventType}):`, error);
           return {
             success: false,
             error: error instanceof Error ? error : new Error(String(error)),
@@ -387,13 +388,13 @@ export class EventBus {
           r.status === "fulfilled"
             ? r.value
             : {
-                success: false,
-                error: r.reason,
-              }
+              success: false,
+              error: r.reason,
+            }
         ),
       };
     } catch (error) {
-      console.error(`非同步事件發送失敗 (${eventType}):`, error);
+      systemLogger.error(`非同步事件發送失敗 (${eventType}):`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -584,7 +585,7 @@ export class EventBus {
 
     const cleaned = initialLength - this.eventHistory.length;
     if (cleaned > 0) {
-      console.log(`清理了 ${cleaned} 條過期事件記錄`);
+      systemLogger.info(`清理了 ${cleaned} 條過期事件記錄`);
     }
 
     return cleaned;
@@ -596,7 +597,7 @@ export class EventBus {
    */
   pause() {
     this.isActive = false;
-    console.log("EventBus 已暫停");
+    systemLogger.info("EventBus 已暫停");
   }
 
   /**
@@ -605,7 +606,7 @@ export class EventBus {
    */
   resume() {
     this.isActive = true;
-    console.log("EventBus 已恢復");
+    systemLogger.info("EventBus 已恢復");
   }
 
   /**
@@ -617,7 +618,7 @@ export class EventBus {
     this.listeners.clear();
     this.eventHistory = [];
     this.eventStats.clear();
-    console.log("EventBus 已銷毀");
+    systemLogger.info("EventBus 已銷毀");
   }
 
   /**
@@ -625,27 +626,27 @@ export class EventBus {
    * @returns {void}
    */
   debug() {
-    console.group("EventBus 除錯資訊");
-    console.log("狀態:", this.isActive ? "活躍" : "停用");
-    console.log("事件類型數量:", this.listeners.size);
-    console.log(
-      "總監聽器數量:",
-      Array.from(this.listeners.values()).reduce(
-        (sum, listeners) => sum + listeners.size,
-        0
-      )
-    );
+    systemLogger.withGroup('EventBus 除錯資訊', () => {
+      systemLogger.info(`狀態: ${this.isActive ? "活躍" : "停用"}`);
+      systemLogger.info(`事件類型數量: ${this.listeners.size}`);
+      systemLogger.debug(
+        "總監聽器數量:",
+        Array.from(this.listeners.values()).reduce(
+          (sum, listeners) => sum + listeners.size,
+          0
+        )
+      );
 
-    console.group("事件類型詳情:");
-    for (const [eventType, listeners] of this.listeners) {
-      console.log(`${eventType}: ${listeners.size} 個監聽器`);
-    }
-    console.groupEnd();
+      systemLogger.withGroup('事件類型詳情', () => {
+        for (const [eventType, listeners] of this.listeners) {
+          systemLogger.debug(`${eventType}: ${listeners.size} 個監聽器`);
+        }
+      });
 
-    console.log("事件歷史記錄:", this.eventHistory.length);
-    console.log("最近事件:", this.getEventHistory(5));
-    console.groupEnd();
-  }
+      systemLogger.info(`事件歷史記錄: ${this.eventHistory.length}`);
+      systemLogger.debug("最近事件:", this.getEventHistory(5));
+    });
+  };
 }
 
 export default EventBus;

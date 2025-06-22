@@ -11,6 +11,7 @@ import ResourceManager from '../systems/ResourceManager.js';
 import SkillManager from '../systems/SkillManager.js';
 import TenantManager from '../systems/TenantManager.js';
 import TradeManager from '../systems/TradeManager.js';
+import systemLogger from '../utils/SystemLogger.js';
 
 /**
  * 每日循環執行結果
@@ -214,7 +215,7 @@ class DayManager extends BaseManager {
     const newDay = currentDay + 1;
 
     // 技術日誌：只在 terminal 顯示
-    console.log(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
+    systemLogger.debug(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
     // 遊戲日誌：玩家可見的內容
     this.addLog(`🌅 第 ${newDay} 天開始`);
 
@@ -247,7 +248,7 @@ class DayManager extends BaseManager {
       });
 
       // 技術日誌：顯示執行時間等技術資訊
-      console.log(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
+      systemLogger.debug(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
 
       return {
         success: true,
@@ -363,7 +364,7 @@ class DayManager extends BaseManager {
         : manager[methodName]();
 
       // 技術日誌：只在 terminal 顯示
-      console.log(`✅ DayManager: ${operationName}完成`);
+      systemLogger.success(`✅ DayManager: ${operationName}完成`);
 
       // Debug 模式下才在遊戲日誌中顯示技術訊息
       if (this.isDebugMode && typeof this.isDebugMode === 'function' && this.isDebugMode()) {
@@ -372,7 +373,7 @@ class DayManager extends BaseManager {
 
       return result;
     } catch (error) {
-      console.error(`❌ DayManager: ${operationName}失敗 -`, error);
+      systemLogger.error(`❌ DayManager: ${operationName}失敗 -`, error);
       // 錯誤訊息需要在遊戲日誌中顯示，但使用更友善的用語
       this.addLog(`⚠️ 系統處理異常`, 'danger');
       return null;

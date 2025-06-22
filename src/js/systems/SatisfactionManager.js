@@ -8,6 +8,7 @@
 
 import BaseManager from "./BaseManager.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -82,7 +83,7 @@ export class SatisfactionManager extends BaseManager {
     this.lastCalculationCache = new Map();
     this.cacheValidityTime = 5000; // 5秒快取有效期
 
-    console.log("😊 SatisfactionManager 初始化中...");
+    systemLogger.info("😊 SatisfactionManager 初始化中...");
   }
 
   // ==========================================
@@ -112,14 +113,13 @@ export class SatisfactionManager extends BaseManager {
       this.performDailyUpdate();
     }, { skipPrefix: true });
 
-    console.log("✅ SatisfactionManager 事件監聽器設置完成");
+    systemLogger.success("✅ SatisfactionManager 事件監聽器設置完成");
   }
 
   async initialize() {
     this.loadExistingSatisfaction();
     this.setupEventListeners();
     this.markInitialized(true);
-    console.log("✅ SatisfactionManager 初始化完成");
     return true;
   }
 
@@ -134,7 +134,7 @@ export class SatisfactionManager extends BaseManager {
    */
   updateSatisfaction(tenantId) {
     if (!this.initialized) {
-      console.warn("SatisfactionManager 未初始化");
+      systemLogger.warn("SatisfactionManager 未初始化");
       return;
     }
 
@@ -346,7 +346,7 @@ export class SatisfactionManager extends BaseManager {
    * @returns {void}
    */
   performDailyUpdate() {
-    console.log("📊 執行每日滿意度更新");
+    systemLogger.info("📊 執行每日滿意度更新");
     this.updateAllTenantsSatisfaction();
 
     const averageSatisfaction = this.calculateAverageSatisfaction();
@@ -397,7 +397,7 @@ export class SatisfactionManager extends BaseManager {
   updateIndividualSatisfaction(tenantId) {
     const tenantInfo = this.findTenantAndRoom(tenantId);
     if (!tenantInfo) {
-      console.warn(`找不到租客: ${tenantId}`);
+      systemLogger.warn(`找不到租客: ${tenantId}`);
       return;
     }
 
@@ -518,7 +518,7 @@ export class SatisfactionManager extends BaseManager {
       }
     });
 
-    console.log(`📊 載入 ${this.tenantSatisfaction.size} 個租客的滿意度記錄`);
+    systemLogger.info(`📊 載入 ${this.tenantSatisfaction.size} 個租客的滿意度記錄`);
   }
 
   /**
@@ -616,7 +616,7 @@ export class SatisfactionManager extends BaseManager {
     this.satisfactionHistory = [];
     this.lastCalculationCache.clear();
     super.cleanup();
-    console.log("SatisfactionManager 已清理");
+    systemLogger.info("SatisfactionManager 已清理");
   }
 }
 

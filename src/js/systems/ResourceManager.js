@@ -142,8 +142,6 @@ export class ResourceManager extends BaseManager {
 
     // 標記初始化完成
     this.markInitialized();
-
-    console.log("✅ ResourceManager v2.0 (BaseManager 繼承版) 初始化完成");
   }
 
   // ==========================================

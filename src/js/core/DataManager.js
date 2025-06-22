@@ -5,8 +5,16 @@
  * 職責：載入並管理所有遊戲資料和配置檔案
  */
 
-import { ERROR_CODES, MESSAGE_TEMPLATES } from "../utils/constants.js";
+import { ERROR_CODES } from "../utils/constants.js";
 import { getNestedValue } from "../utils/helpers.js";
+import systemLogger from "../utils/SystemLogger.js";
+import loadingManager from "./LoadingManager.js";
+
+
+/**
+ * @see {@link ../Type.js} 完整類型定義
+ * @typedef {import('./LoadingManager.js').LoadingStep} LoadingStep
+ * /
 
 /**
  * 資料載入結果
@@ -196,10 +204,25 @@ export class DataManager {
       return { success: true, data: this.getAllData() };
     }
 
-    try {
-      console.log(MESSAGE_TEMPLATES.SYSTEM.INITIALIZING);
+    // 定義載入步驟（用於進度顯示）
+    /** @type {Array<LoadingStep>} 初始化步驟 */
+    const loadingSteps = [
+      { id: 'init', name: '準備初始化', completed: false },
+      { id: 'parallel_load', name: '載入配置檔案', completed: false },
+      { id: 'validation', name: '驗證資料完整性', completed: false },
+      { id: 'finalize', name: '完成初始化', completed: false }
+    ];
 
-      // 並行載入所有核心資料
+    try {
+      // 啟動載入管理器
+      await loadingManager.startInitialization(loadingSteps);
+
+      // 步驟1：準備初始化
+      systemLogger.initializing();
+      loadingManager.updateProgress('init');
+
+      // 步驟2：並行載入所有核心資料
+      systemLogger.info('開始並行載入配置檔案');
       const loadPromises = [
         this.loadConfig("rules"),
         this.loadGameData("tenants"),
@@ -209,21 +232,64 @@ export class DataManager {
 
       // 使用 Promise.all 確保所有載入成功，任何失敗都會拋出錯誤
       await Promise.all(loadPromises);
+      loadingManager.updateProgress('parallel_load');
 
+      // 步驟3：驗證資料完整性（可選）
+      this._validateLoadedData();
+      loadingManager.updateProgress('validation');
+
+      // 步驟4：完成初始化
       this.isInitialized = true;
-      console.log(MESSAGE_TEMPLATES.SYSTEM.READY);
+      systemLogger.ready();
+      loadingManager.updateProgress('finalize');
 
       return {
         success: true,
         data: this.getAllData(),
       };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error(MESSAGE_TEMPLATES.SYSTEM.ERROR(errorMessage));
 
-      // 不再啟用後備模式，直接拋出錯誤
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // 使用 SystemLogger 記錄錯誤
+      systemLogger.systemError(errorMessage);
+
+      // 取消載入流程
+      loadingManager.cancelInitialization(`資料載入失敗: ${errorMessage}`);
+
+      // 拋出統一格式的錯誤
       throw new Error(`資料載入失敗，請檢查配置檔案：${errorMessage}`);
+    }
+  }
+
+  /**
+    * 驗證已載入的資料完整性
+    * @private
+    * @returns {void}
+    */
+  _validateLoadedData() {
+    try {
+      // 基本完整性檢查
+      const requiredConfigs = ['rules'];
+      const requiredData = ['tenants', 'skills', 'events'];
+
+      for (const config of requiredConfigs) {
+        if (!this.configs.has(config)) {
+          throw new Error(`缺少必要配置: ${config}`);
+        }
+      }
+
+      for (const data of requiredData) {
+        if (!this.gameData.has(data)) {
+          throw new Error(`缺少必要資料: ${data}`);
+        }
+      }
+
+      systemLogger.success('資料完整性驗證通過');
+
+    } catch (error) {
+      systemLogger.error('資料驗證失敗', error);
+      throw error;
     }
   }
 
@@ -245,13 +311,12 @@ export class DataManager {
     const loadPromise = this._loadDataFile(`data/${configType}.json`)
       .then((data) => {
         this.configs.set(configType, data);
-        console.log(MESSAGE_TEMPLATES.DATA.LOADED(`${configType} 配置`));
+        systemLogger.dataLoaded(`${configType} 配置`);
         return /** @type {GameRules} */ (data);
       })
       .catch((error) => {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error(MESSAGE_TEMPLATES.DATA.ERROR(configType, errorMessage));
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        systemLogger.dataError(configType, errorMessage);
         throw new Error(`${ERROR_CODES.DATA_LOAD_FAILED}: ${configType}`);
       });
 
@@ -275,13 +340,12 @@ export class DataManager {
     const loadPromise = this._loadDataFile(`data/${dataType}.json`)
       .then((data) => {
         this.gameData.set(dataType, data);
-        console.log(MESSAGE_TEMPLATES.DATA.LOADED(`${dataType} 資料`));
+        systemLogger.dataLoaded(`${dataType} 資料`);
         return data;
       })
       .catch((error) => {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error(MESSAGE_TEMPLATES.DATA.ERROR(dataType, errorMessage));
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        systemLogger.dataError(dataType, errorMessage);
         throw new Error(`${ERROR_CODES.DATA_LOAD_FAILED}: ${dataType}`);
       });
 
@@ -445,7 +509,7 @@ export class DataManager {
     this.cache.clear();
     this.loadingPromises.clear();
     this.isInitialized = false;
-    console.log("DataManager 已清理所有資源");
+    systemLogger.success("DataManager 已清理所有資源");
   }
 }
 

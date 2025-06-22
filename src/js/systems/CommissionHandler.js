@@ -129,7 +129,7 @@ export class CommissionHandler {
         };
       }
     } catch (error) {
-      console.error('委託處理失敗:', error);
+      systemLogger.error('委託處理失敗:', error);
       return { success: false, error: error.message };
     }
   }
@@ -167,7 +167,7 @@ export class CommissionHandler {
       return result;
 
     } catch (error) {
-      console.error('委託探索執行失敗:', error);
+      systemLogger.error('委託探索執行失敗:', error);
       throw error;
     }
   }

@@ -17,32 +17,142 @@ core/ (核心服務層)
 utils/ (工具基礎層)
 ```
 
+### 核心模組分佈
+
+**utils層 (工具基礎層)**
+- `SystemLogger` - 統一系統級訊息管理
+- `helpers` - 基礎物件操作工具
+- `constants` - 系統常數和訊息模板
+- `validators` - 輕量級驗證機制
+
+**core層 (核心服務層)**
+- `LoadingManager` - 初始化流程協調管理
+- `DataManager` - 統一資料載入和配置管理
+- `GameState` - 中央狀態管理系統
+- `EventBus` - 事件驅動通信機制
+
+**systems層 (業務邏輯層)**
+- `BaseManager` - 管理器基礎類，提供統一介面
+- 各種業務管理器（ResourceManager、TenantManager等）
+
 ### 模組初始化序列
-main.js按照嚴格的依賴順序進行模組初始化，確保依賴關係的正確性：
+main.js按照明確的依賴順序初始化所有模組：
 
 ```javascript
 // 1. 核心基礎設施
-eventBus = new EventBus();
-dataManager = new DataManager();
+EventBus()
+DataManager() // 內部整合LoadingManager
 
-// 2. 狀態管理（依賴DataManager的初始化結果）
-gameState = new GameState(dataResult.data);
+// 2. 狀態管理（依賴DataManager）
+GameState(dataResult.data)
 
-// 3. 業務模組按依賴順序初始化
-resourceManager = new ResourceManager(gameState, eventBus);
-tenantManager = new TenantManager(gameState, resourceManager, dataManager, eventBus);
-tradeManager = new TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus);
-skillManager = new SkillManager(gameState, eventBus, dataManager, resourceManager);
-dayManager = new DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager);
+// 3. 業務模組依賴注入
+ResourceManager(gameState, eventBus)
+TenantManager(gameState, resourceManager, dataManager, eventBus)
+TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus)
+SkillManager(gameState, eventBus, dataManager, resourceManager)
+DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager)
 ```
 
 ### 依賴注入機制
-每個業務模組在建構函式中明確聲明所需依賴，採用建構函式注入避免運行時查找。TradeManager協調三個內部子系統：RentManager（租金管理）、UniversalTrader（租客交易）、CommissionHandler（委託處理），並共享使用ExplorationManager（探索執行）提供委託探索功能，形成統一的交易API介面。
+每個業務模組在建構函式中明確聲明所需依賴，避免運行時查找。TradeManager依賴TenantManager並內部協調RentManager和UniversalTrader兩個子模組，提供統一的交易API介面。
+
+## GameState狀態管理
+
+### 中央化狀態設計理念
+GameState實現單一資料源原則，所有遊戲狀態集中管理。此設計消除狀態分散導致的一致性問題，確保狀態變更的可追蹤性和可回溯性。
+
+### 路徑式存取機制
+實作點記法路徑存取，支援嵌套物件的統一操作介面。路徑式存取降低狀態操作的複雜度，提供類型安全的狀態查詢能力，避免深層嵌套存取的空值錯誤。
+
+### 狀態同步策略
+採用事件驅動的狀態同步機制，狀態變更自動觸發相關事件通知。此策略確保UI和業務邏輯的即時同步，同時維持模組間的低耦合特性。
+
+### 歷史追蹤機制
+內建狀態變更歷史記錄，支援操作回溯和除錯分析。歷史追蹤採用循環緩衝區設計，限制記憶體使用量同時提供充足的除錯資訊。
+
+## BaseManager統一架構
+
+### 繼承體系設計原理
+BaseManager提供業務模組的統一基礎架構，標準化模組生命週期管理、事件通信和錯誤處理機制。此設計確保所有業務模組行為的一致性和可預測性。
+
+### 混合分層前綴策略
+實作智慧事件前綴解析，自動判斷事件的作用域和路由目標。系統級事件直接路由，業務領域事件跨模組傳播，模組專屬事件自動添加前綴，消除事件命名衝突。
+
+### 錯誤隔離機制
+每個管理器獨立處理錯誤，錯誤不向上傳播影響其他模組。BaseManager提供統一的錯誤處理模板，確保系統穩定性和故障定位的準確性。
+
+### 生命週期標準化
+定義標準的初始化、配置載入、清理和銷毀流程。生命週期標準化簡化模組管理複雜度，提供可靠的資源管理和記憶體回收機制。
+
+## 業務模組架構
+
+### 依賴注入策略
+採用建構函式依賴注入，明確聲明模組間的依賴關係。此策略提高程式碼可測試性，簡化模組替換和升級流程，確保依賴關係的顯式化和可驗證性。
+
+### 模組解耦設計
+業務模組間透過EventBus進行通信，避免直接方法調用建立的強耦合關係。解耦設計提高系統的彈性和可維護性，支援模組的獨立開發和測試。
+
+### 循環依賴避免機制
+透過分層架構和依賴方向約束，系統性避免循環依賴的產生。高層模組可依賴低層模組，同層模組透過事件通信，確保依賴圖的有向無環特性。
+
+### 職責邊界劃分
+每個業務模組維持單一職責，職責邊界清晰且不重疊。明確的職責劃分降低模組間的耦合度，提高程式碼的可理解性和維護效率。
+
+## UI系統架構
+
+### 三層分離設計理念
+採用UICore（協調層）、UIModal（內容層）、UIDisplay（狀態層）的三層分離架構。此設計實現關注點分離，提高UI系統的可測試性和可維護性。
+
+### 職責分工機制
+UICore負責事件協調和業務邏輯調用，UIModal專責內容生成和展示邏輯，UIDisplay處理狀態更新和DOM操作。清晰的職責分工避免功能重疊和責任混淆。
+
+### API重用策略
+優先使用現有API而非重複實作相似功能，透過統一的介面規範降低系統複雜度。API重用提高程式碼一致性，減少維護成本和錯誤機率。
+
+### 狀態驅動更新
+UI更新完全由狀態變更驅動，避免手動DOM操作的不一致性。狀態驅動設計確保UI與資料的同步性，簡化除錯和測試流程。
+
+## 統一訊息管理系統
+
+### 設計原理
+系統實施訊息分離策略，明確區分系統級訊息與遊戲內容：
+
+**SystemLogger (系統級訊息)**
+- 職責：處理初始化、載入、錯誤等系統級事件
+- 輸出：Console專用，提供結構化系統診斷
+- 特性：支援分組輸出、多參數格式、智能錯誤處理
+
+**GameLogger (遊戲日誌)**
+- 職責：處理玩家行動、遊戲事件等內容
+- 輸出：遊戲日誌UI，提供玩家可見的遊戲回饋
+- 特性：類型化日誌、事件觸發、狀態同步
+
+### 訊息路由機制
+BaseManager實作智能訊息路由：
+
+```javascript
+// 系統級錯誤 → SystemLogger
+if (error instanceof Error) {
+  systemLogger.error(message, error);
+}
+
+// 遊戲邏輯事件 → GameLogger
+gameLogger.addGameLog(message, type, options);
+```
+
+### API設計理念
+SystemLogger遵循AI編碼習慣友善的設計原則：
+- 提供完整的日誌級別方法，避免方法不存在錯誤
+- 支援分組輸出機制，提供結構化除錯資訊
+- 支援多參數格式，兼容現有console使用模式
+- 提供自動管理的便捷方法，減少手動錯誤
+- 實作統一錯誤處理和緊急後備機制
 
 ## 配置驅動系統
 
 ### 配置檔案結構
-DataManager管理四個JSON配置檔案，支援動態配置更新：
+DataManager管理四個JSON配置檔案：
 
 **rules.json** - 遊戲規則和平衡參數
 - `gameDefaults.initialResources` - 初始資源配置
@@ -65,7 +175,7 @@ DataManager管理四個JSON配置檔案，支援動態配置更新：
 - 事件觸發條件和執行結果
 
 ### 並行載入機制
-DataManager使用Promise.all實現配置檔案的並行載入：
+DataManager整合LoadingManager實現協調式載入：
 
 ```javascript
 const loadPromises = [
@@ -77,18 +187,14 @@ const loadPromises = [
 await Promise.all(loadPromises);
 ```
 
-配置載入失敗時系統拋出具體錯誤，採用快速失敗策略確保問題早期發現。
+LoadingManager提供：
+- 載入進度追蹤和UI顯示
+- UI鎖定防止非同步期間誤操作
+- 超時處理和錯誤恢復機制
+- 載入畫面管理
 
-### 配置存取API
-DataManager提供統一的配置存取介面：
-
-```javascript
-getGameRules()      // 取得遊戲規則配置
-getTenantTypes()    // 取得租客類型陣列
-getAllSkills()      // 取得完整技能集合
-getEventData()      // 取得事件資料集合
-getRuleValue(path)  // 支援路徑查詢：'gameBalance.explorationSystem.baseSuccessRate'
-```
+### 配置管理理念
+DataManager實現統一配置管理機制，支援路徑式存取和熱更新。配置載入採用快速失敗策略，確保問題早期發現和明確錯誤定位。
 
 ## EventBus事件通信
 
@@ -96,7 +202,7 @@ getRuleValue(path)  // 支援路徑查詢：'gameBalance.explorationSystem.baseS
 EventBus實現標準的發布/訂閱模式，支援模組間解耦通信。提供同步和非同步事件處理，內建事件歷史追蹤和統計功能。
 
 ### 智慧事件前綴策略
-BaseManager實作三層事件前綴自動解析，實現混合分層策略：
+BaseManager實作三層事件前綴自動解析：
 
 ```javascript
 // 系統級前綴（跨模組生命週期事件）
@@ -113,209 +219,31 @@ MODULE_PREFIXES: ["resource_", "tenant_", "trade_", "skill_", "exploration_"]
 1. 檢查系統級前綴 → 直接使用，無需模組前綴
 2. 檢查業務領域前綴 → 跨模組事件，保持原名
 3. 檢查模組前綴存在 → 避免重複添加前綴
-4. 其他情況 → 自動添加當前模組前綴
+4. 其他情況 → 自動添加模組專屬前綴
 
-### 事件通信範例
-```javascript
-// 發送事件（BaseManager統一介面）
-this.emitEvent('cycle_start', { day: newDay })
-
-// 監聽事件（支援前綴解析）
-this.onEvent('day_advanced', callback, { skipPrefix: true })
-```
-
-## GameState狀態管理
-
-### 中央狀態設計
-GameState作為系統的單一真實來源，管理所有遊戲狀態。採用深度複製機制保護狀態不變性，防止意外的狀態污染。
-
-### 路徑式狀態存取
-支援點記法路徑快速存取嵌套狀態：
-
-```javascript
-getStateValue('resources.cash')           // 取得現金資源
-getStateValue('rooms.0.needsRepair')     // 取得房間維修狀態
-modifyResource('food', -5)               // 修改食物資源
-hasEnoughResource('materials', 10)       // 檢查資源充足性
-```
-
-### 狀態歷史追蹤
-GameState記錄狀態變更歷史，支援除錯分析和潛在回滾需求。使用循環緩衝區限制歷史記錄大小，防止記憶體無限增長。
-
-## BaseManager統一架構
-
-### 抽象基礎類設計
-所有業務管理器繼承BaseManager，獲得統一的基礎功能：
-
-- **事件通信**：智慧前綴解析，統一發送監聽介面
-- **日誌記錄**：分類日誌管理，支援除錯追蹤
-- **狀態管理**：標準化的狀態取得和擴展機制
-- **初始化流程**：統一的初始化和依賴驗證流程
-
-### 模組前綴定義
-每個業務管理器實作getModulePrefix()方法：
-- ResourceManager: "resource"
-- TradeManager: "trade"
-- TenantManager: "tenant"
-- SkillManager: "skill"
-- DayManager: "day"
-- ExplorationManager: "exploration"
-
-### 跨模組共享設計
-
-#### ExplorationManager 共享依賴架構
-ExplorationManager採用共享依賴模式，同時服務兩個不同的業務場景：
-
-**TradeManager委託探索**：
-- 通過CommissionHandler處理房東發起的委託邀約
-- 委託接受後委託給ExplorationManager執行探索
-- 處理委託報酬支付和統計追蹤
-
-**TenantManager自主探索**：
-- 透過setExplorationManager()後注入方式取得探索能力
-- 評估租客自主探索需求（食物短缺、經濟壓力）
-- 自動觸發探索並處理結果分配
-
-此設計避免了探索邏輯重複實作，確保探索機制的一致性和統計數據的統一管理。
-
-## 業務模組架構
-
-### ResourceManager - 資源基礎設施
-負責所有資源流轉控制，提供統一的資源修改介面：
-- 閾值監控：警告線、危險線、緊急線三層監控
-- 轉移驗證：完整的前置條件檢查和餘額驗證
-- 狀態評估：實時資源狀態評估和自動警告
-
-### TradeManager - 統一交易入口
-協調四個子系統實現完整交易生態：
-- **RentManager**: 租金計算、收取流程、優惠懲罰機制
-- **UniversalTrader**: 租客個人交易、互助協作
-- **CommissionHandler**: 委託邀約處理、接受機率計算
-- **ExplorationManager**: 探索執行統一管理、統計追蹤（與TenantManager共享）
-- **統一API**: collectRent(), processMutualAid(), offerCommission()等統一介面
-
-### TenantManager - 租客生命週期
-管理租客完整生命週期，採用組合模式整合專責子系統：
-- 租客管理：雇用/驅逐流程、狀態變更、個人資源管理
-- 申請者系統：申請者生成、面試評估、風險檢測
-- 滿意度系統：組合SatisfactionManager專責處理滿意度計算、歷史追蹤
-- 關係管理：組合RelationshipManager專責處理租客間關係值計算、狀態管理
-- 自主探索：探索觸發評估、優先級計算、夥伴配對邏輯（與TradeManager共享ExplorationManager）
-
-#### 專責管理器獨立化設計
-系統採用獨立模組組合模式，而非內建組件模式：
-
-**RelationshipManager** - 租客關係專責管理
-- **獨立檔案架構**：`src/js/systems/RelationshipManager.js`
-- **職業關係矩陣**：基於租客職業類型計算初始關係值
-- **統一ID系統**：支援關係值查詢、設置和調整
-- **事件響應**：監聽探索結果等事件，動態調整關係值
-- **清理機制**：租客離開時自動清理相關關係記錄
-
-**SatisfactionManager** - 滿意度專責管理
-- **獨立檔案架構**：`src/js/systems/SatisfactionManager.js`
-- **滿意度計算**：多因子滿意度演算法
-- **歷史追蹤**：滿意度變更歷史記錄
-- **狀態分析**：滿意度等級評估和風險預警
-
-### SkillManager - 技能執行引擎
-實現15個技能的執行邏輯，支援三種技能類型：
-- **主動技能**: 消耗資源，主動觸發強力效果
-- **被動技能**: 持續生效，提供穩定加成
-- **特殊技能**: 限制次數，帶來永久性改善
-
-### ExplorationManager - 探索系統核心
-統一管理所有探索相關功能：
-- **探索執行**：統一的探索請求處理和結果生成
-- **統計追蹤**：成功率趨勢、收益分析、參與者統計
-- **配置驅動**：基於rules.json的探索參數動態調整
-- **事件協調**：探索開始、完成、失敗事件的統一發送
-
-### DayManager - 循環協調器
-作為頂層協調器，統籌各業務模組的每日循環：
-1. 重置租客每日狀態（TenantManager）
-2. 處理每日資源消費（ResourceManager）
-3. 處理被動技能（SkillManager）
-4. 處理租客互助交易（TradeManager）
-5. 推進天數並觸發系統事件
-
-## 委託探索系統架構
-
-### 設計原理
-委託探索系統採用分離關注點設計，將委託決策和探索執行分離：
-
-- **CommissionHandler**: 專責委託邀約的評估、決策和管理
-- **ExplorationManager**: 專責探索過程的執行、統計和事件協調
-
-### 委託處理流程
-1. **邀約評估**: 基於租客狀態、關係度、資源急迫性計算接受機率
-2. **組隊邏輯**: 自動評估是否需要組隊，基於技能互補性匹配夥伴
-3. **決策執行**: 一次性隨機決策，避免重複計算
-4. **探索委託**: 接受後委託給ExplorationManager執行實際探索
-
-### 配置驅動特性
-探索系統完全依賴配置檔案驅動：
-
-```javascript
-// rules.json 配置路徑
-gameBalance.explorationSystem.exploration.baseSuccessRate
-gameBalance.explorationSystem.rewards.resourceRanges
-gameBalance.explorationSystem.acceptance.baseRate
-gameBalance.explorationSystem.teamwork.skillSynergyBonus
-```
-
-## UI系統架構
-
-### 三層UI架構設計
-UI系統採用三層分離架構，職責明確劃分：
-
-- **UICore**: 統一對外介面和業務邏輯協調器
-- **UIDisplay**: 畫面顯示邏輯和DOM更新控制
-- **UIModal**: 模態框系統管理和生命週期控制
-
-### TradeDescriptionFormatter
-專用描述格式化器統一管理交易相關文本生成：
-- 交易選項描述：購買、出售、緊急交易
-- 互助事件描述：食物援助、現金借貸、醫療協助
-- 交易執行描述：成功完成後的結果文本
-- 委託邀約描述：探索目標、報酬、風險評估
+### 事件除錯支援
+BaseManager提供結構化事件除錯機制，透過SystemLogger的分組功能實現階層化的事件分析輸出，便於開發階段的問題診斷和效能最佳化。
 
 ## 型別安全機制
 
-### JSDoc + TypeScript檢查
-每個JavaScript檔案使用`// @ts-check`啟用TypeScript型別檢查。Type.js集中管理所有型別定義，避免重複和不一致：
+### JSDoc型別註解策略
+採用JSDoc型別註解配合TypeScript檢查，在無外部依賴的前提下實現型別安全。此策略平衡開發效率和執行時效能，避免編譯步驟的複雜性。
 
-```javascript
-/**
- * 資源類型聯合型別
- * @typedef {'food'|'materials'|'medical'|'fuel'|'cash'} ResourceType
- */
+### 型別檢查實作
+每個JavaScript檔案開頭添加`// @ts-check`指令，啟用TypeScript編譯器的型別檢查功能。型別檢查在開發階段捕獲型別錯誤，提高程式碼品質和維護性。
 
-/**
- * 租客類型聯合型別
- * @typedef {'doctor'|'worker'|'farmer'|'soldier'|'elder'} TenantType
- */
+### 介面定義規範
+透過JSDoc定義清晰的介面契約，確保模組間資料交換的型別一致性。介面定義提供自動完成和型別驗證，降低整合錯誤的發生機率。
 
-/**
- * 探索請求類型
- * @typedef {'commission'|'autonomous'} ExplorationType
- */
-```
+### 型別安全策略
+結合輕量級驗證機制，在關鍵資料流轉點進行執行時型別檢查，提供開發時和執行時的雙重型別安全保障。
 
-所有模組方法提供完整JSDoc註解，在開發階段獲得型別檢查和自動完成支援。
+## GitHub Pages部署架構
 
-## GitHub Pages部署配置
+### 靜態資源最佳化
+零建置工具設計，所有資源可直接部署：
 
-### 零建置工具部署
-系統設計完全相容GitHub Pages靜態託管，直接部署ES6模組無需Webpack或Rollup等建置工具。所有資源使用相對路徑載入，確保部署路徑正確性。
-
-### 瀏覽器相容性要求
-**最低技術要求**：
-- Chrome 61+ (ES6模組原生支援)
-- Firefox 60+ (ES6模組完整支援)
-- Safari 10.1+ (ES6模組基礎支援)
-
-### 配置熱更新流程
+**配置熱更新**
 1. 修改對應JSON配置檔案
 2. 推送變更到Git儲存庫
 3. GitHub Pages自動重新部署
@@ -326,25 +254,18 @@ DataManager在載入時進行JSON語法驗證和配置完整性檢查，配置�
 ## 效能與記憶體管理
 
 ### 懶載入策略
-模組按需載入，配置檔案並行載入最大化初始化效率。事件歷史和狀態歷史採用循環緩衝區設計，限制最新100筆記錄防止記憶體無限增長。
+模組按需載入，配置檔案並行載入最大化初始化效率。LoadingManager提供載入進度控制，確保所有非同步初始化完成後才允許用戶操作。
+
+### 訊息系統效能
+- **SystemLogger**：結構化輸出減少Console混亂，支援條件除錯減少生產環境開銷
+- **分組管理**：withGroup方法確保分組正確結束，避免Console階層混亂
+- **錯誤隔離**：訊息系統錯誤不影響業務邏輯執行
+
+### 記憶體管理機制
+事件歷史和狀態歷史採用循環緩衝區設計，限制最新100筆記錄防止記憶體無限增長。LoadingManager的UI鎖定機制防止重複初始化和資源洩漏。
 
 ### 錯誤隔離機制
-單一模組錯誤不影響其他模組運作。BaseManager提供統一的錯誤處理和降級機制，配置載入失敗時提供具體修復建議。
+單一模組錯誤不影響其他模組運作。BaseManager提供統一的錯誤處理和降級機制，SystemLogger提供緊急後備輸出確保關鍵錯誤不被遺漏。
 
-### 內建監控功能
-系統提供完整的狀態監控和統計：
-
-```javascript
-// 完整系統狀態診斷
-gameApp.debug()
-
-// 各子系統狀態檢查
-gameApp.dataManager.getSystemStatus()
-gameApp.gameState.getStateStats()
-gameApp.eventBus.getStats()
-gameApp.tradeManager.getTradeStats()
-gameApp.tradeManager.getCommissionStats()
-gameApp.tradeManager.getExplorationStats()
-```
-
-開發環境使用dev-test.html提供完整測試環境，URL參數`?debug=true`啟用詳細日誌模式。
+### 內建監控機制
+系統提供分層式狀態監控架構，每個核心模組都實作標準化的狀態查詢介面。開發環境支援完整的診斷模式，透過URL參數啟用詳細日誌輸出，便於問題追蹤和效能分析。

@@ -13,6 +13,7 @@ import TradeManager from "./systems/TradeManager.js";
 import TenantManager from "./systems/TenantManager.js";
 import SkillManager from "./systems/SkillManager.js";
 import DayManager from "./systems/DayManager.js";
+import systemLogger from "./utils/SystemLogger.js";
 
 /**
  * 系統運行模式
@@ -51,7 +52,7 @@ class GameApplication {
 /** @type {boolean} */ this.isInitialized = false;
 /** @type {SystemMode} */ this.systemMode = "normal";
 
-    console.log("🎮 末日房東模擬器啟動中...");
+    systemLogger.info("🎮 末日房東模擬器啟動中...");
   }
 
   /**
@@ -60,7 +61,7 @@ class GameApplication {
    */
   async initialize() {
     try {
-      console.log("📋 初始化核心系統...");
+      systemLogger.info("📋 初始化核心系統...");
 
       // 1. 建立核心架構
       this.eventBus = new EventBus();
@@ -69,26 +70,25 @@ class GameApplication {
       // 2. 載入資料
       const dataResult = await this.dataManager.initialize();
       if (!dataResult.success) {
-        console.warn("⚠️ 資料載入失敗，使用後備模式");
-        this.systemMode = "fallback";
+        systemLogger.warn("⚠️ 資料載入失敗");
       }
 
       // 3. 建立遊戲狀態
       this.gameState = new GameState(dataResult.data);
 
       // 4. 初始化業務模組
-      console.log("🔧 初始化業務模組...");
+      systemLogger.info("🔧 初始化業務模組...");
       await this._initializeBusinessModules();
 
       // 5. 完成初始化
       this.isInitialized = true;
       this.eventBus.emit("system_ready", { mode: this.systemMode });
 
-      console.log("✅ 系統初始化完成！");
+      systemLogger.success("✅ 系統初始化完成！");
       return { success: true, mode: this.systemMode };
 
     } catch (error) {
-      console.error("❌ 系統初始化失敗:", error);
+      systemLogger.error("❌ 系統初始化失敗:", error);
       return { success: false, error: error.message };
     }
   }
@@ -101,7 +101,6 @@ class GameApplication {
   async _initializeBusinessModules() {
     // 資源管理器
     this.resourceManager = new ResourceManager(this.gameState, this.eventBus);
-    console.log("✅ ResourceManager 初始化完成");
 
     // 租客管理器
     this.tenantManager = new TenantManager(
@@ -142,7 +141,7 @@ class GameApplication {
     );
     this.dayManager.initialize();
 
-    console.log("🔧 業務模組初始化完成");
+    systemLogger.success("🔧 業務模組初始化完成");
   }
 
   /**
@@ -182,7 +181,7 @@ async function startGame() {
     const result = await gameApp.initialize();
 
     if (result.success) {
-      console.log("🎮 遊戲準備就緒！");
+      systemLogger.success("🎮 遊戲準備就緒！");
 
       // 安全地掛載到全局供除錯使用
       if (typeof window !== "undefined") {
@@ -194,10 +193,10 @@ async function startGame() {
         });
       }
     } else {
-      console.error("遊戲啟動失敗:", result.error);
+      systemLogger.error("遊戲啟動失敗:", result.error);
     }
   } catch (error) {
-    console.error("致命錯誤:", error);
+    systemLogger.error("致命錯誤:", error);
     throw error;
   }
 }
