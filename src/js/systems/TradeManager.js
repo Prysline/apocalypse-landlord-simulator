@@ -299,7 +299,7 @@ export class TradeManager extends BaseManager {
       }
 
       // 載入探索系統配置
-      const explorationConfig = this.dataManager.getRuleValue('mechanics.explorationSystem');
+      const explorationConfig = this.dataManager.getRuleValue('gameBalance.explorationSystem');
 
       if (!explorationConfig) {
         throw new Error('explorationSystem 配置未找到');
