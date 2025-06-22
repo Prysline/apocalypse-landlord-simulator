@@ -299,7 +299,7 @@ export class TradeManager extends BaseManager {
       }
 
       // 載入探索系統配置
-      const explorationConfig = this.dataManager.getRuleValue('gameBalance.explorationSystem');
+      const explorationConfig = this.dataManager.getRuleValue('mechanics.explorationSystem');
 
       if (!explorationConfig) {
         throw new Error('explorationSystem 配置未找到');
@@ -307,10 +307,10 @@ export class TradeManager extends BaseManager {
 
       // 建立委託處理器實例
       this.commissionHandler = new CommissionHandler(
-        this.resourceManager,
         this.tenantManager,
         this.eventBus,
-        explorationConfig
+        explorationConfig,
+        this.explorationManager
       );
 
       this.logSuccess("委託處理器初始化完成");

@@ -467,7 +467,7 @@ export class UniversalTrader extends BaseManager {
 
     // 配置完整性檢查
     const requiredConfigs = [
-      'mutualAidProbability', 'mutualAidMinRelationship', 'resourceComfortLevels',
+      'mutualAidProbability', 'mutualAidMinRelationship', 'mutualAidHelpRelationship', 'resourceComfortLevels',
       'baseResourceValues', 'relationshipPriceEffect', 'emergencyTradeThresholds',
       'mutualAidRelationshipEffects', 'resourceNames'
     ];
@@ -486,7 +486,39 @@ export class UniversalTrader extends BaseManager {
    * @returns {boolean} 配置是否完整載入
    */
   isConfigurationLoaded() {
-    return !!(this.mutualAidProbability && this.resourceNames && this.baseResourceValues);
+    const requiredConfigs = [
+      'mutualAidProbability',
+      'mutualAidMinRelationship',
+      'mutualAidHelpRelationship',
+      'resourceComfortLevels',
+      'baseResourceValues',
+      'relationshipPriceEffect',
+      'emergencyTradeThresholds',
+      'mutualAidRelationshipEffects',
+      'resourceNames'
+    ];
+
+    // 逐一檢查每個配置項目（加入詳細除錯資訊）
+    for (const config of requiredConfigs) {
+      const value = this[config];
+
+      // 檢查是否為無效值
+      if (value === undefined || value === null) {
+        console.warn(`配置項目未載入: ${config}，值為:`, value);
+        return false;
+      }
+
+      // 對於物件型配置，檢查是否為空物件
+      if (typeof value === 'object' && Object.keys(value).length === 0) {
+        console.warn(`配置項目為空物件: ${config}，值為:`, value);
+        return false;
+      }
+
+      // 除錯輸出：顯示成功載入的配置
+      console.log(`✓ 配置項目載入成功: ${config}，類型: ${typeof value}`);
+    }
+
+    return true;
   }
 
   // ==========================================
