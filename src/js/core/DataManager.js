@@ -8,12 +8,10 @@
 import { ERROR_CODES } from "../utils/constants.js";
 import { getNestedValue } from "../utils/helpers.js";
 import systemLogger from "../utils/SystemLogger.js";
-import loadingManager from "./LoadingManager.js";
 
 
 /**
  * @see {@link ../Type.js} 完整類型定義
- * @typedef {import('./LoadingManager.js').LoadingStep} LoadingStep
  * /
 
 /**
@@ -196,33 +194,20 @@ export class DataManager {
   }
 
   /**
-   * 初始化資料管理器 - 載入所有必要資料
-   * @returns {Promise<LoadResult>} 初始化結果
-   */
+     * 初始化資料管理器 - 載入所有必要資料
+     * @returns {Promise<LoadResult>} 初始化結果
+     */
   async initialize() {
     if (this.isInitialized) {
       return { success: true, data: this.getAllData() };
     }
 
-    // 定義載入步驟（用於進度顯示）
-    /** @type {Array<LoadingStep>} 初始化步驟 */
-    const loadingSteps = [
-      { id: 'init', name: '準備初始化', completed: false },
-      { id: 'parallel_load', name: '載入配置檔案', completed: false },
-      { id: 'validation', name: '驗證資料完整性', completed: false },
-      { id: 'finalize', name: '完成初始化', completed: false }
-    ];
-
     try {
-      // 啟動載入管理器
-      await loadingManager.startInitialization(loadingSteps);
-
-      // 步驟1：準備初始化
       systemLogger.initializing();
-      loadingManager.updateProgress('init');
 
-      // 步驟2：並行載入所有核心資料
+      // 並行載入所有核心資料
       systemLogger.info('開始並行載入配置檔案');
+
       const loadPromises = [
         this.loadConfig("rules"),
         this.loadGameData("tenants"),
@@ -232,16 +217,16 @@ export class DataManager {
 
       // 使用 Promise.all 確保所有載入成功，任何失敗都會拋出錯誤
       await Promise.all(loadPromises);
-      loadingManager.updateProgress('parallel_load');
+      systemLogger.success('配置檔案並行載入完成');
 
-      // 步驟3：驗證資料完整性（可選）
+      // 驗證資料完整性
+      systemLogger.info('開始驗證資料完整性');
       this._validateLoadedData();
-      loadingManager.updateProgress('validation');
+      systemLogger.success('資料完整性驗證通過');
 
-      // 步驟4：完成初始化
+      // 完成初始化
       this.isInitialized = true;
       systemLogger.ready();
-      loadingManager.updateProgress('finalize');
 
       return {
         success: true,
@@ -253,9 +238,6 @@ export class DataManager {
 
       // 使用 SystemLogger 記錄錯誤
       systemLogger.systemError(errorMessage);
-
-      // 取消載入流程
-      loadingManager.cancelInitialization(`資料載入失敗: ${errorMessage}`);
 
       // 拋出統一格式的錯誤
       throw new Error(`資料載入失敗，請檢查配置檔案：${errorMessage}`);

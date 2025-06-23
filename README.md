@@ -45,7 +45,7 @@
 ### 啟動遊戲
 1. **開啟遊戲**：使用現代瀏覽器開啟 `src/index.html`
 2. **系統需求**：Chrome 61+、Firefox 60+、Safari 10.1+ （ES6模組支援）
-3. **開發模式**：使用 `src/dev-test.html` 進行測試和除錯
+3. **開發模式**：使用 `src/dev-test.html` 進行測試，或在 URL 添加 `?debug=true` 啟用除錯模式
 
 ### 基本操作
 - **收取租金**：定期收取租客租金，支援現金和資源抵付
@@ -110,12 +110,12 @@
 ## 📚 開發者資源
 
 ### 除錯工具
+**除錯模式啟動**：在 URL 後添加 `?debug=true` 參數啟用詳細系統日誌
+
+**瀏覽器控制台命令**：
 ```javascript
-// 瀏覽器控制台命令
 gameApp.debug()                           // 完整系統狀態
-gameApp.dataManager.getSystemStatus()     // 資料載入狀態
 gameApp.gameState.getStateStats()         // 遊戲狀態統計
-gameApp.eventBus.getStats()              // 事件系統統計
 gameApp.tradeManager.getTradeStats()      // 交易系統統計
 gameApp.tenantManager.validateIDSystemIntegrity()  // ID系統完整性檢查
 ```

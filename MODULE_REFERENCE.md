@@ -102,13 +102,12 @@ BaseManager (基礎層)
 ### DataManager
 **位置**: `src/js/core/DataManager.js`
 **職責**: 統一資料管理核心
-**依賴**: `SystemLogger`, `LoadingManager`, `utils/constants.js`, `utils/helpers.js`
+**依賴**: `SystemLogger`, `utils/constants.js`, `utils/helpers.js`
 
 #### 主要方法
 ```javascript
 /**
  * 初始化並載入所有配置檔案
- * 整合LoadingManager提供載入進度追蹤
  * @returns {Promise<LoadResult>}
  */
 async initialize()
@@ -154,7 +153,6 @@ import systemLogger from '../utils/SystemLogger.js';
 
 const dataManager = new DataManager();
 
-// 初始化會自動整合LoadingManager
 const result = await dataManager.initialize();
 
 if (result.success) {
@@ -172,26 +170,26 @@ if (result.success) {
 }
 ```
 
-#### 初始化流程
+#### 與 main.js 整合範例
 ```javascript
-// initialize() 方法的標準化流程
-const loadingSteps = [
-  { id: 'init', name: '準備初始化' },
-  { id: 'parallel_load', name: '載入配置檔案' },
-  { id: 'validation', name: '驗證資料完整性' },
-  { id: 'finalize', name: '完成初始化' }
-];
-
-// 自動整合LoadingManager提供進度追蹤
-// 使用SystemLogger取代MESSAGE_TEMPLATES輸出
+// main.js 中負責LoadingManager協調
+try {
+  systemLogger.info("📊 開始載入遊戲資料");
+  const dataResult = await this.dataManager.initialize();
+  loadingManager.updateProgress('data_loading');
+  systemLogger.success("✅ 遊戲資料載入完成");
+} catch (error) {
+  systemLogger.error("資料載入階段失敗", error);
+  loadingManager.updateProgress('data_loading', false, error.message);
+  throw error;
+}
 ```
 
 #### 效能特性
-- **載入方式**: 並行載入四個配置檔案，整合LoadingManager進度追蹤
+- **載入方式**: 並行載入四個配置檔案，任一失敗進入快速失敗模式
 - **記憶體使用**: 配置資料常駐記憶體，約2-3MB
-- **錯誤處理**: 快速失敗策略，使用SystemLogger統一錯誤輸出
+- **錯誤恢復**: 快速失敗策略，使用SystemLogger統一錯誤輸出
 - **資料驗證**: 載入後自動驗證資料結構完整性
-- **UI整合**: 透過LoadingManager提供載入畫面和UI鎖定機制
 
 ### GameState
 **位置**: `src/js/core/GameState.js`
