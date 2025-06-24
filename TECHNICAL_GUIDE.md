@@ -35,6 +35,12 @@ utils/ (工具基礎層)
 - `BaseManager` - 管理器基礎類，提供統一介面
 - 各種業務管理器（ResourceManager、TenantManager等）
 
+**ui層 (使用者介面層)**
+- `UICore` - UI系統統一協調器，提供對外介面
+- `UIDisplay` / `UIModal` - 顯示和模態框管理
+- `modal/` - 各功能專用模態框模組
+- `TradeDescriptionFormatter` - 交易描述格式化
+
 ### 模組初始化序列
 main.js按照明確的依賴順序初始化所有模組：
 

@@ -31,7 +31,8 @@ BaseManager (基礎層)
 - 所有業務管理器 → BaseManager + GameState + EventBus
 
 **協作關係**（運行時調用，功能性協作）
-- UI模組 ↔ 業務管理器（介面觸發業務邏輯）
+- UICore ↔ 業務管理器（統一介面觸發業務邏輯）
+- Modal子模組 ↔ UICore（委託模式，功能分離）
 - 業務管理器 ↔ GameState（狀態讀寫）
 - 業務管理器 ↔ EventBus（事件通信）
 
@@ -1805,6 +1806,8 @@ const displayOptions = uiCore.formatTradeOptionsForDisplay(rawOptions);
 - **事件整合**: 統一處理UI事件回調
 - **描述格式化**: 使用TradeDescriptionFormatter統一交易描述
 - **狀態同步**: 自動更新UI顯示狀態
+- **錯誤處理**: 完整的try-catch機制，系統未載入友善提示
+- **調用統一**: 動態HTML統一透過UICore調用，消除間接調用
 
 ### UIDisplay
 **位置**: `src/js/ui/UIDisplay.js`
