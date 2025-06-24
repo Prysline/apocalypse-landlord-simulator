@@ -164,22 +164,6 @@ export default class UICore {
   }
 
   /**
-   * 顯示搜刮模態框 (對外介面)
-   */
-  showScavenge() {
-    const scavengeUsed = this.gameApp.gameState?.getStateValue('scavengeUsed', 0) || 0;
-    const remaining = 2 - scavengeUsed;
-
-    const allTenants = this.gameApp.gameState?.getAllTenants() || [];
-    const availableTenants = allTenants.filter(tenant =>
-      !tenant.onMission && !tenant.infected
-    );
-
-    this.modal.setScavengeContent(availableTenants, remaining);
-    this.modal.show('scavengeModal');
-  }
-
-  /**
    * 顯示技能模態框 (對外介面)
    */
   showSkills() {
@@ -746,7 +730,6 @@ export default class UICore {
   bindEvents() {
     this.bindButton('collectRentBtn', () => this.collectRent());
     this.bindButton('showVisitorsBtn', () => this.showVisitors());
-    this.bindButton('showScavengeBtn', () => this.showScavenge());
     this.bindButton('harvestYardBtn', () => this.harvestYard());
     this.bindButton('showSkillBtn', () => this.showSkills());
     this.bindButton('nextDayBtn', () => this.nextDay());
@@ -768,7 +751,8 @@ export default class UICore {
     // 模態框關閉事件
     document.querySelectorAll(".modal").forEach((modal) => {
       modal.addEventListener("click", (/** @type {MouseEvent} */ e) => {
-        if (e.target === modal) {
+        // 排除 commissionModal，防止背景點擊意外關閉
+        if (e.target === modal && modal.id !== 'commissionModal') {
           this.closeModal();
         }
       });

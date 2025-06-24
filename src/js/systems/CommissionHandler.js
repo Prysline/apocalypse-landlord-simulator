@@ -6,6 +6,7 @@
  * 架構：TradeManager 內部組件，配置驅動設計
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import ExplorationManager from "./ExplorationManager.js";
 
 /**

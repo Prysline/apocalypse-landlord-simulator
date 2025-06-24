@@ -6,6 +6,7 @@
  * 架構：繼承 BaseManager，採用快速失敗配置載入模式
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import BaseManager from "./BaseManager.js";
 
 /**
