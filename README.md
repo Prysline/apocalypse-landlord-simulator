@@ -81,11 +81,14 @@
 - **EventBus**：事件驅動通信，支援智慧前綴解析
 
 ### 業務模組
-- **ResourceManager**：資源流轉控制和狀態監控
-- **TenantManager**：租客生命週期管理和關係追蹤
+- **ResourceManager**：資源流轉控制、狀態監控和院子採集系統
+- **TenantManager**：租客生命週期管理、統一人物ID系統和關係追蹤
+- **SatisfactionManager**：租客滿意度專責管理，計算和評估系統
 - **TradeManager**：統一交易系統入口，整合所有交易類型
 - **SkillManager**：技能執行管理和效果處理
-- **DayManager**：每日循環處理和事件觸發
+- **DayManager**：每日循環處理和事件觸發協調
+- **ExplorationManager**：探索系統統一管理和執行
+- **UniversalTrader**：輕量化交易系統，租客資源交易
 
 ### UI模組
 - **UICore**：UI系統統一協調器，提供完整錯誤處理

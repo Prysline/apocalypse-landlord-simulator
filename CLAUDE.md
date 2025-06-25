@@ -35,12 +35,14 @@ gameApp.tenantManager.validateIDSystemIntegrity()  // ID系統完整性檢查
 - **LoadingManager.js**: 初始化進度管理和視覺回饋
 
 ### 業務邏輯層 (src/js/systems/)
-- **ResourceManager.js**: 資源流轉控制和狀態監控
-- **TenantManager.js**: 租客生命週期管理和關係追蹤
+- **ResourceManager.js**: 資源流轉控制和狀態監控，院子採集系統
+- **TenantManager.js**: 租客生命週期管理、統一人物ID系統和關係追蹤
+- **SatisfactionManager.js**: 租客滿意度專責管理，計算和評估系統
 - **TradeManager.js**: 統一交易系統入口，整合所有交易類型
 - **SkillManager.js**: 技能執行管理和效果處理
-- **DayManager.js**: 每日循環處理和事件觸發
-- **CommissionHandler.js**: 委託探索系統邏輯
+- **DayManager.js**: 每日循環處理和事件觸發協調
+- **ExplorationManager.js**: 探索系統統一管理和執行
+- **UniversalTrader.js**: 輕量化交易系統，租客資源交易
 
 ### UI層 (src/js/ui/)
 - **UICore.js**: UI系統統一對外介面，協調所有UI模組
@@ -91,14 +93,27 @@ const gameRules = dataManager.getData('rules');
 ```
 
 ### 日誌系統
-使用 SystemLogger，會根據除錯模式自動調整輸出：
+專案使用雙重日誌系統，區分遊戲事件與技術除錯：
+
+#### SystemLogger - 系統技術日誌
+用於技術除錯、系統初始化、配置載入等：
 ```javascript
 import systemLogger from '../utils/SystemLogger.js';
 
-systemLogger.info("一般資訊");
-systemLogger.debug("除錯資訊"); // 只在除錯模式顯示
-systemLogger.error("錯誤資訊", error);
-systemLogger.success("成功訊息");
+systemLogger.info("系統初始化");        // 一般系統資訊
+systemLogger.debug("狀態檢查");         // 除錯資訊（只在除錯模式顯示）
+systemLogger.error("載入失敗", error);   // 系統錯誤
+systemLogger.success("初始化完成");      // 系統成功訊息
+```
+
+#### GameState.addLog - 遊戲事件日誌
+用於玩家可見的遊戲事件、狀態變化：
+```javascript
+// 在 BaseManager 衍生類別中
+this.addLog("租客 ${name} 入住房間", "rent");     // 租客事件
+this.addLog("院子採集獲得 5 食物", "event");      // 資源事件
+this.addLog("探索任務完成", "success");           // 成功事件
+this.addLog("資源不足", "danger");               // 警告事件
 ```
 
 ## 資料結構
@@ -142,6 +157,31 @@ gameState = {
 2. 在 UIDisplay.js 中更新畫面渲染
 3. 確保透過 UICore 暴露必要的對外介面
 
+### API 設計規範
+系統間介面應返回統一格式的結果物件：
+```javascript
+// 推薦的 API 返回格式
+{
+  success: boolean,           // 操作是否成功
+  error?: string,            // 失敗時的錯誤訊息
+  description?: string,      // 成功時的描述訊息
+  data?: any                // 額外的返回數據
+}
+```
+
+### 租客查詢最佳實踐
+使用 TenantManager 的標準查詢方法，避免重複實作：
+```javascript
+// 推薦使用
+const result = tenantManager.findTenantAndRoom(tenantId);  // 返回 {tenant, room}
+const tenant = tenantManager.getTenant(tenantId);          // 返回 tenant 或 null
+
+// 避免在其他模組中重複實作類似邏輯
+// 使用 GameState 的統一人物系統：
+const person = gameState.findPersonById(personId);
+const roomTenant = gameState.getRoomTenant(roomId);
+```
+
 ## 技術特點
 
 ### 零外部依賴
@@ -157,6 +197,8 @@ gameState = {
 - 自動清理歷史記錄防止記憶體洩漏
 - 事件節流機制保證介面響應性
 - DOM 元素快取減少重複查詢
+- 代碼重複檢測和消除，統一查詢介面
+- 分層日誌系統，減少生產環境噪音
 
 ## 除錯指南
 
@@ -170,6 +212,8 @@ gameState = {
 - **模組載入失敗**：檢查 ES6 模組支援（Chrome 61+, Firefox 60+, Safari 10.1+）
 - **資料載入錯誤**：檢查 JSON 檔案格式和路徑
 - **事件未觸發**：確認 EventBus 事件名稱和監聽器註冊
+- **API 返回格式錯誤**：檢查是否使用統一的 `{success, error, description}` 格式
+- **重複實作問題**：優先使用 GameState 或對應 Manager 的現有方法
 
 ### 效能監控
 ```javascript

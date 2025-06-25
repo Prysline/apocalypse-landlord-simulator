@@ -168,7 +168,7 @@ export class ExplorationManager extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog('開始初始化探索管理器...');
+      systemLogger.info('開始初始化探索管理器...');
 
       // 載入探索系統配置
       await this._loadExplorationConfig();
@@ -202,7 +202,7 @@ export class ExplorationManager extends BaseManager {
         throw new Error('explorationSystem 配置未找到');
       }
 
-      this.addLog('探索系統配置載入完成');
+      systemLogger.success('探索系統配置載入完成');
 
     } catch (error) {
       this.logError('探索配置載入失敗', error);
@@ -1100,7 +1100,7 @@ export class ExplorationManager extends BaseManager {
       this.explorationHistory = this.explorationHistory.slice(-50);
     }
 
-    this.addLog('探索管理器資源清理完成');
+    systemLogger.info('探索管理器資源清理完成');
   }
 
   /**
@@ -1149,7 +1149,7 @@ export class ExplorationManager extends BaseManager {
       });
     }
 
-    this.addLog(`🔧 探索系統狀態報告: ${JSON.stringify(report, null, 2)}`);
+    systemLogger.debug(`探索系統狀態報告: ${JSON.stringify(report, null, 2)}`);
     return report;
   }
 
@@ -1158,9 +1158,9 @@ export class ExplorationManager extends BaseManager {
    * @returns {Promise<Array>} 完成的探索列表
    */
   async manualCheckExplorations() {
-    this.addLog('🔧 手動觸發探索完成檢查');
+    systemLogger.debug('手動觸發探索完成檢查');
     const completed = await this.checkAndCompleteExplorations();
-    this.addLog(`🔧 手動檢查結果: 完成了 ${completed.length} 個探索`);
+    systemLogger.debug(`手動檢查結果: 完成了 ${completed.length} 個探索`);
     return completed;
   }
 

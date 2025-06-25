@@ -433,14 +433,19 @@ export class SatisfactionManager extends BaseManager {
    * @returns {{tenant: Tenant, room: Room}|null} 租客和房間資訊
    */
   findTenantAndRoom(tenantId) {
+    // 使用 GameState 統一人物系統查詢租客
+    const tenant = this.gameState.findPersonById(tenantId);
+    if (!tenant) return null;
+
+    // 通過 roles.tenantRooms 查找房間ID
+    const roomId = this.gameState.state.roles.tenantRooms.get(tenantId);
+    if (!roomId) return null;
+
+    // 獲取房間詳細資訊
     const rooms = this.gameState.getStateValue("rooms", []);
-    for (const room of rooms) {
-      const tenant = this.gameState.getRoomTenant(room.id);
-      if (tenant?.id === tenantId) {
-        return { tenant, room };
-      }
-    }
-    return null;
+    const room = rooms.find(r => r.id === roomId);
+    
+    return room ? { tenant, room } : null;
   }
 
   /**

@@ -391,7 +391,7 @@ export class UniversalTrader extends BaseManager {
     /** @type {Object} 資源名稱對照表 */
     this.resourceNames = null;
 
-    this.addLog('UniversalTrader 已建立（重組架構）');
+    systemLogger.info('UniversalTrader 已建立（重組架構）');
   }
 
   // ==========================================
@@ -424,7 +424,7 @@ export class UniversalTrader extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog("開始載入交易配置", "event");
+      systemLogger.info("開始載入交易配置");
 
       // 載入配置（快速失敗模式）
       await this.loadTradeConfigurations();

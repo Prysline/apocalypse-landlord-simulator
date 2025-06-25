@@ -787,18 +787,18 @@ export class ResourceManager extends BaseManager {
 
   /**
    * 院子採集 - 主要入口點
-   * @returns {boolean} 採集是否成功
+   * @returns {{success: boolean, error?: string, description?: string, amount?: number}} 採集結果
    */
   harvestYard() {
     if (!this.isActive) {
       this.logWarning("ResourceManager 已停用，無法進行院子採集");
-      return false;
+      return { success: false, error: "資源管理器已停用" };
     }
 
     try {
       // 檢查採集條件
       if (!this.canHarvest()) {
-        return false;
+        return { success: false, error: this._getHarvestErrorMessage() };
       }
 
       // 取得基礎採集量（純基礎功能，不計算技能加成）
@@ -821,13 +821,17 @@ export class ResourceManager extends BaseManager {
         });
 
         this.addLog(`院子採集獲得 ${baseAmount} 食物`, "event");
-        return true;
+        return { 
+          success: true, 
+          description: `院子採集獲得 ${baseAmount} 食物`, 
+          amount: baseAmount 
+        };
       }
 
-      return false;
+      return { success: false, error: "資源修改失敗" };
     } catch (error) {
       this.logError("院子採集失敗", error);
-      return false;
+      return { success: false, error: error.message || "採集系統錯誤" };
     }
   }
 
@@ -858,6 +862,29 @@ export class ResourceManager extends BaseManager {
     } catch (error) {
       this.logError("檢查採集條件失敗", error);
       return false;
+    }
+  }
+
+  /**
+   * 取得採集錯誤訊息
+   * @private
+   * @returns {string} 錯誤訊息
+   */
+  _getHarvestErrorMessage() {
+    try {
+      const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+      if (harvestUsed) {
+        return "今日已進行過院子採集";
+      }
+
+      const harvestCooldown = this.gameState.getStateValue("harvestCooldown", 0);
+      if (harvestCooldown > 0) {
+        return `院子採集冷卻中，剩餘 ${harvestCooldown} 天`;
+      }
+
+      return "無法進行採集";
+    } catch (error) {
+      return "採集條件檢查失敗";
     }
   }
 

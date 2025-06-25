@@ -1136,7 +1136,7 @@ export class TenantManager extends BaseManager {
         throw new Error('探索系統配置未找到');
       }
 
-      this.addLog('自主探索配置已載入');
+      systemLogger.info('自主探索配置已載入');
 
     } catch (error) {
       this.logError('自主探索配置載入失敗', error);
@@ -1402,7 +1402,8 @@ export class TenantManager extends BaseManager {
   }
 
   getTenant(tenantId) {
-    return this.findTenantAndRoom(tenantId).tenant
+    const result = this.findTenantAndRoom(tenantId);
+    return result ? result.tenant : null;
   }
 
   findApplicantById(applicantId) {
@@ -1530,7 +1531,7 @@ export class TenantManager extends BaseManager {
 
       if (cleanedCount > 0) {
         this.gameState.setStateValue('tenantRelationships', relationships, '清理已離開租客的關係記錄');
-        this.addLog(`清理了 ${cleanedCount} 個無效的關係記錄`);
+        systemLogger.info(`清理了 ${cleanedCount} 個無效的關係記錄`);
       }
 
       return cleanedCount;

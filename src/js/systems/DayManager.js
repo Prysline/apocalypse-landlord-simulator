@@ -64,7 +64,7 @@ class DayManager extends BaseManager {
     this.lastExecutionTime = 0;
 
     // Constructor 只做基本設置，實際初始化由 initialize() 方法處理
-    this.addLog('DayManager 已建立，等待初始化');
+    systemLogger.info('DayManager 已建立，等待初始化');
   }
 
   // ==========================================
@@ -77,7 +77,7 @@ class DayManager extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog('開始初始化 DayManager...');
+      systemLogger.info('開始初始化 DayManager...');
 
       // 1. 驗證必要依賴
       this._validateRequiredDependencies();
@@ -96,8 +96,8 @@ class DayManager extends BaseManager {
       // 4. 標記初始化完成
       this.markInitialized(true);
 
-      this.addLog('DayManager 初始化完成');
-      this.addLog(`管理器狀態: ${JSON.stringify(availability)}`);
+      systemLogger.success('DayManager 初始化完成');
+      systemLogger.debug(`管理器狀態: ${JSON.stringify(availability)}`);
 
       return true;
 
@@ -132,7 +132,7 @@ class DayManager extends BaseManager {
 
     // 監聽遊戲狀態變更（系統級事件）
     this.onEvent('game_state_changed', (eventObj) => {
-      this.addLog('遊戲狀態已更新');
+      systemLogger.debug('遊戲狀態已更新');
     });
   }
 
@@ -175,7 +175,7 @@ class DayManager extends BaseManager {
       throw new Error(`DayManager 缺失必要依賴: ${missingNames}`);
     }
 
-    this.addLog('必要依賴驗證通過');
+    systemLogger.debug('必要依賴驗證通過');
   }
 
   /**
@@ -369,7 +369,7 @@ class DayManager extends BaseManager {
 
       // Debug 模式下才在遊戲日誌中顯示技術訊息
       if (this.isDebugMode && typeof this.isDebugMode === 'function' && this.isDebugMode()) {
-        this.addLog(`[DEBUG] ${operationName}完成`);
+        systemLogger.debug(`${operationName}完成`);
       }
 
       return result;

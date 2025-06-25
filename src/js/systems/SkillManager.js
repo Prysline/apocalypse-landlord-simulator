@@ -5,6 +5,7 @@
  */
 
 import BaseManager from './BaseManager.js';
+import systemLogger from '../utils/SystemLogger.js';
 
 /**
  * 技能類型枚舉
@@ -135,7 +136,7 @@ export default class SkillManager extends BaseManager {
     /** @type {boolean} 初始化狀態 */
     this.initialized = false;
 
-    this.addLog('簡化版 SkillManager 已建立');
+    systemLogger.info('簡化版 SkillManager 已建立');
   }
 
   // ==========================================
@@ -198,7 +199,7 @@ export default class SkillManager extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog('開始初始化技能系統...');
+      systemLogger.info('開始初始化技能系統...');
 
       // 載入技能配置
       await this._loadSkillConfigurations();

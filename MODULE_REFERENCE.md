@@ -823,6 +823,24 @@ getResourceStatus(resourceType)
  * @returns {Promise<boolean>}
  */
 async processDailyConsumption()
+
+/**
+ * 院子採集 - 主要入口點
+ * @returns {{success: boolean, error?: string, description?: string, amount?: number}} 採集結果
+ */
+harvestYard()
+
+/**
+ * 檢查是否可以進行院子採集
+ * @returns {boolean} 是否可以採集
+ */
+canHarvest()
+
+/**
+ * 檢查採集冷卻狀態
+ * @returns {Object} 採集狀態資訊
+ */
+getHarvestStatus()
 ```
 
 #### 使用範例
@@ -847,6 +865,20 @@ const foodStatus = resourceManager.getResourceStatus('food');
 if (foodStatus.level === 'emergency') {
   console.warn(`食物緊急短缺！剩餘 ${foodStatus.daysRemaining} 天`);
 }
+
+// 院子採集（新的統一返回格式）
+const harvestResult = resourceManager.harvestYard();
+if (harvestResult.success) {
+  console.log(harvestResult.description); // "院子採集獲得 2 食物"
+  console.log(`獲得數量: ${harvestResult.amount}`);
+} else {
+  console.warn(`採集失敗: ${harvestResult.error}`);
+}
+
+// 檢查採集狀態
+const harvestStatus = resourceManager.getHarvestStatus();
+console.log(`可以採集: ${harvestStatus.canHarvest}`);
+console.log(`冷卻剩餘: ${harvestStatus.cooldownRemaining} 天`);
 ```
 
 #### 效能特性
