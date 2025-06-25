@@ -524,7 +524,8 @@
         "baseRate": 0.6,
         "resourceUrgencyWeight": 0.4,
         "commissionWeight": 0.3,
-        "relationshipWeight": 0.2
+        "relationshipWeight": 0.2,
+        "marketFairnessWeight": 0.25
       },
       "riskTolerance": {
         "soldier": 0.8,

@@ -225,24 +225,25 @@ class DayManager extends BaseManager {
         throw new Error('必要管理器不可用，無法執行每日循環');
       }
 
-      // 發送循環開始事件（系統級事件，使用 BaseManager 統一介面）
-      this.emitEvent('cycle_start', { day: newDay });
-
-      // 執行每日業務邏輯
-      await this.processDailyOperations();
-
       // 推進天數
       const advanceSuccess = this.gameState.advanceDay();
       if (!advanceSuccess) {
         throw new Error('GameState.advanceDay() 失敗');
       }
 
+      // 發送每日開始事件（系統級事件，使用 BaseManager 統一介面）
+      this.addLog(`🔄 發送 day_start 事件 (第 ${newDay} 天)`);
+      this.emitEvent('day_start', { day: newDay });
+
+      // 執行每日業務邏輯
+      await this.processDailyOperations();
+
       // 更新統計
       this.totalDaysProcessed++;
       this.lastExecutionTime = Date.now() - startTime;
 
-      // 發送完成事件（系統級事件）
-      this.emitEvent('cycle_complete', {
+      // 發送每日完成事件（系統級事件）
+      this.emitEvent('day_complete', {
         day: newDay,
         duration: this.lastExecutionTime
       });
@@ -259,8 +260,8 @@ class DayManager extends BaseManager {
     } catch (error) {
       this.logError('每日循環執行失敗', error);
 
-      // 發送失敗事件（系統級事件）
-      this.emitEvent('cycle_failed', {
+      // 發送每日失敗事件（系統級事件）
+      this.emitEvent('day_failed', {
         day: newDay,
         error: error.message
       });

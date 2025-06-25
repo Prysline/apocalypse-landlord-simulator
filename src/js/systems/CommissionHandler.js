@@ -21,6 +21,8 @@ import ExplorationManager from "./ExplorationManager.js";
  * @property {string|null} partnerId - 組隊夥伴ID
  * @property {string} status - 委託狀態
  * @property {string} [decidedAt] - 決策時間
+ * @property {number} [explorationDays] - 探索所需天數
+ * @property {number} [expectedCompletionDay] - 預計完成日期
  */
 
 /**
@@ -28,6 +30,12 @@ import ExplorationManager from "./ExplorationManager.js";
  * @typedef {Object} AcceptanceEvaluation
  * @property {number} probability - 接受機率
  * @property {string} refusalReason - 拒絕原因
+ * @property {Object} marketEvaluation - 市場價格評估結果
+ * @property {number} marketEvaluation.factor - 市場價格影響因子
+ * @property {string} marketEvaluation.evaluation - 價格評估等級 (generous/fair_plus/fair/underpaid/exploitative)
+ * @property {number} marketEvaluation.fairnessRatio - 價格合理性比率
+ * @property {number} marketEvaluation.targetValue - 目標資源市場價值
+ * @property {number} marketEvaluation.rewardValue - 總報酬價值
  */
 
 /**
@@ -112,10 +120,21 @@ export class CommissionHandler {
         // 記錄活躍委託
         this.activeCommissions.set(offer.id, offer);
 
-        // 6. 委託探索執行給 ExplorationEngine
-        const result = await this._delegateExplorationToEngine(offer);
+        // 6. 委託探索執行給 ExplorationEngine（現在是啟動而非完成）
+        const explorationResult = await this._delegateExplorationToEngine(offer);
 
-        return { success: true, offer, result };
+        // 更新委託狀態為進行中
+        offer.status = 'ongoing';
+        offer.explorationDays = explorationResult.explorationDays;
+        offer.expectedCompletionDay = explorationResult.expectedCompletionDay;
+
+        return { 
+          success: true, 
+          offer, 
+          explorationDays: explorationResult.explorationDays,
+          expectedCompletionDay: explorationResult.expectedCompletionDay,
+          message: explorationResult.message
+        };
       } else {
         offer.status = 'rejected';
         offer.decidedAt = new Date().toISOString();
@@ -237,6 +256,19 @@ export class CommissionHandler {
     const commissionFactor = Math.min(commissionValue / 20, 1); // 20為基準值
     probability += commissionFactor * config.commissionWeight;
 
+    // **新增：價格行情評估影響**
+    const marketEvaluation = this._evaluateMarketFairness(offer);
+    let marketWeight = config.marketFairnessWeight || 0.25;
+    
+    // 極端情況下增強影響
+    if (marketEvaluation.evaluation === 'generous') {
+      marketWeight *= 2.0; // 報酬豐厚時大幅提升接受率
+    } else if (marketEvaluation.evaluation === 'exploitative') {
+      marketWeight *= 2.5; // 報酬過低時大幅降低接受率
+    }
+    
+    probability += marketEvaluation.factor * marketWeight;
+
     // 關係度影響
     const relationship = this.tenantManager.getTenantSatisfaction(tenant.name) / 100;
     probability += relationship * config.relationshipWeight;
@@ -255,7 +287,8 @@ export class CommissionHandler {
 
     return {
       probability,
-      refusalReason: this._generateRefusalReason(probability, resourceUrgency, relationship)
+      refusalReason: this._generateRefusalReason(probability, resourceUrgency, relationship, marketEvaluation),
+      marketEvaluation
     };
   }
 
@@ -333,6 +366,72 @@ export class CommissionHandler {
     return totalValue;
   }
 
+  /**
+   * 評估委託的市場價格合理性
+   * @param {CommissionOffer} offer - 委託邀約
+   * @returns {Object} 市場評估結果
+   * @private
+   */
+  _evaluateMarketFairness(offer) {
+    // 獲取市場基準價格
+    const baseResourceValues = this.config.economy?.resourceTrade?.baseResourceValues || {
+      food: 2, materials: 2, medical: 5, fuel: 3, cash: 1
+    };
+
+    // 計算目標資源的市場價值
+    const targetResourceValue = offer.targetAmount * (baseResourceValues[offer.resourceType] || 1);
+
+    // 計算基礎報酬價值（不包含佣金）
+    let baseRewardValue = 0;
+
+    // 基礎報酬價值
+    for (const [resource, amount] of Object.entries(offer.basePayment)) {
+      baseRewardValue += amount * (baseResourceValues[resource] || 1);
+    }
+
+    // 計算佣金價值（用於接受機率計算，但不用於市場評估）
+    let commissionValue = 0;
+    for (const [resource, amount] of Object.entries(offer.commission)) {
+      commissionValue += amount * (baseResourceValues[resource] || 1);
+    }
+
+    // 市場評估只看基礎報酬，但總報酬價值包含佣金（用於返回資訊）
+    const totalRewardValue = baseRewardValue + commissionValue;
+
+    // 計算價格合理性比率（基於基礎報酬）
+    const fairnessRatio = baseRewardValue / Math.max(targetResourceValue, 1);
+
+    let factor = 0;
+    let evaluation = '';
+
+    if (fairnessRatio >= 1.5) {
+      factor = 0.3;  // 報酬豐厚，大幅提升接受率
+      evaluation = 'generous';
+    } else if (fairnessRatio >= 1.2) {
+      factor = 0.15; // 報酬合理偏高，提升接受率
+      evaluation = 'fair_plus';
+    } else if (fairnessRatio >= 0.8) {
+      factor = 0;    // 報酬合理，不影響接受率
+      evaluation = 'fair';
+    } else if (fairnessRatio >= 0.6) {
+      factor = -0.1; // 報酬偏低，降低接受率
+      evaluation = 'underpaid';
+    } else {
+      factor = -0.25; // 報酬過低，大幅降低接受率
+      evaluation = 'exploitative';
+    }
+
+    return {
+      factor,
+      evaluation,
+      fairnessRatio,
+      targetValue: targetResourceValue,
+      rewardValue: baseRewardValue,  // 只返回基礎報酬價值
+      commissionValue: commissionValue,  // 額外提供佣金價值資訊
+      totalRewardValue: totalRewardValue  // 總報酬價值（供其他用途）
+    };
+  }
+
   // ==========================================
   // 私有輔助方法
   // ==========================================
@@ -366,6 +465,11 @@ export class CommissionHandler {
     const tenant = this.tenantManager.getTenant(tenantId);
     if (!tenant) {
       return { available: false, reason: '租客不存在' };
+    }
+
+    // 檢查是否受傷
+    if (tenant.injured) {
+      return { available: false, reason: '租客受傷中，無法執行探索任務' };
     }
 
     // 檢查是否已有活躍委託
@@ -413,15 +517,54 @@ export class CommissionHandler {
   }
 
   /**
-   * 生成拒絕原因
+   * 生成接受/拒絕考量因素描述
    * @param {number} probability - 接受機率
    * @param {number} resourceUrgency - 資源急迫性
    * @param {number} relationship - 關係度
-   * @returns {string} 拒絕原因
+   * @param {Object} marketEvaluation - 市場評估結果
+   * @returns {string} 考量因素描述
    * @private
    */
-  _generateRefusalReason(probability, resourceUrgency, relationship) {
-    if (probability < 0.2) {
+  _generateRefusalReason(probability, resourceUrgency, relationship, marketEvaluation) {
+    // 高接受機率時提供積極反饋
+    if (probability >= 0.8) {
+      if (marketEvaluation && marketEvaluation.evaluation === 'generous') {
+        return '報酬豐厚，非常樂意接受！';
+      } else if (resourceUrgency > 0.6) {
+        return '急需資源，很願意出探索';
+      } else if (relationship > 0.7) {
+        return '信任房東，樂意協助';
+      } else {
+        return '條件合理，願意接受委託';
+      }
+    }
+    
+    // 中等接受機率時分析主要因素
+    if (probability >= 0.6) {
+      if (marketEvaluation && marketEvaluation.evaluation === 'fair_plus') {
+        return '報酬不錯，考慮接受';
+      } else if (resourceUrgency > 0.4) {
+        return '有些資源需求，可以考慮';
+      } else {
+        return '條件還可以，會認真考慮';
+      }
+    }
+    
+    // 低接受機率時說明拒絕原因 - 優先考慮市場評估
+    if (marketEvaluation && marketEvaluation.evaluation === 'exploitative') {
+      return '這個報酬太低了，根本不符合市場行情';
+    } else if (marketEvaluation && marketEvaluation.evaluation === 'underpaid') {
+      return '報酬有點低，不太划算';
+    } else if (marketEvaluation && marketEvaluation.evaluation === 'generous') {
+      // 如果報酬豐厚但機率仍低，說明其他因素影響較大
+      if (relationship < 0.3) {
+        return '雖然報酬豐厚，但對房東信任不足';
+      } else if (probability < 0.2) {
+        return '報酬雖好，但風險太高不敢參與';
+      } else {
+        return '報酬很好，但現在不太想出門';
+      }
+    } else if (probability < 0.2) {
       return '風險太高，不願參與';
     } else if (probability < 0.4) {
       return '報酬不夠吸引人';

@@ -308,7 +308,7 @@ export default class UICore {
       if (this.gameApp.tradeManager?.collectRent) {
         const result = await this.gameApp.tradeManager.collectRent(); // 正確方法名 + await
         if (result.success) {
-          this.gameApp.gameState?.addLog(result.summary, 'rent');
+          systemLogger.info(result.summary);
         } else {
           this.gameApp.gameState?.addLog(result.error || '收租失敗', 'danger');
         }
@@ -890,6 +890,17 @@ export default class UICore {
     const form = document.getElementById('commissionForm');
     if (form) {
       form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (this.commissionModal) {
+          this.commissionModal.handleCommissionFormSubmit(e);
+        }
+      });
+    }
+
+    // 提交按鈕點擊事件（因為按鈕不是type="submit"）
+    const submitBtn = document.getElementById('submitCommission');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (this.commissionModal) {
           this.commissionModal.handleCommissionFormSubmit(e);

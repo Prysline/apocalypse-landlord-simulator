@@ -176,6 +176,21 @@ export class TenantManager extends BaseManager {
       this.addLog(`額外獎勵分配完成: ${participants.length} 人各得 ${resourceType} x${amountPerPerson}`);
     }, { skipPrefix: true });
 
+    // 監聽基礎報酬分配事件
+    this.onEvent('exploration_base_payment_distribution', (eventObj) => {
+      const { participants, payments, reason } = eventObj.data;
+
+      participants.forEach(tenantId => {
+        for (const [resourceType, amount] of Object.entries(payments)) {
+          if (amount > 0) {
+            this.modifyPersonalResource(tenantId, resourceType, amount, reason);
+          }
+        }
+      });
+
+      this.addLog(`基礎報酬分配完成: ${participants.length} 人獲得委託基礎報酬`);
+    }, { skipPrefix: true });
+
     // 監聽佣金分配事件
     this.onEvent('exploration_commission_payment', (eventObj) => {
       const { participants, payments, reason } = eventObj.data;
@@ -198,8 +213,73 @@ export class TenantManager extends BaseManager {
       this.addLog(`租客 ${tenantId} 在 ${explorationType} 探索中受傷`);
     }, { skipPrefix: true });
 
+    // 監聽探索開始事件，設置租客狀態
+    this.onEvent('exploration_started', (eventObj) => {
+      const { participants, type } = eventObj.data;
+      
+      participants.forEach(participantId => {
+        const tenant = this.getTenant(participantId);
+        if (tenant) {
+          tenant.onMission = true;
+          tenant.missionType = type;
+          
+          // 通知UI更新
+          this.emitEvent('tenant_status_changed', {
+            tenantId: participantId,
+            statusType: 'onMission',
+            newValue: true
+          });
+        }
+      });
+      
+      this.addLog(`租客開始${type === 'commission' ? '委託' : '自主'}探索任務`);
+    }, { skipPrefix: true });
+
+    // 監聽探索完成事件，重置租客狀態
+    this.onEvent('exploration_completed', (eventObj) => {
+      const { type, result } = eventObj.data;
+      
+      if (result?.participants) {
+        result.participants.forEach(participantResult => {
+          const tenant = this.getTenant(participantResult.tenantId);
+          if (tenant) {
+            tenant.onMission = false;
+            tenant.missionType = null;
+            
+            // 通知UI更新
+            this.emitEvent('tenant_status_changed', {
+              tenantId: participantResult.tenantId,
+              statusType: 'onMission',
+              newValue: false
+            });
+          }
+        });
+      }
+      
+      this.addLog(`${type === 'commission' ? '委託' : '自主'}探索任務完成`);
+    }, { skipPrefix: true });
+
+    // 監聽參與者受傷事件（新的事件處理）
+    this.onEvent('participant_injured', (eventObj) => {
+      const { tenantId, tenantName, explorationType } = eventObj.data;
+      
+      // 設置租客的受傷狀態
+      const tenant = this.getTenant(tenantId);
+      if (tenant) {
+        tenant.injured = true;
+        this.addLog(`${tenantName} 在${explorationType === 'commission' ? '委託' : '自主'}探索中受傷 🩹`);
+        
+        // 通知UI更新
+        this.emitEvent('tenant_status_changed', {
+          tenantId: tenantId,
+          statusType: 'injured',
+          newValue: true
+        });
+      }
+    }, { skipPrefix: true });
+
     // 監聽關係度變化事件
-    this.onEvent('exploration_relationship_change', (eventObj) => {
+    this.onEvent('relationship_change', (eventObj) => {
       const { tenantId, change, reason } = eventObj.data;
 
       if (this.satisfactionManager) {
@@ -222,6 +302,7 @@ export class TenantManager extends BaseManager {
 
     await this.loadConfigurations();
     this.initializeSatisfactionManager();
+    this.initializeRelationshipManager();
     this.initializeTenantData();
     this.setupEventListeners();
 
@@ -266,6 +347,21 @@ export class TenantManager extends BaseManager {
     // 初始化滿意度管理器
     this.satisfactionManager.initialize();
     systemLogger.success("😊 滿意度管理器初始化完成");
+  }
+
+  initializeRelationshipManager() {
+    const gameRules = this.dataManager.getGameRules();
+    const relationshipConfig = gameRules.gameBalance?.relationships || {};
+
+    this.relationshipManager = new RelationshipManager(
+      this.gameState,
+      this.eventBus,
+      relationshipConfig
+    );
+
+    // 初始化關係管理器
+    this.relationshipManager.initialize();
+    systemLogger.success("🤝 關係管理器初始化完成");
   }
 
   initializeTenantData() {
@@ -424,6 +520,7 @@ export class TenantManager extends BaseManager {
       skill: applicant.skill,
       rent: applicant.rent,
       infected: applicant.infected || false,
+      injured: applicant.injured || false,
       onMission: false,
       personalResources: { ...applicant.personalResources },
       appearance: applicant.appearance,
@@ -632,6 +729,7 @@ export class TenantManager extends BaseManager {
       skill: tenantType.skill,
       rent: tenantType.rent,
       infected: Math.random() < tenantType.infectionRisk,
+      injured: false,
       revealedInfection: false,
       appearance: "",
       infectionRisk: tenantType.infectionRisk,

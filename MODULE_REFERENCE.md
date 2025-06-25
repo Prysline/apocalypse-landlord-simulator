@@ -1147,6 +1147,18 @@ getExplorationStats()
  * @returns {TradeStats} 交易統計資料
  */
 getTradeStats()
+
+/**
+ * 除錯：檢查探索系統狀態（透過ExplorationManager）
+ * @returns {Object} 探索系統狀態報告
+ */
+debugExplorationSystem()
+
+/**
+ * 除錯：手動觸發探索完成檢查（透過ExplorationManager）
+ * @returns {Promise<Array>} 完成的探索列表
+ */
+async manualCheckExplorations()
 ```
 
 #### 委託請求類型

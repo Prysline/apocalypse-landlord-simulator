@@ -43,10 +43,6 @@
           <span class="status-label">🍽️ 飢餓:</span>
           <span id="landlordHungerText" class="status-value">飽足(0)</span>
         </div>
-        <div class="status-item">
-          <span class="status-label">🔍 搜刮:</span>
-          <span id="scavengeCount" class="status-value">0/2</span>
-        </div>
       </div>
 
       <!-- 房屋佈局 -->
@@ -208,8 +204,8 @@
       <!-- 頁籤導航 -->
       <div class="commission-tabs">
         <button class="tab-btn active" data-tab="newCommission">發起委託</button>
-        <button class="tab-btn" data-tab="activeCommissions">活躍委託(<span id="activeCommissionsCount">0</span>)</button>
-        <button class="tab-btn" data-tab="commissionHistory">歷史記錄(<span id="commissionHistoryCount">0</span>)</button>
+        <button class="tab-btn" data-tab="activeCommissions">進行中委託</button>
+        <button class="tab-btn" data-tab="commissionHistory">歷史記錄</button>
         <button class="tab-btn" data-tab="commissionStats">統計資訊</button>
       </div>
 
@@ -217,20 +213,48 @@
       <div class="tab-content active" id="newCommissionTab">
         <form class="commission-form" id="commissionForm">
           <!-- 目標資源選擇 -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="targetResource">目標資源</label>
-              <select id="targetResource" required>
-                <option value="food">🍞 食物</option>
-                <option value="materials">🔧 材料</option>
-                <option value="medical">💊 醫療用品</option>
-                <option value="fuel">⛽ 燃料</option>
-              </select>
+          <div class="form-row target-resource-row">
+            <div class="target-selection-section">
+              <div class="form-group">
+                <label for="targetResource">目標資源</label>
+                <select id="targetResource" required>
+                  <option value="food">🍞 食物</option>
+                  <option value="materials">🔧 材料</option>
+                  <option value="medical">💊 醫療用品</option>
+                  <option value="fuel">⛽ 燃料</option>
+                </select>
+              </div>
+              <!-- 目標數量 -->
+              <div class="form-group">
+                <label for="targetAmount">目標數量</label>
+                <input type="number" id="targetAmount" min="1" max="50" value="10" required>
+              </div>
             </div>
-            <!-- 目標數量 -->
-            <div class="form-group">
-              <label for="targetAmount">目標數量</label>
-              <input type="number" id="targetAmount" min="1" max="50" value="10" required>
+
+            <!-- 市場價格評估區域 -->
+            <div class="market-evaluation-section">
+              <div class="market-evaluation" id="marketEvaluation" style="display: none;">
+                <div class="evaluation-header">
+                  <span class="evaluation-label">💰 市場價格評估</span>
+                </div>
+                <div class="evaluation-content">
+                  <div class="evaluation-item">
+                    <span class="eval-label">目標價值:</span>
+                    <span class="eval-value" id="targetValue">-</span>
+                  </div>
+                  <div class="evaluation-item">
+                    <span class="eval-label">報酬價值:</span>
+                    <span class="eval-value" id="rewardValue">-</span>
+                  </div>
+                  <div class="evaluation-item">
+                    <span class="eval-label">價格比例:</span>
+                    <span class="eval-ratio" id="fairnessRatio">-</span>
+                  </div>
+                  <div class="evaluation-status" id="evaluationStatus">
+                    <span class="status-text" id="evaluationText">請設定委託條件</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -328,7 +352,7 @@
 
       <!-- 表單操作 -->
       <div class="form-actions tab-actions active" id="newCommissionAction">
-        <button type="button" class="btn" onclick="uiCore.modal.resetCommissionForm()">重置</button>
+        <button type="button" class="btn" onclick="uiCore.commissionModal._resetCommissionForm()">重置</button>
         <button class="btn btn-primary" id="submitCommission">發送委託邀約</button>
         <button type="button" class="btn" onclick="uiCore?.closeModal('commissionModal')">關閉</button>
       </div>

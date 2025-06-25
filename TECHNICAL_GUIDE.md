@@ -118,6 +118,70 @@ BaseManager提供業務模組的統一基礎架構，標準化模組生命週期
 ### 職責邊界劃分
 每個業務模組維持單一職責，職責邊界清晰且不重疊。明確的職責劃分降低模組間的耦合度，提高程式碼的可理解性和維護效率。
 
+### 狀態約束機制
+業務模組實現多重狀態約束檢查，確保遊戲邏輯的一致性：
+- 受傷狀態約束：受傷租客無法參與探索委託
+- 任務狀態約束：執行中租客無法接受新委託  
+- 狀態優先級：受傷 > 任務中 > 可用
+
+## 異步業務流程架構
+
+### 探索系統異步化設計理念
+ExplorationManager實現從同步執行到異步多日處理的架構轉換，支援真實時間流逝的探索機制。此設計將即時完成的探索改為跨日期的持續活動，提升遊戲沉浸感和策略性。
+
+### 異步狀態管理機制
+```javascript
+// 進行中探索的狀態追蹤
+ongoingExplorations: Map<requestId, explorationState>
+
+// 關鍵狀態屬性
+{
+  startDay: number,           // 開始日期
+  completionDay: number,      // 預計完成日期
+  explorationDays: number,    // 總探索天數
+  predeterminedSuccess: boolean, // 預計算結果
+  currentDay: number,         // 目前探索進行天數
+  participantStatus: Array    // 參與者狀態追蹤
+}
+```
+
+### 探索天數計算策略
+基於資源類型、目標數量和參與者規模的動態天數計算：
+- 基礎天數：最少1天（當天出發，次日返回）
+- 資源難度係數：food(0.2) < fuel(0.3) < materials(0.4) < medical(0.6)
+- 組隊最佳化：多人探索減少20%時間
+- 上限約束：最多7天探索期
+
+### 每日檢查機制
+DayManager的`day_start`事件觸發ExplorationManager的每日檢查流程：
+1. 遍歷所有進行中探索
+2. 檢查完成條件（當前日期 >= 完成日期）
+3. 執行探索結果計算和資源分配
+4. 更新參與者狀態並發送完成事件
+
+## 智能市場評估系統
+
+### 價格合理性評估原理
+CommissionHandler實現基於市場基準價格的委託合理性評估機制，通過五級評估體系（generous/fair_plus/fair/underpaid/exploitative）量化報酬公平性。
+
+### 評估影響因子設計
+```javascript
+marketFairnessWeight: 0.25  // 基礎影響權重
+
+// 極端情況權重加強機制
+if (evaluation === 'generous') {
+  marketWeight *= 2.0;      // 報酬豐厚時大幅提升接受率
+} else if (evaluation === 'exploitative') {
+  marketWeight *= 2.5;      // 報酬過低時大幅降低接受率
+}
+```
+
+### 價格比率計算機制
+- 目標資源市場價值：`targetAmount × baseResourceValues[resourceType]`
+- 基礎報酬價值：排除佣金的純報酬價值計算
+- 合理性比率：`baseRewardValue / targetResourceValue`
+- 分級閾值：≥1.5(generous), ≥1.2(fair_plus), ≥0.8(fair), ≥0.6(underpaid), <0.6(exploitative)
+
 ## UI系統架構
 
 ### 三層分離設計理念
@@ -242,6 +306,14 @@ MODULE_PREFIXES: ["resource_", "tenant_", "trade_", "skill_", "exploration_"]
 2. 檢查業務領域前綴 → 跨模組事件，保持原名
 3. 檢查模組前綴存在 → 避免重複添加前綴
 4. 其他情況 → 自動添加模組專屬前綴
+
+### 系統級事件統一規範
+DayManager統一使用`day_`前綴的系統級事件，取代原先的`cycle_`命名模式：
+- `day_start` - 每日開始事件，觸發跨模組的日間檢查流程
+- `day_complete` - 每日完成事件，標示日間處理的結束
+- `day_failed` - 每日失敗事件，處理異常情況的回復機制
+
+此統一規範確保事件命名的一致性，避免前綴解析衝突，提供清晰的事件語義。
 
 ### 事件除錯支援
 BaseManager提供結構化事件除錯機制，透過SystemLogger的分組功能實現階層化的事件分析輸出，便於開發階段的問題診斷和效能最佳化。

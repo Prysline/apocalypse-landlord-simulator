@@ -87,6 +87,13 @@ export default class CommissionModal extends BaseModal {
     event.preventDefault();
 
     return await this._safeExecute(async () => {
+      // 先檢查是否選擇了租客
+      const selectedTenant = document.querySelector('.tenant-card.selected');
+      if (!selectedTenant) {
+        this._showCommissionError('請先選擇要委託的租客');
+        return;
+      }
+
       const formData = this._getCommissionFormData();
       if (!formData) {
         this._showCommissionError('請填寫所有必要欄位');
@@ -151,6 +158,13 @@ export default class CommissionModal extends BaseModal {
     // 初始化表單
     this._resetCommissionForm();
 
+    // 清空並隱藏訊息容器
+    const messagesContainer = document.getElementById('formMessages');
+    if (messagesContainer) {
+      messagesContainer.innerHTML = '';
+      messagesContainer.style.display = 'none';
+    }
+
     // 生成租客選擇區域
     const tenantGrid = this._generateTenantSelectionGrid();
     this._updateElement('tenantSelection', tenantGrid);
@@ -160,6 +174,17 @@ export default class CommissionModal extends BaseModal {
     this._updateElement('activeCommissionsList', loadingHTML);
     this._updateElement('commissionHistoryList', loadingHTML);
     this._updateElement('commissionStatsGrid', loadingHTML);
+  }
+
+  /**
+   * 刷新租客選擇區域
+   * @private
+   */
+  _refreshTenantSelectionGrid() {
+    const tenantGrid = this._generateTenantSelectionGrid();
+    this._updateElement('tenantSelection', tenantGrid);
+    
+    // 由於使用內聯 onclick 事件，HTML 重新生成時事件會自動重新綁定
   }
 
   /**
@@ -199,12 +224,25 @@ export default class CommissionModal extends BaseModal {
       const typeIcon = this._getIcon(tenant.type, 'tenantHuman');
       const satisfactionEmoji = getSatisfactionEmoji(satisfaction)
       const riskTolerance = getTenantRiskTolerance(tenant.type);
+      const isInjured = tenant.injured || false;
+      const isOnMission = tenant.onMission || false;
+      const isDisabled = isInjured || isOnMission;
+
+      // 狀態指示器
+      let statusIndicator = '';
+      if (isInjured) {
+        statusIndicator = '<span class="status-indicator injured">🩹 受傷</span>';
+      } else if (isOnMission) {
+        const missionType = tenant.missionType === 'commission' ? '委託' : '探索';
+        statusIndicator = `<span class="status-indicator on-mission">🚩 ${missionType}中</span>`;
+      }
 
       return `
-        <div class="tenant-card" data-tenant-id="${tenant.id}"
-        onclick="uiCore.handleTenantSelection('${tenant.id}')">
+        <div class="tenant-card ${isDisabled ? 'disabled' : ''}" data-tenant-id="${tenant.id}"
+        ${isDisabled ? '' : `onclick="uiCore.handleTenantSelection('${tenant.id}')"`}>
           <div class="tenant-header">
             <span class="tenant-name">${typeIcon}${tenant.name}</span>
+            ${statusIndicator}
           </div>
           <div class="tenant-info">
             <div class="tenant-satisfaction">滿意度：${satisfactionEmoji}${satisfaction}</div>
@@ -249,8 +287,11 @@ export default class CommissionModal extends BaseModal {
    * @private
    */
   _populateActiveCommissionsTab(commissions) {
+    const activeCommissionsCount = commissions ? commissions.length : 0;
+
     if (!commissions || commissions.length === 0) {
-      this._updateElement('activeCommissionsList', '目前沒有活躍的委託任務');
+      this._updateElement('activeCommissionsList', '<div class="empty-state">目前沒有活躍的委託任務</div>');
+      this._updateTabCount('activeCommissions', 0);
       return;
     }
 
@@ -259,6 +300,7 @@ export default class CommissionModal extends BaseModal {
     ).join('');
 
     this._updateElement('activeCommissionsList', commissionsHTML);
+    this._updateTabCount('activeCommissions', activeCommissionsCount);
   }
 
   /**
@@ -267,8 +309,11 @@ export default class CommissionModal extends BaseModal {
    * @private
    */
   _populateCommissionHistoryTab(history) {
+    const commissionHistoryCount = history ? history.length : 0;
+
     if (!history || history.length === 0) {
       this._updateElement('commissionHistoryList', '<div class="empty-state">暫無委託歷史記錄</div>');
+      this._updateTabCount('commissionHistory', 0);
       return;
     }
 
@@ -282,6 +327,7 @@ export default class CommissionModal extends BaseModal {
     }).join('');
 
     this._updateElement('commissionHistoryList', historyHTML);
+    this._updateTabCount('commissionHistory', commissionHistoryCount);
   }
 
   /**
@@ -294,23 +340,54 @@ export default class CommissionModal extends BaseModal {
       ? Math.round((stats.successfulCommissions / stats.totalCommissions) * 100)
       : 0;
 
+    const rejectionRate = stats.totalCommissions > 0
+      ? Math.round((stats.rejectedCommissions / stats.totalCommissions) * 100)
+      : 0;
+
     const statsHTML = `
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-value">${stats.activeCommissions || 0}</div>
-          <div class="stat-label">活躍委託</div>
+      <div class="stats-dashboard">
+        <div class="stats-group core-stats">
+          <div class="group-header">
+            <div class="group-icon">📊</div>
+            <div class="group-title">核心統計</div>
+          </div>
+          <div class="stats-list">
+            <div class="stat-item">
+              <span class="stat-label">活躍委託:</span>
+              <span class="stat-value">${stats.activeCommissions || 0}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">總委託數:</span>
+              <span class="stat-value">${stats.totalCommissions || 0}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">成功委託:</span>
+              <span class="stat-value">${stats.successfulCommissions || 0}</span>
+            </div>
+          </div>
         </div>
-        <div class="stat-item">
-          <div class="stat-value">${stats.totalCommissions || 0}</div>
-          <div class="stat-label">總委託數</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">${stats.successfulCommissions || 0}</div>
-          <div class="stat-label">成功委託</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">${successRate}%</div>
-          <div class="stat-label">成功率</div>
+
+        <div class="stats-group performance-stats">
+          <div class="group-header">
+            <div class="group-icon">📈</div>
+            <div class="group-title">表現分析</div>
+          </div>
+          <div class="stats-list">
+            <div class="stat-item">
+              <span class="stat-label">成功率:</span>
+              <span class="stat-value ${successRate >= 70 ? 'success' : successRate >= 50 ? 'warning' : 'danger'}">${successRate}%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">拒絕率:</span>
+              <span class="stat-value ${rejectionRate <= 30 ? 'success' : rejectionRate <= 50 ? 'warning' : 'danger'}">${rejectionRate}%</span>
+            </div>
+            <div class="stat-item overall-performance">
+              <span class="stat-label">整體表現:</span>
+              <span class="stat-value performance-badge ${this._getPerformanceClass(successRate, rejectionRate)}">
+                ${this._getPerformanceText(successRate, rejectionRate)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -331,17 +408,70 @@ export default class CommissionModal extends BaseModal {
     const status = this._getCommissionStatusText(commission.status);
     const resourceIcon = this._getIcon(commission.resourceType, 'resource');
     const resourceName = this._getResourceName(commission.resourceType);
+    
+    // 計算天數資訊
+    let dayInfoHTML = '';
+    if (type === 'active' && commission.explorationDays && commission.expectedCompletionDay) {
+      const currentDay = this.gameApp.gameState?.getStateValue('day', 1) || 1;
+      const startDay = commission.expectedCompletionDay - commission.explorationDays + 1;
+      const daysRemaining = commission.expectedCompletionDay - currentDay;
+      
+      dayInfoHTML = `
+        <div class="day-info">
+          <span class="day-info-item">🗓️ 第 ${startDay} 天出發</span>
+          <span class="day-info-item">⏰ 預計第 ${commission.expectedCompletionDay} 天回來</span>
+          ${daysRemaining > 0 ? `<span class="day-info-item remaining">剩餘 ${daysRemaining} 天</span>` : 
+            daysRemaining === 0 ? `<span class="day-info-item completed">今日完成</span>` :
+            `<span class="day-info-item overdue">已逾期 ${Math.abs(daysRemaining)} 天</span>`}
+        </div>
+      `;
+    } else if (type === 'history' && result?.recordedAt) {
+      const recordedDate = new Date(result.recordedAt);
+      const recordedDay = Math.floor((recordedDate.getTime() - new Date('2023-01-01').getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      dayInfoHTML = `
+        <div class="day-info">
+          <span class="day-info-item">📅 第 ${recordedDay} 天記錄</span>
+        </div>
+      `;
+    }
 
     let resultHTML = '';
     if (result && type === 'history') {
-      resultHTML = `
-        <div class="commission-result">
-          <span class="result-label">結果:</span>
-          <span class="result-value ${result.success ? 'success' : 'failure'}">
-            ${result.success ? '成功' : '失敗'}
-          </span>
-        </div>
-      `;
+      if (result.success) {
+        // 顯示成功結果和實際獲得的資源
+        const obtainedResources = this._formatObtainedResources(result.resourcesObtained);
+        const targetFulfillment = result.contractFulfillment || 0;
+        const targetResource = commission.resourceType;
+        const targetAmount = commission.targetAmount;
+        const fulfillmentRate = Math.round((targetFulfillment / targetAmount) * 100);
+
+        // 檢查是否有退還的報酬
+        const refundHTML = result.refundedPayment ?
+          `<div class="refunded-payment">退還: ${this._formatRefundedPayment(result.refundedPayment)}</div>` : '';
+
+        resultHTML = `
+          <div class="commission-result success">
+            <div class="result-header">
+              <span class="result-label">✅ 探索成功</span>
+              <span class="fulfillment-rate">${fulfillmentRate}% 完成度</span>
+            </div>
+            <div class="result-details">
+              <div class="target-completion">
+                目標: ${this._getIcon(targetResource, 'resource')} ${targetFulfillment}/${targetAmount} ${this._getResourceName(targetResource)}
+              </div>
+              ${obtainedResources ? `<div class="obtained-resources">獲得: ${obtainedResources}</div>` : ''}
+              ${refundHTML}
+            </div>
+          </div>
+        `;
+      } else {
+        resultHTML = `
+          <div class="commission-result failure">
+            <span class="result-label">❌ 探索失敗</span>
+            <span class="result-details">未能獲得任何資源</span>
+          </div>
+        `;
+      }
     }
 
     return `
@@ -353,6 +483,7 @@ export default class CommissionModal extends BaseModal {
           <div class="commission-status ${status.class}">${status.text}</div>
         </div>
         <div class="commission-details">
+          ${dayInfoHTML}
           <div class="commission-rewards">
             <div class="reward-item">
               <span class="reward-label">基礎報酬:</span>
@@ -383,13 +514,15 @@ export default class CommissionModal extends BaseModal {
     /** @type {HTMLFormElement} */(form).reset();
 
     // 重置租客選擇
-    document.querySelectorAll('.tenant-select-card').forEach(card => {
+    document.querySelectorAll('.tenant-card').forEach(card => {
       card.classList.remove('selected');
     });
 
     // 隱藏預覽
     const preview = document.getElementById('commissionPreview');
+    const formMessages = document.getElementById('formMessages');
     if (preview) preview.style.display = 'none';
+    if (formMessages) formMessages.style.display = 'none';
 
     // 清空訊息
     this._updateElement('formMessages', '');
@@ -448,7 +581,7 @@ export default class CommissionModal extends BaseModal {
     }
 
     if (!formData.selectedTenant) {
-      errors.push({ field: 'tenant', message: '請選擇租客' });
+      errors.push({ field: 'tenant', message: '請先選擇要委託的租客' });
     }
 
     if (!formData.targetResource) {
@@ -478,6 +611,10 @@ export default class CommissionModal extends BaseModal {
    */
   _updateCommissionPreview() {
     const formData = this._getCommissionFormData();
+
+    // 總是更新市場評估，無論是否選擇了租客
+    this._updateMarketEvaluation(formData);
+
     if (!formData || !formData.selectedTenant) {
       // 隱藏預覽
       const preview = document.getElementById('commissionPreview');
@@ -511,6 +648,11 @@ export default class CommissionModal extends BaseModal {
     const businessResults = this._delegateToTradeManager(formData, tenant);
     if (!businessResults) return null;
 
+    // 計算探索天數（調用 ExplorationManager 的方法）
+    const explorationDays = this._calculateExplorationDays(formData, businessResults.possiblePartner);
+    const currentDay = this.gameApp.gameState?.getStateValue('day') || 1;
+    const expectedCompletionDay = currentDay + explorationDays;
+
     // 返回格式化的預覽資料
     return {
       tenant: {
@@ -522,18 +664,55 @@ export default class CommissionModal extends BaseModal {
       targetResource: formData.targetResource,
       targetAmount: formData.targetAmount,
       acceptanceProbability: Math.round(businessResults.acceptanceProbability * 100),
+      refusalReason: businessResults.refusalReason,
       possiblePartner: businessResults.possiblePartner ? {
         id: businessResults.possiblePartner.id,
         name: businessResults.possiblePartner.name,
         type: businessResults.possiblePartner.type,
         typeName: businessResults.possiblePartner.typeName || businessResults.possiblePartner.type
       } : null,
+      explorationDays: explorationDays,
+      expectedCompletionDay: expectedCompletionDay,
       resourceIcon: this._getIcon(formData.targetResource, 'resource'),
       resourceName: this._getResourceName(formData.targetResource),
       tenantIcon: this._getIcon(tenant.type, 'tenantHuman'),
       partnerIcon: businessResults.possiblePartner ? this._getIcon(businessResults.possiblePartner.type, 'tenantHuman') : null,
       probabilityClass: this._getProbabilityClass(Math.round(businessResults.acceptanceProbability * 100))
     };
+  }
+
+  /**
+   * 計算探索天數（調用 ExplorationManager）
+   * @param {Object} formData - 表單資料
+   * @param {Object|null} possiblePartner - 可能的組隊夥伴
+   * @returns {number} 探索天數
+   * @private
+   */
+  _calculateExplorationDays(formData, possiblePartner) {
+    const explorationManager = this.gameApp.tradeManager?.explorationManager;
+    if (!explorationManager) {
+      // 如果 ExplorationManager 不可用，使用預設值
+      return 1;
+    }
+
+    // 構建探索請求物件
+    const participants = [{ id: 'temp' }]; // 臨時參與者
+    if (possiblePartner) {
+      participants.push({ id: 'temp_partner' });
+    }
+
+    const explorationRequest = {
+      resourceType: formData.targetResource,
+      targetAmount: formData.targetAmount,
+      participants: participants
+    };
+
+    try {
+      return explorationManager.calculateExplorationDays(explorationRequest);
+    } catch (error) {
+      systemLogger.error('計算探索天數失敗:', error);
+      return 1; // 預設值
+    }
   }
 
   /**
@@ -583,6 +762,8 @@ export default class CommissionModal extends BaseModal {
 
       return {
         acceptanceProbability: acceptance.probability,
+        marketEvaluation: acceptance.marketEvaluation,
+        refusalReason: acceptance.refusalReason,
         possiblePartner
       };
 
@@ -610,7 +791,18 @@ export default class CommissionModal extends BaseModal {
       const result = await this.gameApp.tradeManager.offerCommission(request);
 
       if (result.success) {
-        this._showCommissionSuccess('委託邀約已發送！租客已接受任務。');
+        // 處理新的探索啟動結果
+        if (result.explorationDays && result.expectedCompletionDay) {
+          this._showCommissionSuccess(
+            `委託邀約已發送！租客已接受任務並出發探索，預計 ${result.explorationDays} 天後返回（第 ${result.expectedCompletionDay} 天）。`
+          );
+        } else {
+          this._showCommissionSuccess('委託邀約已發送！租客已接受任務。');
+        }
+        
+        // 立即刷新租客選擇區域以反映租客狀態變化
+        this._refreshTenantSelectionGrid();
+        
         this._resetCommissionForm();
 
         // 切換到活躍委託頁籤
@@ -630,7 +822,213 @@ export default class CommissionModal extends BaseModal {
     }
   }
 
+  /**
+   * 更新市場價格評估顯示
+   * @param {Object|null} formData - 表單資料
+   * @private
+   */
+  _updateMarketEvaluation(formData) {
+    const evaluationDiv = document.getElementById('marketEvaluation');
+    if (!evaluationDiv) return;
+
+    // 取得基本的表單資料來判斷是否顯示評估
+    const targetResource = /** @type {HTMLInputElement}*/(document.getElementById('targetResource'))?.value;
+    const targetAmount = /** @type {HTMLInputElement}*/(document.getElementById('targetAmount'))?.value;
+
+    // 如果沒有基本的目標資訊，隱藏評估
+    if (!targetResource || !targetAmount || parseInt(targetAmount) <= 0) {
+      evaluationDiv.style.display = 'none';
+      return;
+    }
+
+    // 顯示評估區域
+    evaluationDiv.style.display = 'block';
+
+    // 構建評估用的資料（不需要選擇租客）
+    const evaluationData = {
+      targetResource,
+      targetAmount: parseInt(targetAmount),
+      basePayment: this._getFormPayment('basePayment'),
+      commission: this._getFormPayment('commission')
+    };
+
+    // 計算市場評估
+    const marketEval = this._calculateMarketEvaluation(evaluationData);
+
+    // 更新顯示內容
+    this._displayMarketEvaluation(marketEval);
+  }
+
+  /**
+   * 計算市場評估資料
+   * @param {Object} formData - 表單資料
+   * @returns {Object} 市場評估結果
+   * @private
+   */
+  _calculateMarketEvaluation(formData) {
+    // 直接調用 CommissionHandler 的市場評估邏輯
+    const tradeManager = this.gameApp.tradeManager;
+    if (!tradeManager?.commissionHandler) {
+      return this._getDefaultMarketEvaluation();
+    }
+
+    try {
+      // 構建臨時委託邀約用於評估
+      const temporaryOffer = {
+        resourceType: formData.targetResource,
+        targetAmount: parseInt(formData.targetAmount),
+        basePayment: this._normalizePayment(formData.basePayment),
+        commission: this._normalizePayment(formData.commission)
+      };
+
+      // 調用 CommissionHandler 的市場評估方法
+      const marketEval = tradeManager.commissionHandler._evaluateMarketFairness(temporaryOffer);
+
+      return {
+        ...marketEval,
+        resourceName: this._getResourceName(formData.targetResource)
+      };
+
+    } catch (error) {
+      systemLogger.error('市場評估計算失敗:', error);
+      return this._getDefaultMarketEvaluation();
+    }
+  }
+
+  /**
+   * 顯示市場評估結果
+   * @param {Object} marketEval - 市場評估資料
+   * @private
+   */
+  _displayMarketEvaluation(marketEval) {
+    // 更新數值顯示
+    this._updateElement('targetValue', `${marketEval.targetValue.toFixed(1)} 💰`);
+    this._updateElement('rewardValue', `${marketEval.rewardValue.toFixed(1)} 💰`);
+
+    // 更新價格比例
+    const ratioElement = document.getElementById('fairnessRatio');
+    if (ratioElement) {
+      ratioElement.textContent = `${marketEval.fairnessRatio.toFixed(2)}x`;
+      ratioElement.className = `eval-ratio ${marketEval.evaluation}`;
+    }
+
+    // 更新評估狀態文字
+    const statusElement = document.getElementById('evaluationText');
+    if (statusElement) {
+      const statusText = this._getEvaluationStatusText(marketEval.evaluation);
+      statusElement.textContent = statusText;
+      statusElement.className = `status-text ${marketEval.evaluation}`;
+    }
+  }
+
+  /**
+   * 獲取預設市場評估
+   * @returns {Object} 預設評估結果
+   * @private
+   */
+  _getDefaultMarketEvaluation() {
+    return {
+      factor: 0,
+      evaluation: 'neutral',
+      fairnessRatio: 0,
+      targetValue: 0,
+      rewardValue: 0,
+      resourceName: '未知'
+    };
+  }
+
+  /**
+   * 獲取評估狀態文字
+   * @param {string} evaluation - 評估等級
+   * @returns {string} 狀態文字
+   * @private
+   */
+  _getEvaluationStatusText(evaluation) {
+    const statusTexts = {
+      generous: '💰 報酬豐厚！',
+      fair_plus: '✅ 報酬合理偏高',
+      fair: '⚖️ 報酬公平合理',
+      underpaid: '⚠️ 報酬偏低',
+      exploitative: '❌ 報酬過低！',
+      neutral: '請設定委託條件'
+    };
+
+    return statusTexts[evaluation] || '未知狀態';
+  }
+
+  /**
+   * 從表單獲取支付資料
+   * @param {string} paymentType - 支付類型 ('basePayment' 或 'commission')
+   * @returns {Object} 支付物件
+   * @private
+   */
+  _getFormPayment(paymentType) {
+    const payment = {};
+    const resources = ['cash', 'food', 'materials', 'medical', 'fuel'];
+
+    resources.forEach(resource => {
+      const elementId = `${paymentType}${resource.charAt(0).toUpperCase() + resource.slice(1)}`;
+      const element = document.getElementById(elementId);
+      payment[resource] = parseInt(/** @type {HTMLInputElement}*/(element)?.value || '0') || 0;
+    });
+
+    return payment;
+  }
+
   // =================== 輔助方法 ===================
+
+  /**
+   * 更新頁籤計數顯示
+   * @param {string} tabName - 頁籤名稱
+   * @param {number} count - 計數
+   * @private
+   */
+  _updateTabCount(tabName, count) {
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+    if (!tabButton) return;
+
+    // 移除現有的計數標記
+    const existingBadge = tabButton.querySelector('.tab-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+
+    // 只在計數大於0時顯示標記
+    if (count > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      badge.textContent = `(${count.toString()})`;
+      tabButton.appendChild(badge);
+    }
+  }
+
+  /**
+   * 獲取整體表現等級的 CSS 類別
+   * @param {number} successRate - 成功率
+   * @param {number} rejectionRate - 拒絕率
+   * @returns {string} CSS 類別名稱
+   * @private
+   */
+  _getPerformanceClass(successRate, rejectionRate) {
+    if (successRate >= 80 && rejectionRate <= 20) return 'excellent';
+    if (successRate >= 60 && rejectionRate <= 40) return 'good';
+    if (successRate >= 40 && rejectionRate <= 60) return 'average';
+    return 'poor';
+  }
+
+  /**
+   * 獲取整體表現文字描述
+   * @param {number} successRate - 成功率
+   * @param {number} rejectionRate - 拒絕率
+   * @returns {string} 表現描述
+   * @private
+   */
+  _getPerformanceText(successRate, rejectionRate) {
+    if (successRate >= 80 && rejectionRate <= 20) return '優秀 🌟';
+    if (successRate >= 60 && rejectionRate <= 40) return '良好 👍';
+    if (successRate >= 40 && rejectionRate <= 60) return '普通 😐';
+    return '需要改進 📉';
+  }
 
   /**
    * 顯示委託預覽
@@ -641,6 +1039,9 @@ export default class CommissionModal extends BaseModal {
     const preview = document.getElementById('commissionPreview');
     if (!preview) return;
 
+    // 總是顯示拒絕原因（如果有的話），讓玩家了解潛在問題
+    const showRefusalReason = previewData.refusalReason && previewData.refusalReason.trim() !== '';
+
     const previewHTML = `
       <div class="preview-item">
         <strong>目標：</strong> ${previewData.resourceIcon}獲取 ${previewData.targetAmount} 單位${previewData.resourceName}
@@ -649,13 +1050,22 @@ export default class CommissionModal extends BaseModal {
         <strong>委託對象：</strong> ${previewData.tenantIcon}${previewData.tenant.name} (${previewData.tenant.typeName})
       </div>
       <div class="preview-item">
+        <strong>探索天數：</strong> ${previewData.explorationDays} 天 (第 ${previewData.expectedCompletionDay} 天完成)
+      </div>
+      <div class="preview-item">
         <strong>預估接受機率：</strong>
         <span class="probability ${previewData.probabilityClass}">
           ${previewData.acceptanceProbability}%
         </span>
+      </div>
+      ${showRefusalReason ? `
+        <div class="preview-item ${previewData.acceptanceProbability < 60 ? 'warning' : 'info'}">
+          <strong>${previewData.acceptanceProbability < 60 ? '⚠️ 可能拒絕原因' : 'ℹ️ 接受考量因素'}：</strong> ${previewData.refusalReason}
+        </div>
+      ` : ''}
       ${previewData.possiblePartner ? `
-        <div class="mission-partner">
-          組隊夥伴：${previewData.partnerIcon} ${previewData.possiblePartner.name} (${previewData.possiblePartner.typeName})
+        <div class="preview-item">
+          <strong>組隊夥伴：</strong> ${previewData.partnerIcon} ${previewData.possiblePartner.name} (${previewData.possiblePartner.typeName})
         </div>
       ` : ''}
     `;
@@ -710,6 +1120,7 @@ export default class CommissionModal extends BaseModal {
     const statusMap = {
       offered: { text: '邀約中', class: 'status-pending' },
       accepted: { text: '已接受', class: 'status-active' },
+      ongoing: { text: '探索中', class: 'status-exploring' },
       rejected: { text: '已拒絕', class: 'status-rejected' },
       exploring: { text: '探索中', class: 'status-exploring' },
       completed: { text: '已完成', class: 'status-success' },
@@ -731,6 +1142,48 @@ export default class CommissionModal extends BaseModal {
       normalized[key] = parseInt(value) || 0;
     }
     return normalized;
+  }
+
+  /**
+   * 格式化獲得的資源列表
+   * @param {Object} resourcesObtained - 獲得的資源物件
+   * @returns {string} 格式化的資源文字
+   * @private
+   */
+  _formatObtainedResources(resourcesObtained) {
+    if (!resourcesObtained) return '';
+
+    const items = [];
+    for (const [resource, amount] of Object.entries(resourcesObtained)) {
+      if (amount > 0) {
+        const icon = this._getIcon(resource, 'resource');
+        const name = this._getResourceName(resource);
+        items.push(`${icon} ${name} x${amount}`);
+      }
+    }
+
+    return items.length > 0 ? items.join(', ') : '';
+  }
+
+  /**
+   * 格式化退還的報酬列表
+   * @param {Object} refundedPayment - 退還的報酬物件
+   * @returns {string} 格式化的退還文字
+   * @private
+   */
+  _formatRefundedPayment(refundedPayment) {
+    if (!refundedPayment) return '';
+
+    const items = [];
+    for (const [resource, amount] of Object.entries(refundedPayment)) {
+      if (amount > 0) {
+        const icon = this._getIcon(resource, 'resource');
+        const name = this._getResourceName(resource);
+        items.push(`${icon} ${name} x${amount}`);
+      }
+    }
+
+    return items.length > 0 ? items.join(', ') : '';
   }
 
   /**
@@ -787,11 +1240,18 @@ export default class CommissionModal extends BaseModal {
       messageElement.textContent = message;
 
       messagesContainer.appendChild(messageElement);
+      
+      // 確保訊息容器可見
+      messagesContainer.style.display = 'block';
 
       // 自動清除訊息
       setTimeout(() => {
         if (messageElement.parentNode) {
           messageElement.parentNode.removeChild(messageElement);
+          // 檢查是否還有其他訊息，如果沒有就隱藏容器
+          if (messagesContainer.children.length === 0) {
+            messagesContainer.style.display = 'none';
+          }
         }
       }, 5000);
     }

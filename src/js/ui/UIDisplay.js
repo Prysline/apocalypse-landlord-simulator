@@ -215,7 +215,14 @@ export default class UIDisplay {
 
       let statusIndicators = [];
       if (tenant.infected) statusIndicators.push('🦠已感染！');
-      if (tenant.onMission) statusIndicators.push('🚶執行任務中');
+      if (tenant.injured) statusIndicators.push('🩹受傷中');
+      if (tenant.onMission) {
+        const missionType = tenant.missionType === 'commission' ? '委託' : '探索';
+        statusIndicators.push(`🚩${missionType}中`);
+      }
+      if (tenant.rentDebt && tenant.rentDebt > 0) {
+        statusIndicators.push(`💸欠租$${tenant.rentDebt}`);
+      }
       if (tenant.roomReinforced) statusIndicators.push('🛡️已加固');
 
       // === 個人資源概況 ===

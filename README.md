@@ -25,7 +25,7 @@
 - **租金收取**：現金和資源抵付的彈性收租機制
 - **租客交易**：基於關係度的個人化交易選項
 - **互助協作**：租客間自動資源分享和緊急支援
-- **委託探索**：房東發起的資源獲取任務，基於風險評估和報酬機制
+- **委託探索**：房東發起的多日資源獲取任務，具備智能市場評估和異步執行機制
 
 ### 技能執行系統
 15個技能分為三大類，提供多樣化的策略選擇：
@@ -123,6 +123,8 @@ gameApp.debug()                           // 完整系統狀態
 gameApp.gameState.getStateStats()         // 遊戲狀態統計
 gameApp.tradeManager.getTradeStats()      // 交易系統統計
 gameApp.tenantManager.validateIDSystemIntegrity()  // ID系統完整性檢查
+gameApp.tradeManager.explorationManager.debugExplorationSystem()  // 探索系統狀態報告
+gameApp.tradeManager.explorationManager.manualCheckExplorations() // 手動觸發探索檢查
 ```
 
 ### 技術文件
