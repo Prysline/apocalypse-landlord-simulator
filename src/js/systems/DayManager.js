@@ -214,11 +214,6 @@ class DayManager extends BaseManager {
     const currentDay = this.gameState.getStateValue('day', 0);
     const newDay = currentDay + 1;
 
-    // 技術日誌：只在 terminal 顯示
-    systemLogger.debug(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
-    // 遊戲日誌：玩家可見的內容
-    this.addLog(`🌅 第 ${newDay} 天開始`);
-
     try {
       // 檢查必要管理器可用性
       if (!this.areRequiredManagersAvailable()) {
@@ -230,6 +225,11 @@ class DayManager extends BaseManager {
       if (!advanceSuccess) {
         throw new Error('GameState.advanceDay() 失敗');
       }
+
+      // 技術日誌：只在 terminal 顯示
+      systemLogger.debug(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
+      // 遊戲日誌：玩家可見的內容（在天數推進後記錄，確保日誌前綴正確）
+      this.addLog(`🌅 第 ${newDay} 天開始`);
 
       // 發送每日開始事件（系統級事件，使用 BaseManager 統一介面）
       this.addLog(`🔄 發送 day_start 事件 (第 ${newDay} 天)`);
@@ -281,21 +281,14 @@ class DayManager extends BaseManager {
    * @returns {Promise<void>}
    */
   async processDailyOperations() {
-    // 1. 重置租客每日狀態
-    await this._executeManagerOperation(
-      this.tenantManager,
-      'resetDailyStates',
-      '租客狀態重置'
-    );
-
-    // 2. 處理每日資源消費
+    // 1. 處理每日資源消費
     await this._executeManagerOperation(
       this.resourceManager,
       'processDailyConsumption',
       '資源消費處理'
     );
 
-    // 3. 處理被動技能（如果可用）
+    // 2. 處理被動技能（如果可用）
     if (this.skillManager) {
       await this._executeManagerOperation(
         this.skillManager,
@@ -304,7 +297,7 @@ class DayManager extends BaseManager {
       );
     }
 
-    // 4. 處理租客互助交易
+    // 3. 處理租客互助交易
     await this._executeManagerOperation(
       this.tradeManager,
       'processMutualAid',

@@ -7,6 +7,7 @@
 
 import BaseManager from "./BaseManager.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -1363,14 +1364,29 @@ export class ResourceManager extends BaseManager {
     try {
       const tenants = this.gameState.getAllTenants();
 
-      // 簡單消費計算：房東2食物 + 租客每人2食物 + 1燃料
-      const foodConsumption = 2 + (tenants.length * 2);
+      // 房東消費：2食物 + 1燃料（由房東資源池扣除）
+      const landlordFoodConsumption = 2;
       const fuelConsumption = 1;
 
-      // 執行消費
-      this.modifyResource('food', -foodConsumption, '每日食物消費', 'daily_cycle');
+      // 執行房東消費
+      this.modifyResource('food', -landlordFoodConsumption, '房東每日食物消費', 'daily_cycle');
       this.modifyResource('fuel', -fuelConsumption, '每日燃料消費', 'daily_cycle');
 
+      // 租客個人食物消費（從個人資源扣除）
+      let tenantsConsumed = 0;
+      for (const tenant of tenants) {
+        if (tenant.personalResources && tenant.personalResources.food >= 2) {
+          tenant.personalResources.food -= 2;
+          tenantsConsumed++;
+          this.addLog(`租客 ${tenant.name} 消費個人食物 2份`);
+        } else {
+          // 如果個人食物不足，記錄並可能影響滿意度
+          this.addLog(`租客 ${tenant.name} 個人食物不足，未能正常進食`);
+          this.emitEvent('tenant_insufficient_food', { tenantId: tenant.id, name: tenant.name });
+        }
+      }
+
+      systemLogger.info(`每日消費完成: 房東食物 ${landlordFoodConsumption}份, 燃料 ${fuelConsumption}份, ${tenantsConsumed}位租客消費個人食物`);
       return true;
     } catch (error) {
       this.logError("每日消費處理失敗", error);

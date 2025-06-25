@@ -224,6 +224,12 @@ export class RentManager extends BaseManager {
       const availableTenants = healthyTenants.filter(tenant => !tenant.onMission);
       const onMissionTenants = healthyTenants.filter(tenant => tenant.onMission);
 
+      // Debug: 記錄租客狀態
+      systemLogger.debug(`RentManager - 租客狀態檢查:`);
+      healthyTenants.forEach(tenant => {
+        systemLogger.debug(`  ${tenant.name}: onMission=${tenant.onMission}, missionType=${tenant.missionType || 'none'}`);
+      });
+
       // 處理外出租客的欠款累積
       for (const tenant of onMissionTenants) {
         this.accumulateRentDebt(tenant);

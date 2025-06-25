@@ -265,6 +265,8 @@ export class CommissionHandler {
       marketWeight *= 2.0; // 報酬豐厚時大幅提升接受率
     } else if (marketEvaluation.evaluation === 'exploitative') {
       marketWeight *= 2.5; // 報酬過低時大幅降低接受率
+    } else if (marketEvaluation.evaluation === 'insulting') {
+      marketWeight *= 3.0; // 侮辱性報酬時極大降低接受率
     }
     
     probability += marketEvaluation.factor * marketWeight;
@@ -282,8 +284,15 @@ export class CommissionHandler {
       probability += this.config.teamwork.teamworkBonus;
     }
 
-    // 限制在合理範圍內
-    probability = Math.max(0.05, Math.min(0.95, probability));
+    // 限制在合理範圍內，但對極度不合理的委託設置更嚴格的下限
+    let minProbability = 0.05;
+    if (marketEvaluation.evaluation === 'insulting') {
+      minProbability = 0.01; // 侮辱性報酬時最多只有1%接受率
+    } else if (marketEvaluation.evaluation === 'exploitative') {
+      minProbability = 0.02; // 剝削性報酬時最多只有2%接受率
+    }
+    
+    probability = Math.max(minProbability, Math.min(0.95, probability));
 
     return {
       probability,
@@ -404,7 +413,12 @@ export class CommissionHandler {
     let factor = 0;
     let evaluation = '';
 
-    if (fairnessRatio >= 1.5) {
+    // 新增：最低合理性門檻檢查
+    const minFairnessThreshold = 0.3; // 報酬至少要達到目標資源價值的30%
+    if (fairnessRatio < minFairnessThreshold) {
+      factor = -0.8; // 極度不合理，幾乎必定拒絕
+      evaluation = 'insulting';
+    } else if (fairnessRatio >= 1.5) {
       factor = 0.3;  // 報酬豐厚，大幅提升接受率
       evaluation = 'generous';
     } else if (fairnessRatio >= 1.2) {
@@ -413,11 +427,11 @@ export class CommissionHandler {
     } else if (fairnessRatio >= 0.8) {
       factor = 0;    // 報酬合理，不影響接受率
       evaluation = 'fair';
-    } else if (fairnessRatio >= 0.6) {
-      factor = -0.1; // 報酬偏低，降低接受率
+    } else if (fairnessRatio >= 0.5) {
+      factor = -0.2; // 報酬偏低，明顯降低接受率
       evaluation = 'underpaid';
     } else {
-      factor = -0.25; // 報酬過低，大幅降低接受率
+      factor = -0.4; // 報酬過低，大幅降低接受率
       evaluation = 'exploitative';
     }
 

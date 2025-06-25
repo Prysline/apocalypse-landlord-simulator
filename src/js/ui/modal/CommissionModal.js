@@ -48,6 +48,25 @@ export default class CommissionModal extends BaseModal {
   }
 
   /**
+   * 顯示探索結算結果模態框
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果物件
+   */
+  showExplorationResult(commission, explorationResult) {
+    systemLogger.debug('modal|showExplorationResult - commission:', commission, 'explorationResult:', explorationResult)
+    return this._safeExecute(async () => {
+      // 確保關閉其他模態框
+      this.uiCore?.closeModal();
+
+      // 創建結算模態框內容
+      this._setExplorationResultModalContent(commission, explorationResult);
+      this._showModal('explorationResultModal');
+
+      systemLogger.info('顯示探索結算模態框');
+    }, 'showExplorationResult');
+  }
+
+  /**
    * 處理租客選擇
    * @param {string} tenantId - 租客ID
    */
@@ -183,7 +202,7 @@ export default class CommissionModal extends BaseModal {
   _refreshTenantSelectionGrid() {
     const tenantGrid = this._generateTenantSelectionGrid();
     this._updateElement('tenantSelection', tenantGrid);
-    
+
     // 由於使用內聯 onclick 事件，HTML 重新生成時事件會自動重新綁定
   }
 
@@ -408,19 +427,19 @@ export default class CommissionModal extends BaseModal {
     const status = this._getCommissionStatusText(commission.status);
     const resourceIcon = this._getIcon(commission.resourceType, 'resource');
     const resourceName = this._getResourceName(commission.resourceType);
-    
+
     // 計算天數資訊
     let dayInfoHTML = '';
     if (type === 'active' && commission.explorationDays && commission.expectedCompletionDay) {
       const currentDay = this.gameApp.gameState?.getStateValue('day', 1) || 1;
       const startDay = commission.expectedCompletionDay - commission.explorationDays + 1;
       const daysRemaining = commission.expectedCompletionDay - currentDay;
-      
+
       dayInfoHTML = `
         <div class="day-info">
           <span class="day-info-item">🗓️ 第 ${startDay} 天出發</span>
           <span class="day-info-item">⏰ 預計第 ${commission.expectedCompletionDay} 天回來</span>
-          ${daysRemaining > 0 ? `<span class="day-info-item remaining">剩餘 ${daysRemaining} 天</span>` : 
+          ${daysRemaining > 0 ? `<span class="day-info-item remaining">剩餘 ${daysRemaining} 天</span>` :
             daysRemaining === 0 ? `<span class="day-info-item completed">今日完成</span>` :
             `<span class="day-info-item overdue">已逾期 ${Math.abs(daysRemaining)} 天</span>`}
         </div>
@@ -474,6 +493,38 @@ export default class CommissionModal extends BaseModal {
       }
     }
 
+    // 生成每日收穫歷史（僅限歷史記錄且有每日結果）
+    let dailyHistoryHTML = '';
+    if (type === 'history' && result?.dailyResults && result.dailyResults.length > 0) {
+      const dailyResults = result.dailyResults;
+      const cardId = `commission-${commission.requestId || commission.id || Date.now()}`;
+
+      dailyHistoryHTML = `
+        <div class="daily-history-section">
+          <button class="daily-history-toggle" onclick="this.parentElement.classList.toggle('expanded')">
+            <span class="toggle-text">📅 每日收穫詳情</span>
+            <span class="toggle-icon">▼</span>
+          </button>
+          <div class="daily-history-content">
+            ${dailyResults.map(dayResult => `
+              <div class="daily-history-item">
+                <div class="daily-header">
+                  <span class="day-number">第 ${dayResult.day} 天</span>
+                  <span class="daily-date">${new Date(dayResult.date).toLocaleDateString()}</span>
+                </div>
+                <div class="daily-rewards">
+                  ${Object.entries(dayResult.rewards || {})
+                    .map(([type, amount]) =>
+                      `<span class="daily-reward-item">${this.uiCore.getIcon(type, 'resource')} +${amount}</span>`
+                    ).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="commission-card ${status.class}">
         <div class="commission-header">
@@ -495,6 +546,7 @@ export default class CommissionModal extends BaseModal {
             </div>
           </div>
           ${resultHTML}
+          ${dailyHistoryHTML}
         </div>
       </div>
     `;
@@ -799,10 +851,10 @@ export default class CommissionModal extends BaseModal {
         } else {
           this._showCommissionSuccess('委託邀約已發送！租客已接受任務。');
         }
-        
+
         // 立即刷新租客選擇區域以反映租客狀態變化
         this._refreshTenantSelectionGrid();
-        
+
         this._resetCommissionForm();
 
         // 切換到活躍委託頁籤
@@ -945,6 +997,7 @@ export default class CommissionModal extends BaseModal {
    */
   _getEvaluationStatusText(evaluation) {
     const statusTexts = {
+      insulting: '💢 侮辱性報酬！',
       generous: '💰 報酬豐厚！',
       fair_plus: '✅ 報酬合理偏高',
       fair: '⚖️ 報酬公平合理',
@@ -1240,7 +1293,7 @@ export default class CommissionModal extends BaseModal {
       messageElement.textContent = message;
 
       messagesContainer.appendChild(messageElement);
-      
+
       // 確保訊息容器可見
       messagesContainer.style.display = 'block';
 
@@ -1285,6 +1338,225 @@ export default class CommissionModal extends BaseModal {
    */
   getCurrentTab() {
     return this.currentTab;
+  }
+
+  /**
+   * 設置探索結算模態框內容
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果物件
+   * @private
+   */
+  _setExplorationResultModalContent(commission, explorationResult) {
+    // 獲取已存在的模態框內容區域
+    const contentElement = document.getElementById('explorationResultContent');
+    if (!contentElement) {
+      systemLogger.error('找不到探索結算模態框內容元素');
+      return;
+    }
+
+    // 只設置內容，而不是整個模態框結構
+    contentElement.innerHTML = this._generateExplorationResultContent(commission, explorationResult);
+  }
+
+  /**
+   * 生成探索結算內容
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果
+   * @private
+   * @returns {string} HTML 內容
+   */
+  _generateExplorationResultContent(commission, explorationResult) {
+    const resourceIcon = this._getIcon(commission.resourceType, 'resource');
+    const resourceName = this._getResourceName(commission.resourceType);
+    
+    return `
+      <!-- 委託資訊概覽 -->
+      <div class="commission-overview">
+        <h3>📋 委託資訊</h3>
+        <div class="commission-details">
+          <div class="commission-title">
+            ${resourceIcon} 目標：${commission.targetAmount} ${resourceName}
+          </div>
+          <div class="commission-rewards">
+            <div class="reward-item">
+              <span class="reward-label">基礎報酬:</span>
+              <span class="reward-value">${this._formatRewardText(commission.basePayment || {})}</span>
+            </div>
+            <div class="reward-item">
+              <span class="reward-label">佣金:</span>
+              <span class="reward-value">${this._formatRewardText(commission.commission || {})}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 基本資訊 -->
+      <div class="exploration-summary">
+        <h3>📋 探索結果</h3>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="label">探索ID:</span>
+            <span class="value">${explorationResult.requestId || 'N/A'}</span>
+          </div>
+          <div class="summary-item">
+            <span class="label">結果:</span>
+            <span class="value ${explorationResult.success ? 'success' : 'failure'}">
+              ${explorationResult.success ? '✅ 成功' : '❌ 失敗'}
+            </span>
+          </div>
+          <div class="summary-item">
+            <span class="label">合約履行:</span>
+            <span class="value">${explorationResult.contractFulfillment || 0} / ${commission.targetAmount}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 每日收穫詳情 -->
+      ${this._generateDailyResultsSection(explorationResult)}
+
+      <!-- 總收穫統計 -->
+      ${this._generateTotalRewardsSection(commission, explorationResult)}
+
+      <!-- 委託結算 -->
+      ${explorationResult.refundedPayment ? `
+        <div class="commission-settlement">
+          <h3>💰 委託結算</h3>
+          <div class="settlement-details">
+            <div class="refunded-payment">
+              <span class="label">退還報酬:</span>
+              <span class="value">${this._formatRewardText(explorationResult.refundedPayment)}</span>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 參與者狀況 -->
+      ${this._generateParticipantsSection(explorationResult)}
+    `;
+  }
+
+  /**
+   * 生成每日收穫詳情區塊（重用現有 API）
+   * @param {Object} explorationResult - 探索結果
+   * @private
+   * @returns {string} HTML 內容
+   */
+  _generateDailyResultsSection(explorationResult) {
+    const dailyResults = explorationResult.dailyResults || [];
+    if (dailyResults.length === 0) {
+      return `
+        <div class="daily-results">
+          <h3>📅 每日探索過程</h3>
+          <p class="no-data">此次探索無每日收穫記錄</p>
+        </div>
+      `;
+    }
+
+    const dailyHTML = dailyResults.map(dayResult => `
+      <div class="daily-item">
+        <div class="daily-header">
+          <span class="day-number">第 ${dayResult.day} 天</span>
+        </div>
+        <div class="daily-rewards">
+          ${Object.entries(dayResult.rewards || {})
+            .map(([type, amount]) =>
+              `<span class="reward-item">${this.uiCore.getIcon(type, 'resource')} ${amount}</span>`
+            ).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="daily-results">
+        <h3>📅 每日探索過程</h3>
+        <div class="daily-list">
+          ${dailyHTML}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 生成總收穫統計區塊（重用現有格式化方法）
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果
+   * @private
+   * @returns {string} HTML 內容
+   */
+  _generateTotalRewardsSection(commission, explorationResult) {
+    const totalRewards = explorationResult.resourcesObtained || {};
+    if (Object.keys(totalRewards).length === 0) {
+      return `
+        <div class="total-rewards">
+          <h3>💰 總收穫統計</h3>
+          <p class="no-data">此次探索無資源收穫</p>
+        </div>
+      `;
+    }
+
+    // 重用現有的資源格式化方法
+    const obtainedResources = this._formatObtainedResources(totalRewards);
+
+    return `
+      <div class="total-rewards">
+        <h3>💰 總收穫統計</h3>
+        <div class="rewards-display">
+          ${obtainedResources}
+        </div>
+        ${explorationResult.contractFulfillment ? `
+          <div class="contract-info">
+            <p><strong>合約履行:</strong> ${explorationResult.contractFulfillment} / ${commission.targetAmount || 'N/A'}</p>
+            ${explorationResult.surplus ? `<p><strong>超額收穫:</strong> +${explorationResult.surplus}</p>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * 生成參與者狀況區塊
+   * @param {Object} explorationResult - 探索結果
+   * @private
+   * @returns {string} HTML 內容
+   */
+  _generateParticipantsSection(explorationResult) {
+    const participants = explorationResult.participants || [];
+    if (participants.length === 0) {
+      return `
+        <div class="participants">
+          <h3>👥 參與者狀況</h3>
+          <p class="no-data">無參與者資訊</p>
+        </div>
+      `;
+    }
+
+    const participantsHTML = participants.map(participant => `
+      <div class="participant-item">
+        <div class="participant-header">
+          <span class="participant-name">${participant.name || participant.id}</span>
+          <span class="participant-status ${participant.injured ? 'injured' : 'healthy'}">
+            ${participant.injured ? '🤕 受傷' : '😊 健康'}
+          </span>
+        </div>
+        ${participant.personalRewards && Object.keys(participant.personalRewards).length > 0 ? `
+          <div class="participant-rewards">
+            <strong>個人收穫:</strong>
+            ${Object.entries(participant.personalRewards)
+              .map(([type, amount]) => `${this.uiCore.getIcon(type, 'resource')} ${amount}`)
+              .join(', ')}
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+    return `
+      <div class="participants">
+        <h3>👥 參與者狀況</h3>
+        <div class="participants-list">
+          ${participantsHTML}
+        </div>
+      </div>
+    `;
   }
 
   /**

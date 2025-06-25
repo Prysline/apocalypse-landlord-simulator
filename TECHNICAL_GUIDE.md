@@ -158,6 +158,9 @@ DayManager的`day_start`事件觸發ExplorationManager的每日檢查流程：
 2. 檢查完成條件（當前日期 >= 完成日期）
 3. 執行探索結果計算和資源分配
 4. 更新參與者狀態並發送完成事件
+5. 記錄每日探索進度和結果訊息
+
+ExplorationManager 專門負責管理租客的 `onMission` 狀態，確保狀態管理的一致性和準確性。
 
 ## 智能市場評估系統
 
@@ -222,6 +225,17 @@ if (error instanceof Error) {
 
 // 遊戲邏輯事件 → GameLogger
 gameLogger.addGameLog(message, type, options);
+```
+
+### 分層日誌實際應用
+ExplorationManager 展示了分層日誌的最佳實踐：
+
+```javascript
+// 技術日誌：系統除錯資訊
+systemLogger.debug(`探索檢查: ${ongoingExplorations.length} 項進行中`);
+
+// 遊戲日誌：玩家可見訊息  
+this.addLog(`探索任務第 ${dayNumber} 天完成，獲得獎勵`);
 ```
 
 ### API設計理念

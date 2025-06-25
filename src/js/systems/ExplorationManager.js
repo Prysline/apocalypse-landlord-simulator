@@ -423,7 +423,8 @@ export class ExplorationManager extends BaseManager {
       return;
     }
 
-    this.addLog(`執行每日探索檢查: ${ongoingExploration.request.requestId} (第 ${daysElapsed} 天)`);
+    // 改為除錯日誌，不顯示在遊戲日誌中
+    systemLogger.debug(`執行每日探索檢查: ${ongoingExploration.request.requestId} (第 ${daysElapsed} 天)`);
 
     // 執行每日獎勵檢查
     const dailyReward = this._calculateDailyReward(ongoingExploration, daysElapsed);
@@ -436,18 +437,20 @@ export class ExplorationManager extends BaseManager {
         ongoingExploration.accumulatedRewards[resourceType] += amount;
       }
 
-      // 記錄每日結果
-      ongoingExploration.dailyResults.push({
-        day: daysElapsed,
-        rewards: { ...dailyReward },
-        date: new Date().toISOString()
-      });
-
-      // 日誌記錄每日發現
+      // 記錄每日結果（包含日誌訊息）
       const rewardText = Object.entries(dailyReward)
         .map(([type, amount]) => `${type} x${amount}`)
         .join(', ');
-      this.addLog(`第 ${daysElapsed} 天發現: ${rewardText}`);
+      
+      ongoingExploration.dailyResults.push({
+        day: daysElapsed,
+        rewards: { ...dailyReward },
+        date: new Date().toISOString(),
+        logMessage: `第 ${daysElapsed} 天發現: ${rewardText}` // 暫存日誌訊息
+      });
+
+      // 不再直接顯示每日發現日誌，改為暫存
+      systemLogger.debug(`探索 ${ongoingExploration.request.requestId} 第 ${daysElapsed} 天發現: ${rewardText}`);
     }
 
     // 執行每日受傷檢查
@@ -563,12 +566,22 @@ export class ExplorationManager extends BaseManager {
   async _completeExploration(ongoingExploration) {
     const { request, predeterminedSuccess } = ongoingExploration;
 
-    this.addLog(`完成探索: ${request.requestId} (${predeterminedSuccess ? '成功' : '失敗'})`);
-
     // 生成探索結果（使用累積的結果）
     const actualDays = ongoingExploration.currentDay || ongoingExploration.explorationDays;
     const earlyReturnText = ongoingExploration.earlyReturn ? ' (提早返回)' : '';
-    this.addLog(`探索完成詳情: ${request.requestId} - 實際天數 ${actualDays}/${ongoingExploration.explorationDays}${earlyReturnText}`);
+    
+    // 收集所有每日日誌訊息
+    const dailyLogs = ongoingExploration.dailyResults?.map(result => result.logMessage).filter(Boolean) || [];
+    
+    // 顯示探索完成總結（包含每日記錄）
+    this.addLog(`完成探索: ${request.requestId} (${predeterminedSuccess ? '成功' : '失敗'})`);
+    this.addLog(`探索詳情: 實際天數 ${actualDays}/${ongoingExploration.explorationDays}${earlyReturnText}`);
+    
+    // 如果有每日記錄，顯示總結
+    if (dailyLogs.length > 0) {
+      this.addLog(`探索過程收穫:`);
+      dailyLogs.forEach(log => this.addLog(`  ${log}`));
+    }
 
     const result = this._generateExplorationResult(request, predeterminedSuccess, ongoingExploration);
 
@@ -591,6 +604,12 @@ export class ExplorationManager extends BaseManager {
       type: request.type,
       requestId: request.requestId,
       result: result
+    });
+
+    // 觸發結算模態框顯示
+    this.emitEvent("show_result_modal", {
+      commission: request,  // 原始委託資訊
+      explorationResult: result  // 探索結果
     });
 
     this.logSuccess(`探索完成: ${request.requestId} (${predeterminedSuccess ? '成功' : '失敗'})`);

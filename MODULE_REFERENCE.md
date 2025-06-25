@@ -888,7 +888,7 @@ console.log(`冷卻剩餘: ${harvestStatus.cooldownRemaining} 天`);
 
 ### TenantManager
 **位置**: `src/js/systems/TenantManager.js`
-**職責**: 租客生命週期管理，透過內建 SatisfactionManager 專責處理滿意度邏輯
+**職責**: 租客生命週期管理、探索狀態管理，透過內建 SatisfactionManager 專責處理滿意度邏輯
 **依賴**: `BaseManager`, `GameState`, `ResourceManager`, `DataManager`, `EventBus`, `SatisfactionManager`, `RelationshipManager`
 
 #### 架構設計
@@ -1490,7 +1490,7 @@ console.log(`成功率: ${Math.round(stats.successRate * 100)}%`);
 
 ### ExplorationManager
 **位置**: `src/js/systems/ExplorationManager.js`
-**職責**: 探索系統管理器，提供探索執行的統一管理
+**職責**: 探索系統管理器，提供探索執行的統一管理、每日探索進度記錄、租客 onMission 狀態專責管理
 **依賴**: `BaseManager`, `ResourceManager`, `DataManager`, `EventBus`
 
 #### 核心方法
@@ -1714,12 +1714,11 @@ availableSkills.forEach(skill => {
 
 #### 每日循環執行順序
 ```javascript
-1. 重置租客每日狀態（TenantManager.resetDailyStates）
-2. 處理每日資源消費（ResourceManager.processDailyConsumption）
-3. 處理被動技能（SkillManager.processPassiveSkills）
-4. 處理租客互助交易（TradeManager.processMutualAid）
-5. 檢查資源閾值（ResourceManager.checkAllResourceThresholds）
-6. 生成新申請者（TenantManager.generateApplicants）
+1. 處理每日資源消費（ResourceManager.processDailyConsumption）
+2. 處理被動技能（SkillManager.processPassiveSkills）
+3. 處理租客互助交易（TradeManager.processMutualAid）
+4. 檢查資源閾值（ResourceManager.checkAllResourceThresholds）
+5. 生成新申請者（TenantManager.generateApplicants）
 ```
 
 #### 核心方法

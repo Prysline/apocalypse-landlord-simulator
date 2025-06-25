@@ -397,6 +397,27 @@ export default class UICore {
     this.closeModal('confirmModal');
   }
 
+  // =================== 探索結算處理 ===================
+
+  /**
+   * 顯示探索結算模態框
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果物件
+   */
+  showExplorationResult(commission, explorationResult) {
+    systemLogger.debug('UICore|showExplorationResult - commission:', commission, 'explorationResult:', explorationResult)
+    try {
+      if (this.commissionModal) {
+        this.commissionModal.showExplorationResult(commission, explorationResult);
+        systemLogger.info('探索結算模態框已顯示');
+      } else {
+        systemLogger.error('CommissionModal 未初始化，無法顯示探索結算');
+      }
+    } catch (error) {
+      systemLogger.error('顯示探索結算失敗:', error);
+    }
+  }
+
   // =================== 房間處理 ===================
 
   handleRoomClick(roomId) {
@@ -725,6 +746,26 @@ export default class UICore {
 
     this.gameApp.eventBus.on("tenant_tenantHired", () => this.updateAll());
     this.gameApp.eventBus.on("tenant_tenantEvicted", () => this.updateAll());
+
+    // 監聽探索結算事件
+    this.gameApp.eventBus.on("exploration_show_result_modal", (eventData) => {
+      systemLogger.debug('_setupGameStateListeners - eventData:', eventData)
+      const commission = eventData.data.commission;
+      const explorationResult = eventData.data.explorationResult;
+      
+      // 豐富參與者資訊
+      if (explorationResult.participants) {
+        explorationResult.participants = explorationResult.participants.map(item => {
+          const participant = this.gameApp.gameState.findPersonById(item.tenantId);
+          return {
+            ...participant,
+            ...item
+          };
+        });
+      }
+      
+      this.showExplorationResult(commission, explorationResult);
+    });
   }
 
   bindEvents() {

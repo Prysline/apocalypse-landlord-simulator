@@ -216,13 +216,13 @@ export class TenantManager extends BaseManager {
     // 監聽探索開始事件，設置租客狀態
     this.onEvent('exploration_started', (eventObj) => {
       const { participants, type } = eventObj.data;
-      
+
       participants.forEach(participantId => {
         const tenant = this.getTenant(participantId);
         if (tenant) {
           tenant.onMission = true;
           tenant.missionType = type;
-          
+
           // 通知UI更新
           this.emitEvent('tenant_status_changed', {
             tenantId: participantId,
@@ -231,21 +231,21 @@ export class TenantManager extends BaseManager {
           });
         }
       });
-      
+
       this.addLog(`租客開始${type === 'commission' ? '委託' : '自主'}探索任務`);
     }, { skipPrefix: true });
 
     // 監聽探索完成事件，重置租客狀態
     this.onEvent('exploration_completed', (eventObj) => {
       const { type, result } = eventObj.data;
-      
+
       if (result?.participants) {
         result.participants.forEach(participantResult => {
           const tenant = this.getTenant(participantResult.tenantId);
           if (tenant) {
             tenant.onMission = false;
             tenant.missionType = null;
-            
+
             // 通知UI更新
             this.emitEvent('tenant_status_changed', {
               tenantId: participantResult.tenantId,
@@ -255,20 +255,20 @@ export class TenantManager extends BaseManager {
           }
         });
       }
-      
+
       this.addLog(`${type === 'commission' ? '委託' : '自主'}探索任務完成`);
     }, { skipPrefix: true });
 
     // 監聽參與者受傷事件（新的事件處理）
     this.onEvent('participant_injured', (eventObj) => {
       const { tenantId, tenantName, explorationType } = eventObj.data;
-      
+
       // 設置租客的受傷狀態
       const tenant = this.getTenant(tenantId);
       if (tenant) {
         tenant.injured = true;
         this.addLog(`${tenantName} 在${explorationType === 'commission' ? '委託' : '自主'}探索中受傷 🩹`);
-        
+
         // 通知UI更新
         this.emitEvent('tenant_status_changed', {
           tenantId: tenantId,
@@ -1493,19 +1493,6 @@ export class TenantManager extends BaseManager {
     return stats;
   }
 
-  async resetDailyStates() {
-    this.gameState.setStateValue("dailyActions.scavengeUsed", 0, "每日重置");
-
-    const allTenants = this.gameState.getAllTenants();
-    allTenants.forEach(tenant => {
-      if (tenant.onMission) {
-        tenant.onMission = false;
-      }
-    });
-
-    return true;
-  }
-
   /**
    * 清理已離開租客的關係值記錄
    * @returns {number} 清理的記錄數量
@@ -1540,6 +1527,22 @@ export class TenantManager extends BaseManager {
       this.logError('清理關係值記錄失敗', error);
       return 0;
     }
+  }
+
+  /**
+   * 修改租客滿意度（代理方法，委託給 SatisfactionManager）
+   * @param {string} tenantId - 租客ID
+   * @param {number} change - 滿意度變化值
+   * @param {string} [reason='交易互動'] - 變化原因
+   * @returns {boolean} 是否成功修改
+   */
+  modifyTenantSatisfaction(tenantId, change, reason = '交易互動') {
+    if (!this.satisfactionManager) {
+      this.logWarning(`無法修改租客 ${tenantId} 滿意度: SatisfactionManager 未初始化`);
+      return false;
+    }
+    this.satisfactionManager.modifySatisfaction(Number(tenantId), change, reason);
+    return true
   }
 
   cleanup() {

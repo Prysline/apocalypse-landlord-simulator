@@ -18,7 +18,7 @@
   --text-secondary: #ccc;
   --text-muted: #aaa;
   --text-white: #fff;
-  
+
   /* 漸變系統 */
   --gradient-dark: linear-gradient(145deg, #333, #2a2a2a);
   --gradient-darker: linear-gradient(145deg, #1e1e1e, #1a1a1a);
@@ -29,20 +29,20 @@
   --gradient-success: linear-gradient(145deg, #446644, #335533);
   --gradient-warning: linear-gradient(145deg, #666644, #555533);
   --gradient-danger: linear-gradient(145deg, #664444, #553333);
-  
+
   /* 陰影系統 */
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
   --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-subtle: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-button: 0 2px 8px rgba(0, 0, 0, 0.3);
-  
+
   /* 間距系統 */
   --spacing-xs: 6px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
   --spacing-lg: 15px;
   --spacing-xl: 20px;
-  
+
   /* 邊框系統 */
   --border-light: 1px solid #555;
   --border-medium: 2px solid #555;
@@ -51,7 +51,7 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  
+
   /* 背景系統 */
   --bg-translucent-light: rgba(255, 255, 255, 0.05);
   --bg-translucent-medium: rgba(255, 255, 255, 0.08);
@@ -81,9 +81,9 @@
 }
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: var(--bg-darker); }
-.custom-scrollbar::-webkit-scrollbar-thumb { 
-  background: var(--border-color); 
-  border-radius: 3px; 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #777; }
 
@@ -518,9 +518,9 @@ body {
 
 .log::-webkit-scrollbar { width: 6px; }
 .log::-webkit-scrollbar-track { background: var(--bg-darker); }
-.log::-webkit-scrollbar-thumb { 
-  background: var(--border-color); 
-  border-radius: 3px; 
+.log::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 .log::-webkit-scrollbar-thumb:hover { background: #777; }
 
@@ -581,9 +581,9 @@ body {
 
 .tenant-list::-webkit-scrollbar { width: 6px; }
 .tenant-list::-webkit-scrollbar-track { background: var(--bg-darker); }
-.tenant-list::-webkit-scrollbar-thumb { 
-  background: var(--border-color); 
-  border-radius: 3px; 
+.tenant-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 .tenant-list::-webkit-scrollbar-thumb:hover { background: #777; }
 
@@ -723,7 +723,7 @@ body {
     border: var(--border-medium);
     border-radius: var(--radius-lg);
     padding: 25px;
-    max-width: 600px;
+    max-width: 700px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
@@ -735,9 +735,9 @@ body {
 
 .modal-content::-webkit-scrollbar { width: 6px; }
 .modal-content::-webkit-scrollbar-track { background: var(--bg-darker); }
-.modal-content::-webkit-scrollbar-thumb { 
-  background: var(--border-color); 
-  border-radius: 3px; 
+.modal-content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
 }
 .modal-content::-webkit-scrollbar-thumb:hover { background: #777; }
 
@@ -2010,7 +2010,7 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .tab-content {
     display: none;
-    max-height: 400px;
+    max-height: 54vh;
     overflow-y: auto;
     padding: 15px;
 }
@@ -2742,6 +2742,427 @@ input[type="number"]::-webkit-inner-spin-button {
     .tenant-item {
         border-left-width: 4px;
     }
+}
+
+/* ===========================================
+   每日收穫歷史展開/收起樣式
+   =========================================== */
+
+.daily-history-section {
+    margin-top: var(--spacing-md);
+    border-top: var(--border-light);
+    padding-top: var(--spacing-md);
+}
+
+.daily-history-toggle {
+    width: 100%;
+    background: var(--gradient-button);
+    border: var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--text-primary);
+    font-size: 0.9em;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.daily-history-toggle:hover {
+    background: var(--gradient-button-hover);
+    border-color: var(--border-color-hover);
+}
+
+.daily-history-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding-left: var(--spacing-md);
+}
+
+.daily-history-section.expanded .daily-history-content {
+    max-height: 500px;
+    padding-top: var(--spacing-md);
+}
+
+.daily-history-section.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.daily-history-item {
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--primary-blue);
+}
+
+.daily-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.85em;
+}
+
+.day-number {
+    font-weight: bold;
+    color: var(--primary-blue);
+}
+
+.daily-date {
+    color: var(--text-muted);
+    font-size: 0.8em;
+}
+
+.daily-rewards {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.daily-reward-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    font-size: 0.8em;
+    color: var(--success-green);
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+/* 探索結算模態框樣式 */
+.exploration-result-modal {
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.exploration-summary,
+.daily-results,
+.total-rewards,
+.participants {
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: var(--border-light);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.summary-item .label {
+    color: var(--text-muted);
+}
+
+.summary-item .value.success {
+    color: var(--success-green);
+}
+
+.summary-item .value.failure {
+    color: var(--danger-red);
+}
+
+.daily-list,
+.participants-list {
+    margin-top: var(--spacing-md);
+}
+
+.participant-item {
+    background: rgba(255, 255, 255, 0.05);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.participant-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+}
+
+.participant-status.injured {
+    color: var(--danger-red);
+}
+
+.participant-status.healthy {
+    color: var(--success-green);
+}
+
+.no-data {
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding: var(--spacing-lg);
+}
+
+/* ===========================================
+   探索結果內容樣式
+   =========================================== */
+
+#explorationResultContent {
+    padding: var(--spacing-lg);
+}
+
+.commission-overview {
+    background: var(--gradient-dark);
+    border: var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    border-left: 4px solid var(--primary-blue);
+    box-shadow: var(--shadow-subtle);
+}
+
+.commission-overview h3 {
+    margin-top: 0;
+    color: var(--primary-blue);
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.commission-details {
+    margin-top: var(--spacing-md);
+}
+
+.commission-title {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-white);
+}
+
+.commission-rewards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.reward-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.reward-label {
+    color: var(--text-secondary);
+}
+
+.reward-value {
+    color: var(--success-green);
+    font-weight: bold;
+}
+
+.exploration-summary {
+    background: var(--gradient-success);
+    border: var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    border-left: 4px solid var(--success-green);
+    box-shadow: var(--shadow-subtle);
+}
+
+.exploration-summary h3 {
+    margin-top: 0;
+    color: var(--success-green);
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+    border-bottom: var(--border-light);
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+}
+
+.label {
+    color: var(--text-secondary);
+}
+
+.value {
+    font-weight: bold;
+    color: var(--text-white);
+}
+
+.value.success {
+    color: var(--success-green);
+}
+
+.value.failure {
+    color: var(--danger-red);
+}
+
+.daily-results, .total-rewards, .commission-settlement, .participants {
+    background: var(--gradient-dark);
+    border: var(--border-light);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    box-shadow: var(--shadow-subtle);
+}
+
+.daily-results {
+    border-left: 4px solid var(--warning-yellow);
+}
+
+.daily-results h3 {
+    color: var(--warning-yellow);
+    margin-top: 0;
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.total-rewards {
+    border-left: 4px solid #ffcc66;
+}
+
+.total-rewards h3 {
+    color: #ffcc66;
+    margin-top: 0;
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.commission-settlement {
+    border-left: 4px solid #cc66cc;
+}
+
+.commission-settlement h3 {
+    color: #cc66cc;
+    margin-top: 0;
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.participants {
+    border-left: 4px solid var(--info-cyan);
+}
+
+.participants h3 {
+    color: var(--info-cyan);
+    margin-top: 0;
+    font-size: 1.1em;
+    margin-bottom: var(--spacing-md);
+}
+
+.daily-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.exploration-daily-item {
+    background: var(--bg-translucent-medium);
+    border: var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
+}
+
+.reward-item-daily {
+    background: var(--gradient-success);
+    color: var(--text-white);
+    padding: 4px var(--spacing-sm);
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: bold;
+    border: 1px solid var(--success-green);
+}
+
+.rewards-display {
+    font-size: 1.1em;
+    color: #ffcc66;
+    font-weight: bold;
+    margin: var(--spacing-md) 0;
+}
+
+.contract-info {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-translucent-light);
+    border: var(--border-light);
+    border-radius: var(--radius-sm);
+}
+
+.contract-info p {
+    margin: var(--spacing-xs) 0;
+    color: var(--text-primary);
+}
+
+.settlement-details {
+    margin-top: var(--spacing-md);
+}
+
+.refunded-payment {
+    display: flex;
+    justify-content: space-between;
+    color: var(--danger-red);
+}
+
+.participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.participant-item {
+    background: var(--bg-translucent-medium);
+    border: var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
+}
+
+.participant-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.participant-name {
+    font-weight: bold;
+    color: var(--text-white);
+}
+
+.participant-status.healthy {
+    color: var(--success-green);
+    font-weight: bold;
+}
+
+.participant-status.injured {
+    color: var(--danger-red);
+    font-weight: bold;
+}
+
+.participant-rewards {
+    color: var(--text-secondary);
+    font-size: 0.9em;
 }
 
 /* ===========================================
