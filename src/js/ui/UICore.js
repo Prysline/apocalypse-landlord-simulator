@@ -34,12 +34,8 @@ export default class UICore {
       systemReady: false
     };
 
-    this.thresholds = {
-      resources: {
-        critical: { food: 2, materials: 1, medical: 1, fuel: 1, cash: 5 },
-        warning: { food: 5, materials: 3, medical: 2, fuel: 2, cash: 15 }
-      }
-    };
+    // 阈值从配置文件加载，在 _loadThresholds() 中初始化
+    this.thresholds = {};
 
     this.updateTimer = null;
     systemLogger.success("🎨 UICore 已初始化");
@@ -536,22 +532,19 @@ export default class UICore {
   }
 
   _loadThresholds() {
-    try {
-      const gameRules = this.gameApp.dataManager?.getGameRules();
-      if (gameRules?.gameDefaults?.resources) {
-        this.thresholds.resources.warning = {
-          ...this.thresholds.resources.warning,
-          ...gameRules.gameDefaults.resources.warningThresholds
-        };
-        this.thresholds.resources.critical = {
-          ...this.thresholds.resources.critical,
-          ...gameRules.gameDefaults.resources.criticalThresholds
-        };
-      }
-      systemLogger.success("📊 閾值配置載入完成");
-    } catch (error) {
-      systemLogger.warn("⚠️ 使用預設閾值配置");
+    const gameRules = this.gameApp.dataManager?.getGameRules();
+    if (!gameRules?.gameDefaults?.resources) {
+      const error = new Error("無法載入資源閾值配置 - 配置文件或dataManager不可用");
+      systemLogger.error("❌ 閾值配置載入失敗", error);
+      throw error;
     }
+
+    this.thresholds.resources = {
+      warning: gameRules.gameDefaults.resources.warningThresholds || {},
+      critical: gameRules.gameDefaults.resources.criticalThresholds || {}
+    };
+
+    systemLogger.success("📊 閾值配置載入完成");
   }
 
   // =================== 共用邏輯中心 ===================

@@ -280,7 +280,7 @@ DataManager管理四個JSON配置檔案：
 - `gameBalance.economy` - 經濟系統參數
 - `gameBalance.tenants` - 租客系統配置
 - `gameBalance.explorationSystem` - 探索系統配置
-- `characterGeneration` - 角色生成參數
+- `characterGeneration` - 角色生成參數和資源隨機化配置
 
 **tenants.json** - 租客類型定義
 - 5種租客類型：doctor, worker, farmer, soldier, elder
@@ -316,6 +316,87 @@ DataManager採用Promise.all實現配置檔案並行載入，最大化I/O效率�
 - **錯誤隔離**：資料載入錯誤與UI協調錯誤完全分離
 - **效能最佳化**：消除跨層依賴開銷，節省啟動時間約50ms，降低記憶體佔用
 - **架構清晰度**：明確的職責邊界提升程式碼可維護性和模組重用性
+
+## 配置驅動設計原則
+
+### 嚴格配置驅動策略
+系統採用零硬編碼配置驅動設計，所有遊戲數值、UI閾值、系統參數完全來自JSON配置檔案。此策略確保遊戲平衡調整無需程式碼修改，提高系統彈性和維護效率。
+
+### 快速失敗配置載入機制
+```javascript
+// UICore配置載入範例 - 無後備預設值設計
+_loadThresholds() {
+  const gameRules = this.gameApp.dataManager?.getGameRules();
+  if (!gameRules?.gameDefaults?.resources) {
+    throw new Error("無法載入資源閾值配置 - 配置文件或dataManager不可用");
+  }
+  this.thresholds.resources = {
+    warning: gameRules.gameDefaults.resources.warningThresholds,
+    critical: gameRules.gameDefaults.resources.criticalThresholds
+  };
+}
+```
+
+### 配置完整性保證
+- **強制依賴檢查**：系統初始化時驗證所有必需配置項存在性
+- **快速失敗原則**：配置缺失時立即拋出錯誤，避免運行時異常
+- **明確錯誤報告**：提供具體的配置路徑和修復建議
+- **零後備預設**：不提供硬編碼後備值，確保配置問題及時發現
+
+### CSS變數系統配合
+UI配置與CSS變數系統協作，實現完整的視覺配置化：
+- 顏色系統通過CSS自訂屬性統一管理
+- 間距、字體、陰影等視覺元素避免硬編碼
+- 支援主題切換和視覺客製化需求
+
+## 角色生成系統
+
+### 個人資源隨機化機制
+TenantManager實作配置驅動的個人資源隨機化系統，為每個生成角色提供獨特的資源配置，增強遊戲體驗多樣性。
+
+### 雙重變化類型設計
+```javascript
+// 配置範例 - characterGeneration.personalResourceVariation
+{
+  "resourceRules": {
+    "cash": {
+      "type": "percentage",    // 百分比變化
+      "min": 0.5,             // 基礎值的50%-150%
+      "max": 1.5,
+      "roundTo": 5            // 四捨五入到5的倍數
+    },
+    "food": {
+      "type": "fixed",        // 固定數值變化
+      "min": -1,              // 基礎值±1-2
+      "max": 2
+    }
+  }
+}
+```
+
+### 職業資源保護機制
+系統實作智能職業資源保護，確保關鍵專業資源不會因隨機化而完全消失：
+- **醫生保護**：醫療用品最少保留2單位
+- **工人保護**：建材最少保留3單位  
+- **農夫保護**：食物最少保留2單位
+
+### 資源狀況分析系統
+```javascript
+// 資源狀況自動分析和描述增強
+analyzeResourceStatus(personalResources, tenantType) {
+  const totalValue = this.calculateResourceValue(personalResources);
+  const category = this.categorizeWealth(totalValue);
+  const description = this.generateResourceDescription(personalResources, category);
+  
+  return { category, totalValue, description };
+}
+```
+
+### 描述增強機制
+角色生成時自動分析個人資源狀況，生成個性化描述：
+- 基於總資源價值進行財富分類（富裕/充足/普通/匱乏/身無分文）
+- 結合職業特色和資源配置生成動態描述
+- 提供更豐富的角色背景資訊和遊戲沉浸感
 
 ### 配置管理理念
 DataManager實現統一配置管理機制，支援路徑式存取和熱更新。配置載入採用快速失敗策略，確保問題早期發現和明確錯誤定位。

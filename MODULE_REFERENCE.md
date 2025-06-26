@@ -1036,6 +1036,22 @@ modifyPersonalResource(tenantId, resourceType, amount, reason)
  * @returns {Object} 統計資料
  */
 getAutonomousExplorationStats()
+
+/**
+ * 生成隨機化個人資源
+ * @param {Object} baseResources - 基礎資源配置
+ * @param {Object} tenantType - 租客類型配置
+ * @returns {Object} 隨機化後的個人資源
+ */
+generateRandomPersonalResources(baseResources, tenantType)
+
+/**
+ * 分析資源狀況並生成描述
+ * @param {Object} personalResources - 個人資源配置
+ * @param {Object} tenantType - 租客類型配置
+ * @returns {Object} 資源狀況分析結果 {category, totalValue, description}
+ */
+analyzeResourceStatus(personalResources, tenantType)
 ```
 
 #### RelationshipManager 整合
@@ -1079,6 +1095,59 @@ const status = tenantManager.getSatisfactionStatus(satisfaction);
 // 滿意度統計
 const avgSatisfaction = tenantManager.calculateAverageSatisfaction();
 const distribution = tenantManager.getSatisfactionDistribution();
+```
+
+#### 個人資源隨機化系統
+TenantManager 實作配置驅動的個人資源隨機化機制，為每個生成角色提供獨特的資源配置：
+
+**核心功能**：
+- 支援百分比變化（`percentage`）和固定數值變化（`fixed`）兩種類型
+- 職業資源保護機制，確保關鍵專業資源不會完全消失
+- 自動資源狀況分析和描述增強
+- 完全基於 `rules.json` 配置，支援靈活調整
+
+**配置範例**：
+```javascript
+// rules.json 中的配置
+"characterGeneration": {
+  "personalResourceVariation": {
+    "resourceRules": {
+      "cash": {
+        "type": "percentage",
+        "min": 0.5,
+        "max": 1.5,
+        "roundTo": 5
+      },
+      "food": {
+        "type": "fixed", 
+        "min": -1,
+        "max": 2
+      }
+    },
+    "specialRules": {
+      "minimumResourcePreservation": {
+        "rules": {
+          "doctor": { "medical": { "min": 2 } },
+          "worker": { "materials": { "min": 3 } },
+          "farmer": { "food": { "min": 2 } }
+        }
+      }
+    }
+  }
+}
+```
+
+**使用方法**：
+```javascript
+// 內部角色生成時自動調用
+const personalResources = tenantManager.generateRandomPersonalResources(
+  tenantType.personalResources, 
+  tenantType
+);
+
+// 資源狀況分析
+const resourceStatus = tenantManager.analyzeResourceStatus(personalResources, tenantType);
+console.log(`資源狀況：${resourceStatus.category}，總價值：${resourceStatus.totalValue}`);
 ```
 
 #### 使用範例
@@ -1897,12 +1966,40 @@ const rawOptions = tradeManager.getCharacterTradeOptions('1');
 const displayOptions = uiCore.formatTradeOptionsForDisplay(rawOptions);
 ```
 
+#### 配置驅動設計
+UICore 採用嚴格的配置驅動策略，所有閾值和顯示參數完全來自 JSON 配置：
+
+```javascript
+/**
+ * 載入資源閾值配置（快速失敗模式）
+ * @private
+ * @throws {Error} 當配置缺失時
+ */
+_loadThresholds() {
+  const gameRules = this.gameApp.dataManager?.getGameRules();
+  if (!gameRules?.gameDefaults?.resources) {
+    throw new Error("無法載入資源閾值配置 - 配置文件或dataManager不可用");
+  }
+  this.thresholds.resources = {
+    warning: gameRules.gameDefaults.resources.warningThresholds,
+    critical: gameRules.gameDefaults.resources.criticalThresholds
+  };
+}
+```
+
+**配置特性**：
+- **零硬編碼**: 完全消除硬編碼閾值，所有數值來自 `rules.json`
+- **快速失敗**: 配置載入失敗時立即拋出錯誤，不使用後備預設值
+- **完整性檢查**: 初始化時驗證所有必需配置項的存在性
+- **明確錯誤**: 提供具體的配置路徑和修復建議
+
 #### 效能特性
 - **事件整合**: 統一處理UI事件回調
 - **描述格式化**: 使用TradeDescriptionFormatter統一交易描述
 - **狀態同步**: 自動更新UI顯示狀態
 - **錯誤處理**: 完整的try-catch機制，系統未載入友善提示
 - **調用統一**: 動態HTML統一透過UICore調用，消除間接調用
+- **配置完整性**: 強制依賴檢查確保配置載入完整性
 
 ### UIDisplay
 **位置**: `src/js/ui/UIDisplay.js`

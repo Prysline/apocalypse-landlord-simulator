@@ -147,6 +147,31 @@ gameState = {
 ### 修改遊戲參數
 直接編輯 `src/data/*.json` 檔案，無需修改程式碼
 
+### 配置驅動設計原則
+專案採用嚴格的配置驅動設計，避免硬編碼：
+
+#### 禁止硬編碼的內容
+- **遊戲數值**：所有閾值、數量、比例都應來自 JSON 配置
+- **文字內容**：UI 文字、訊息模板應配置化
+- **樣式參數**：顏色、字體、間距使用 CSS 變數系統
+
+#### 配置載入失敗處理
+- **不使用後備預設值**：系統應預期配置文件正常載入
+- **明確錯誤報告**：配置載入失敗時應拋出詳細錯誤
+- **快速失敗原則**：配置問題應在初始化階段就被發現
+
+#### 正確的配置存取模式
+```javascript
+// ✅ 正確：完全依賴配置
+const thresholds = dataManager.getRuleValue('gameBalance.resources.warningThresholds');
+if (!thresholds) {
+  throw new Error("無法載入資源閾值配置");
+}
+
+// ❌ 錯誤：使用硬編碼後備值
+const thresholds = dataManager.getRuleValue('config') || { food: 5, cash: 15 };
+```
+
 ### 新增事件類型
 1. 在 `src/data/events.json` 中定義事件配置
 2. 在 EventSystem.js 中實作事件邏輯

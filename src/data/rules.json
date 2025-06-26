@@ -674,220 +674,6 @@
       "autoRepairChance": 0.3
     }
   },
-  "ui": {
-    "colorSchemes": {
-      "critical": "#ff6666",
-      "danger": "#ff3333",
-      "warning": "#ffaa66",
-      "concern": "#ff9966",
-      "normal": "#ffcc66",
-      "good": "#66ccff",
-      "excellent": "#66ff66",
-      "perfect": "#66ff66",
-      "fatal": "#cc0000"
-    },
-    "display": {
-      "maxLogVisible": 50,
-      "maxHistoryDisplay": 10,
-      "maxApplicantsPerVisit": 3,
-      "maxErrorsDisplay": 5
-    },
-    "colors": {
-      "backgroundPrimary": "#2a2a2a",
-      "backgroundSecondary": "#1a1a1a",
-      "textPrimary": "#e0e0e0",
-      "borderDefault": "#555",
-      "borderHover": "#888",
-      "tenantColors": {
-        "doctor": "#66cc66",
-        "worker": "#cc8866",
-        "soldier": "#cc6666",
-        "farmer": "#66aa44",
-        "elder": "#cc66cc"
-      },
-      "logColors": {
-        "event": "#ffcc66",
-        "rent": "#66ff66",
-        "danger": "#ff6666",
-        "skill": "#66ccff"
-      }
-    },
-    "typography": {
-      "fontFamily": "\"Courier New\", monospace",
-      "fontSize": {
-        "small": "11px",
-        "normal": "12px",
-        "medium": "14px"
-      },
-      "lineHeight": 1.2
-    },
-    "commission": {
-      "texts": {
-        "offerTitle": "委託探索邀約",
-        "managementTitle": "委託探索管理",
-        "resourceTypeLabel": "需要資源",
-        "targetAmountLabel": "目標數量",
-        "basePaymentLabel": "基礎報酬",
-        "commissionLabel": "額外佣金",
-        "tenantSelectionLabel": "選擇目標租客",
-        "statusLabels": {
-          "pending": "等待回應",
-          "accepted": "已接受",
-          "rejected": "已拒絕",
-          "completed": "已完成",
-          "failed": "失敗"
-        },
-        "buttons": {
-          "offer": "發起委託",
-          "manage": "管理委託",
-          "confirm": "確認委託",
-          "cancel": "取消",
-          "close": "關閉"
-        },
-        "messages": {
-          "noTenants": "目前沒有可用的租客進行委託探索",
-          "insufficientResources": "資源不足，無法提供承諾的報酬",
-          "formIncomplete": "請檢查委託設定是否完整",
-          "offerAccepted": "接受了委託！探索即將開始。",
-          "offerRejected": "拒絕了委託。原因：",
-          "systemError": "委託系統暫時不可用"
-        }
-      },
-      "display": {
-        "maxHistoryItems": 20,
-        "autoRefreshInterval": 5000,
-        "resourceInputMax": {
-          "food": 99,
-          "materials": 99,
-          "medical": 99,
-          "fuel": 99,
-          "cash": 999999
-        },
-        "defaultValues": {
-          "basePayment": {
-            "food": 5,
-            "materials": 2,
-            "medical": 0,
-            "fuel": 0,
-            "cash": 0
-          },
-          "commission": {
-            "food": 0,
-            "materials": 0,
-            "medical": 1,
-            "fuel": 0,
-            "cash": 10
-          }
-        },
-        "riskToleranceTexts": {
-          "soldier": "高風險容忍度",
-          "worker": "中等風險容忍度",
-          "farmer": "中等風險容忍度",
-          "doctor": "低風險容忍度",
-          "elder": "低風險容忍度"
-        }
-      },
-      "notifications": {
-        "enabled": true,
-        "duration": 5000,
-        "fadeOutDelay": 4500,
-        "maxNotifications": 3
-      }
-    }
-  },
-  "progression": {
-    "tenantUnlocks": {
-      "doctor": {
-        "minDay": 3,
-        "conditions": [
-          "medical_emergency_survived"
-        ]
-      },
-      "soldier": {
-        "minDay": 7,
-        "conditions": [
-          "buildingDefense >= 3"
-        ]
-      },
-      "elder": {
-        "minDay": 5,
-        "conditions": [
-          "totalTenants >= 2"
-        ]
-      }
-    },
-    "skillUnlocks": {
-      "specialSkills": {
-        "requirements": {
-          "emergencyTraining": "first_medical_emergency",
-          "buildingUpgrade": "day >= 10",
-          "patrolSystem": "zombie_attack_survived",
-          "establishNetwork": "successful_mediation >= 3"
-        }
-      }
-    },
-    "difficultyScaling": {
-      "weeklyProgression": [
-        {
-          "week": 1,
-          "eventFrequency": 0.2,
-          "resourceScarcity": 0.1,
-          "tenantDemands": 0.8
-        },
-        {
-          "week": 2,
-          "eventFrequency": 0.3,
-          "resourceScarcity": 0.2,
-          "tenantDemands": 1.0
-        },
-        {
-          "week": 3,
-          "eventFrequency": 0.4,
-          "resourceScarcity": 0.3,
-          "tenantDemands": 1.2
-        }
-      ]
-    }
-  },
-  "validation": {
-    "criticalThresholds": {
-      "minCashForSurvival": 10,
-      "minFoodForWeek": 14,
-      "maxConsecutiveDeficit": 3
-    },
-    "warningLevels": {
-      "lowResources": {
-        "food": 5,
-        "materials": 3,
-        "medical": 2,
-        "fuel": 2,
-        "cash": 15
-      },
-      "tenantSatisfaction": {
-        "critical": 20,
-        "warning": 40
-      }
-    }
-  },
-  "debug": {
-    "enabledFeatures": {
-      "detailedLogging": false,
-      "skipCooldowns": false,
-      "infiniteResources": false,
-      "forceEvents": false
-    },
-    "testScenarios": {
-      "wealthTest": {
-        "cash": 1000,
-        "allResources": 100
-      },
-      "crisisTest": {
-        "cash": 5,
-        "food": 1,
-        "allTenantsInfected": true
-      }
-    }
-  },
   "characterGeneration": {
     "names": [
       "小明",
@@ -948,6 +734,66 @@
         "臉色灰敗，沒有血色",
         "呼吸聲有些異常，帶著喘息"
       ]
+    },
+    "personalResourceVariation": {
+      "enabled": true,
+      "description": "人物生成時個人資源的隨機化配置",
+      "variationTypes": {
+        "percentage": {
+          "description": "基於基礎值的百分比變化",
+          "defaultMin": 0.7,
+          "defaultMax": 1.3
+        },
+        "fixed": {
+          "description": "基於基礎值的固定數值變化", 
+          "defaultMin": -2,
+          "defaultMax": 3
+        }
+      },
+      "resourceRules": {
+        "cash": {
+          "type": "percentage",
+          "min": 0.5,
+          "max": 1.5,
+          "roundTo": 5,
+          "description": "現金變化範圍較大，反映個人經濟狀況差異"
+        },
+        "food": {
+          "type": "fixed",
+          "min": -1,
+          "max": 2,
+          "description": "食物攜帶量的適度變化"
+        },
+        "materials": {
+          "type": "percentage",
+          "min": 0.6,
+          "max": 1.4,
+          "description": "材料攜帶量基於職業基礎的變化"
+        },
+        "medical": {
+          "type": "fixed",
+          "min": 0,
+          "max": 1,
+          "description": "醫療用品的小幅度變化，避免負值"
+        },
+        "fuel": {
+          "type": "fixed", 
+          "min": 0,
+          "max": 1,
+          "description": "燃料攜帶量的小幅度變化"
+        }
+      },
+      "specialRules": {
+        "minimumResourcePreservation": {
+          "enabled": true,
+          "description": "確保職業特色資源不會完全消失",
+          "rules": {
+            "doctor": { "medical": { "min": 2 } },
+            "worker": { "materials": { "min": 3 } },
+            "farmer": { "food": { "min": 2 } }
+          }
+        }
+      }
     }
   }
 }
