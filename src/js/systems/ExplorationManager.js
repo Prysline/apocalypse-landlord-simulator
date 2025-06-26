@@ -786,15 +786,29 @@ export class ExplorationManager extends BaseManager {
    */
   async _distributeExplorationRewards(request, result) {
     try {
-      // 房東獲得合約履行的資源
+      // 分配主要資源（根據探索類型不同處理）
       if (result.contractFulfillment > 0) {
-        this.resourceManager.modifyResource(
-          request.resourceType,
-          result.contractFulfillment,
-          `探索收穫 (${request.type})`
-        );
-
-        this.addLog(`房東獲得 ${request.resourceType} x${result.contractFulfillment}`);
+        if (request.type === 'commission') {
+          // 委託探索：房東獲得主要資源
+          this.resourceManager.modifyResource(
+            request.resourceType,
+            result.contractFulfillment,
+            `委託探索收穫`
+          );
+          this.addLog(`房東獲得 ${request.resourceType} x${result.contractFulfillment}`);
+        } else if (request.type === 'autonomous') {
+          // 自主探索：參與者平分主要資源
+          const perPersonMain = Math.floor(result.contractFulfillment / request.participants.length);
+          if (perPersonMain > 0) {
+            this.emitEvent("autonomous_main_distribution", {
+              participants: request.participants.map(p => p.id),
+              resourceType: request.resourceType,
+              amountPerPerson: perPersonMain,
+              reason: '自主探索主要收穫'
+            });
+            this.addLog(`參與者各自獲得 ${request.resourceType} x${perPersonMain}`);
+          }
+        }
       }
 
       // 參與者平分超額資源

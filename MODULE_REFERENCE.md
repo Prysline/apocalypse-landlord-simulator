@@ -936,6 +936,13 @@ async hireTenant(applicantId, targetRoomId)
 async evictTenant(tenantId, isInfected = false, reason = '正常退租')
 
 /**
+ * 設置探索管理器（啟用自主探索功能）
+ * @param {ExplorationManager} explorationManager - 探索管理器實例
+ * @returns {Promise<boolean>} 設置是否成功
+ */
+async setExplorationManager(explorationManager)
+
+/**
  * 滿意度調整（委派給 SatisfactionManager）
  * @param {number} tenantId - 租客ID
  * @param {number} change - 滿意度變更量
@@ -1001,7 +1008,8 @@ adjustRelationshipValue(tenantId1, tenantId2, change, reason = '關係調整')
 getTenantRelationships(tenantId)
 
 /**
- * 檢查自主探索觸發（每日循環調用）
+ * 檢查自主探索觸發（DayManager 每日循環中換日前調用）
+ * 評估租客資源需求和探索動機，異步觸發合格的自主探索
  * @returns {Array<AutonomousExplorationTrigger>} 觸發的自主探索列表
  */
 checkAutonomousExploration()
@@ -1584,6 +1592,30 @@ resetStats()
  */
 ```
 
+#### 差異化獎勵分配機制
+ExplorationManager 根據探索類型實施不同的獎勵分配策略：
+
+```javascript
+// 委託探索：房東獲得主要資源
+if (request.type === 'commission') {
+  resourceManager.modifyResource(resourceType, contractFulfillment, '委託探索收穫');
+}
+
+// 自主探索：參與者平分主要資源
+else if (request.type === 'autonomous') {
+  const perPersonMain = Math.floor(contractFulfillment / participants.length);
+  emitEvent("autonomous_main_distribution", {
+    participants: participants.map(p => p.id),
+    resourceType: resourceType,
+    amountPerPerson: perPersonMain,
+    reason: '自主探索主要收穫'
+  });
+}
+
+// 超額資源：兩種探索類型均由參與者平分
+const perPersonSurplus = Math.floor(surplus / participants.length);
+```
+
 #### 使用範例
 ```javascript
 // 初始化探索管理器
@@ -1597,7 +1629,7 @@ const explorationManager = new ExplorationManager(
 await explorationManager.initialize();
 
 // 執行委託探索
-const explorationRequest = {
+const commissionRequest = {
   type: 'commission',
   requestId: 'commission_1',
   resourceType: 'food',
@@ -1611,7 +1643,19 @@ const explorationRequest = {
   commission: { food: 2, cash: 20 }
 };
 
-const result = await explorationManager.executeExploration(explorationRequest);
+// 執行自主探索
+const autonomousRequest = {
+  type: 'autonomous',
+  requestId: 'autonomous_1',
+  resourceType: 'food',
+  targetAmount: 5,
+  participants: [
+    { id: 'tenant_3', name: '工人王五', type: 'worker', personalResources: {} }
+  ],
+  priority: 'high'
+};
+
+const result = await explorationManager.executeExploration(commissionRequest);
 console.log(`探索${result.success ? '成功' : '失敗'}`);
 console.log('獲得資源:', result.resourcesObtained);
 
@@ -1714,6 +1758,13 @@ availableSkills.forEach(skill => {
 
 #### 每日循環執行順序
 ```javascript
+// 換日前處理
+0. 檢查自主探索觸發（TenantManager.checkAutonomousExploration）
+
+// 換日推進
+gameState.advanceDay()
+
+// 換日後處理
 1. 處理每日資源消費（ResourceManager.processDailyConsumption）
 2. 處理被動技能（SkillManager.processPassiveSkills）
 3. 處理租客互助交易（TradeManager.processMutualAid）

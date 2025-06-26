@@ -122,7 +122,7 @@ export class TenantManager extends BaseManager {
     this.autonomousHistory = [];
 
     /** @type {boolean} 自主探索功能啟用狀態 */
-    this.autonomousExplorationEnabled = false;
+    this.autonomousExplorationEnabled = true;
 
     /** @type {Object|null} 驗證器實例 */
     this.validator = getValidator({
@@ -911,6 +911,7 @@ export class TenantManager extends BaseManager {
 
       // 評估探索需求
       const trigger = this.evaluateAutonomousExplorationNeed(tenant);
+      systemLogger.debug('checkAutonomousExploration triggers:', triggers)
 
       if (trigger.shouldExplore) {
         // 機率檢查
@@ -1007,6 +1008,9 @@ export class TenantManager extends BaseManager {
   isAutonomousExplorationOnCooldown(tenantId) {
     const currentDay = this.gameState.getStateValue('day', 1);
     const expireDay = this.autonomousCooldowns.get(tenantId);
+    if (expireDay === undefined) {
+      return false
+    }
 
     return expireDay && currentDay < expireDay;
   }

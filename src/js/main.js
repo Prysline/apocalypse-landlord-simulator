@@ -234,6 +234,14 @@ class GameApplication {
             this.eventBus
           );
           await this.tradeManager.initialize();
+          
+          // 設置探索管理器給租客管理器（啟用自主探索功能）
+          if (this.tradeManager.explorationManager) {
+            await this.tenantManager.setExplorationManager(this.tradeManager.explorationManager);
+            systemLogger.info("✅ 自主探索功能已啟用");
+          } else {
+            systemLogger.warn("⚠️ 探索管理器未初始化，自主探索功能將禁用");
+          }
         }
       },
       {

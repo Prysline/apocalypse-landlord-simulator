@@ -220,6 +220,13 @@ class DayManager extends BaseManager {
         throw new Error('必要管理器不可用，無法執行每日循環');
       }
 
+      // 換日前處理：檢查自主探索觸發
+      await this._executeManagerOperation(
+        this.tenantManager,
+        'checkAutonomousExploration',
+        '自主探索檢查'
+      );
+
       // 推進天數
       const advanceSuccess = this.gameState.advanceDay();
       if (!advanceSuccess) {

@@ -1368,15 +1368,17 @@ export default class CommissionModal extends BaseModal {
   _generateExplorationResultContent(commission, explorationResult) {
     const resourceIcon = this._getIcon(commission.resourceType, 'resource');
     const resourceName = this._getResourceName(commission.resourceType);
-    
+    const isCommission = explorationResult.type === 'commission';
+
     return `
-      <!-- 委託資訊概覽 -->
+      <!-- 探索任務概覽 -->
       <div class="commission-overview">
-        <h3>📋 委託資訊</h3>
+        <h3>📋 ${isCommission ? '委託任務' : '自主探索'}</h3>
         <div class="commission-details">
           <div class="commission-title">
             ${resourceIcon} 目標：${commission.targetAmount} ${resourceName}
           </div>
+          ${isCommission ? `
           <div class="commission-rewards">
             <div class="reward-item">
               <span class="reward-label">基礎報酬:</span>
@@ -1387,6 +1389,14 @@ export default class CommissionModal extends BaseModal {
               <span class="reward-value">${this._formatRewardText(commission.commission || {})}</span>
             </div>
           </div>
+          ` : `
+          <div class="commission-rewards">
+            <div class="reward-item">
+              <span class="reward-label">探索動機:</span>
+              <span class="reward-value">資源短缺，自發性探索</span>
+            </div>
+          </div>
+          `}
         </div>
       </div>
 
@@ -1405,7 +1415,7 @@ export default class CommissionModal extends BaseModal {
             </span>
           </div>
           <div class="summary-item">
-            <span class="label">合約履行:</span>
+            <span class="label">目標達成度:</span>
             <span class="value">${explorationResult.contractFulfillment || 0} / ${commission.targetAmount}</span>
           </div>
         </div>
@@ -1417,8 +1427,8 @@ export default class CommissionModal extends BaseModal {
       <!-- 總收穫統計 -->
       ${this._generateTotalRewardsSection(commission, explorationResult)}
 
-      <!-- 委託結算 -->
-      ${explorationResult.refundedPayment ? `
+      <!-- 委託結算（僅委託探索顯示） -->
+      ${isCommission && explorationResult.refundedPayment ? `
         <div class="commission-settlement">
           <h3>💰 委託結算</h3>
           <div class="settlement-details">
@@ -1444,12 +1454,7 @@ export default class CommissionModal extends BaseModal {
   _generateDailyResultsSection(explorationResult) {
     const dailyResults = explorationResult.dailyResults || [];
     if (dailyResults.length === 0) {
-      return `
-        <div class="daily-results">
-          <h3>📅 每日探索過程</h3>
-          <p class="no-data">此次探索無每日收穫記錄</p>
-        </div>
-      `;
+      return ''; // 無每日記錄時直接隱藏整個區塊
     }
 
     const dailyHTML = dailyResults.map(dayResult => `
@@ -1485,11 +1490,13 @@ export default class CommissionModal extends BaseModal {
    */
   _generateTotalRewardsSection(commission, explorationResult) {
     const totalRewards = explorationResult.resourcesObtained || {};
+    const isCommission = explorationResult.type === 'commission';
+    
     if (Object.keys(totalRewards).length === 0) {
       return `
         <div class="total-rewards">
-          <h3>💰 總收穫統計</h3>
-          <p class="no-data">此次探索無資源收穫</p>
+          <h3>💰 ${isCommission ? '委託收穫統計' : '探索收穫統計'}</h3>
+          <p class="no-data">此次${isCommission ? '委託' : '探索'}無資源收穫</p>
         </div>
       `;
     }
@@ -1499,14 +1506,19 @@ export default class CommissionModal extends BaseModal {
 
     return `
       <div class="total-rewards">
-        <h3>💰 總收穫統計</h3>
+        <h3>💰 ${isCommission ? '委託收穫統計' : '探索收穫統計'}</h3>
         <div class="rewards-display">
           ${obtainedResources}
         </div>
-        ${explorationResult.contractFulfillment ? `
+        ${explorationResult.contractFulfillment && isCommission ? `
           <div class="contract-info">
-            <p><strong>合約履行:</strong> ${explorationResult.contractFulfillment} / ${commission.targetAmount || 'N/A'}</p>
+            <p><strong>目標達成度:</strong> ${explorationResult.contractFulfillment} / ${commission.targetAmount || 'N/A'}</p>
             ${explorationResult.surplus ? `<p><strong>超額收穫:</strong> +${explorationResult.surplus}</p>` : ''}
+          </div>
+        ` : ''}
+        ${!isCommission && explorationResult.surplus ? `
+          <div class="exploration-info">
+            <p><strong>探索成果:</strong> 成功獲得 ${explorationResult.surplus || Object.values(totalRewards).reduce((sum, val) => sum + val, 0)} 單位資源</p>
           </div>
         ` : ''}
       </div>

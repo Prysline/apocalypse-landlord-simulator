@@ -63,12 +63,16 @@ GameState(dataResult.data)
 ResourceManager(gameState, eventBus)
 TenantManager(gameState, resourceManager, dataManager, eventBus)
 TradeManager(gameState, resourceManager, tenantManager, dataManager, eventBus)
+  // 探索管理器依賴注入（啟用自主探索功能）
+  await tenantManager.setExplorationManager(tradeManager.explorationManager)
 SkillManager(gameState, eventBus, dataManager, resourceManager)
 DayManager(gameState, eventBus, resourceManager, tenantManager, tradeManager, skillManager)
 ```
 
 ### 依賴注入機制
 每個業務模組在建構函式中明確聲明所需依賴，避免運行時查找。TradeManager依賴TenantManager並內部協調RentManager和UniversalTrader兩個子模組，提供統一的交易API介面。
+
+**探索系統依賴注入**：TradeManager內部建立ExplorationManager後，主動注入給TenantManager以啟用自主探索功能。這種後續注入機制解決了循環依賴問題，同時保持了模組間的清晰職責分工。
 
 ### 職責分離原則實施
 架構重構實現明確的職責邊界：
@@ -127,7 +131,7 @@ BaseManager提供業務模組的統一基礎架構，標準化模組生命週期
 ## 異步業務流程架構
 
 ### 探索系統異步化設計理念
-ExplorationManager實現從同步執行到異步多日處理的架構轉換，支援真實時間流逝的探索機制。此設計將即時完成的探索改為跨日期的持續活動，提升遊戲沉浸感和策略性。
+ExplorationManager實現從同步執行到異步多日處理的架構轉換，支援真實時間流逝的探索機制。系統支援兩種探索類型：委託探索（commission）和自主探索（autonomous），統一使用相同的異步執行引擎，但獎勵分配機制有所區別。
 
 ### 異步狀態管理機制
 ```javascript
@@ -153,12 +157,32 @@ ongoingExplorations: Map<requestId, explorationState>
 - 上限約束：最多7天探索期
 
 ### 每日檢查機制
-DayManager的`day_start`事件觸發ExplorationManager的每日檢查流程：
-1. 遍歷所有進行中探索
-2. 檢查完成條件（當前日期 >= 完成日期）
-3. 執行探索結果計算和資源分配
-4. 更新參與者狀態並發送完成事件
-5. 記錄每日探索進度和結果訊息
+DayManager實施雙階段探索檢查機制：
+
+**換日前檢查**：自主探索觸發檢查
+- TenantManager.checkAutonomousExploration() 評估租客自主探索需求
+- 基於資源短缺、經濟壓力等因子觸發自主探索
+- 異步執行，不阻塞日循環進程
+
+**換日後檢查**：探索完成處理
+- ExplorationManager的`day_start`事件觸發每日檢查流程
+- 遍歷所有進行中探索，檢查完成條件（當前日期 >= 完成日期）
+- 執行探索結果計算和差異化資源分配
+- 更新參與者狀態並發送完成事件
+
+### 差異化獎勵分配機制
+```javascript
+// 委託探索：房東獲得主要資源
+if (request.type === 'commission') {
+  resourceManager.modifyResource(resourceType, contractFulfillment, '委託探索收穫');
+}
+
+// 自主探索：參與者平分主要資源
+else if (request.type === 'autonomous') {
+  const perPersonMain = Math.floor(contractFulfillment / participants.length);
+  emitEvent("autonomous_main_distribution", { participants, resourceType, amountPerPerson: perPersonMain });
+}
+```
 
 ExplorationManager 專門負責管理租客的 `onMission` 狀態，確保狀態管理的一致性和準確性。
 
