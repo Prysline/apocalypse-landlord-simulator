@@ -1,3 +1,4 @@
+{% raw %}
 # 末日房東模擬器 - 模組參考手冊
 
 本文件提供系統中所有模組的完整API參考，包含實作狀態、依賴關係和錯誤處理模式。
@@ -2201,3 +2202,4 @@ gameApp.tenantManager.validateIDSystemIntegrity()
 ---
 
 **文件維護原則**: 本文件專注於當前技術事實，避免歷史描述和版本追蹤。配合`TECHNICAL_GUIDE.md`使用，獲得完整的技術實作指導。
+{% endraw %}
