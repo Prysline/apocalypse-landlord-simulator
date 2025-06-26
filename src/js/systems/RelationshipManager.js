@@ -6,6 +6,7 @@
  * 設計原則：最小可用產品，避免過度設計
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import BaseManager from "./BaseManager.js";
 
 /**
@@ -44,7 +45,7 @@ export class RelationshipManager extends BaseManager {
       elder: { soldier: 50, worker: 55, farmer: 65, doctor: 80, elder: 75 }
     };
 
-    console.log("🤝 RelationshipManager 初始化中...");
+    systemLogger.info("🤝 RelationshipManager 初始化中...");
   }
 
   // ==========================================
@@ -68,14 +69,14 @@ export class RelationshipManager extends BaseManager {
       this.cleanupTenantRelationships(tenant.id);
     }, { skipPrefix: true });
 
-    console.log("✅ RelationshipManager 事件監聽器設置完成");
+    systemLogger.success("✅ RelationshipManager 事件監聽器設置完成");
   }
 
   async initialize() {
     this._loadExistingRelationships();
     this.setupEventListeners();
     this.markInitialized(true);
-    console.log("✅ RelationshipManager 初始化完成");
+    systemLogger.success("✅ RelationshipManager 初始化完成");
     return true;
   }
 
@@ -394,7 +395,7 @@ export class RelationshipManager extends BaseManager {
       }
     });
 
-    console.log(`🤝 載入 ${this.relationships.size} 個關係記錄`);
+    systemLogger.info(`🤝 載入 ${this.relationships.size} 個關係記錄`);
   }
 
   /**
@@ -413,7 +414,7 @@ export class RelationshipManager extends BaseManager {
   cleanup() {
     this.relationships.clear();
     super.cleanup();
-    console.log("RelationshipManager 已清理");
+    systemLogger.success("RelationshipManager 已清理");
   }
 }
 

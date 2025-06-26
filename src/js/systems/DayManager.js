@@ -11,6 +11,7 @@ import ResourceManager from '../systems/ResourceManager.js';
 import SkillManager from '../systems/SkillManager.js';
 import TenantManager from '../systems/TenantManager.js';
 import TradeManager from '../systems/TradeManager.js';
+import systemLogger from '../utils/SystemLogger.js';
 
 /**
  * 每日循環執行結果
@@ -63,7 +64,7 @@ class DayManager extends BaseManager {
     this.lastExecutionTime = 0;
 
     // Constructor 只做基本設置，實際初始化由 initialize() 方法處理
-    this.addLog('DayManager 已建立，等待初始化');
+    systemLogger.info('DayManager 已建立，等待初始化');
   }
 
   // ==========================================
@@ -76,7 +77,7 @@ class DayManager extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog('開始初始化 DayManager...');
+      systemLogger.info('開始初始化 DayManager...');
 
       // 1. 驗證必要依賴
       this._validateRequiredDependencies();
@@ -95,8 +96,8 @@ class DayManager extends BaseManager {
       // 4. 標記初始化完成
       this.markInitialized(true);
 
-      this.addLog('DayManager 初始化完成');
-      this.addLog(`管理器狀態: ${JSON.stringify(availability)}`);
+      systemLogger.success('DayManager 初始化完成');
+      systemLogger.debug(`管理器狀態: ${JSON.stringify(availability)}`);
 
       return true;
 
@@ -131,7 +132,7 @@ class DayManager extends BaseManager {
 
     // 監聽遊戲狀態變更（系統級事件）
     this.onEvent('game_state_changed', (eventObj) => {
-      this.addLog('遊戲狀態已更新');
+      systemLogger.debug('遊戲狀態已更新');
     });
   }
 
@@ -174,7 +175,7 @@ class DayManager extends BaseManager {
       throw new Error(`DayManager 缺失必要依賴: ${missingNames}`);
     }
 
-    this.addLog('必要依賴驗證通過');
+    systemLogger.debug('必要依賴驗證通過');
   }
 
   /**
@@ -213,22 +214,18 @@ class DayManager extends BaseManager {
     const currentDay = this.gameState.getStateValue('day', 0);
     const newDay = currentDay + 1;
 
-    // 技術日誌：只在 terminal 顯示
-    console.log(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
-    // 遊戲日誌：玩家可見的內容
-    this.addLog(`🌅 第 ${newDay} 天開始`);
-
     try {
       // 檢查必要管理器可用性
       if (!this.areRequiredManagersAvailable()) {
         throw new Error('必要管理器不可用，無法執行每日循環');
       }
 
-      // 發送循環開始事件（系統級事件，使用 BaseManager 統一介面）
-      this.emitEvent('cycle_start', { day: newDay });
-
-      // 執行每日業務邏輯
-      await this.processDailyOperations();
+      // 換日前處理：檢查自主探索觸發
+      await this._executeManagerOperation(
+        this.tenantManager,
+        'checkAutonomousExploration',
+        '自主探索檢查'
+      );
 
       // 推進天數
       const advanceSuccess = this.gameState.advanceDay();
@@ -236,18 +233,30 @@ class DayManager extends BaseManager {
         throw new Error('GameState.advanceDay() 失敗');
       }
 
+      // 技術日誌：只在 terminal 顯示
+      systemLogger.debug(`🌅 DayManager: 開始第 ${newDay} 天的處理流程`);
+      // 遊戲日誌：玩家可見的內容（在天數推進後記錄，確保日誌前綴正確）
+      this.addLog(`🌅 第 ${newDay} 天開始`);
+
+      // 發送每日開始事件（系統級事件，使用 BaseManager 統一介面）
+      this.addLog(`🔄 發送 day_start 事件 (第 ${newDay} 天)`);
+      this.emitEvent('day_start', { day: newDay });
+
+      // 執行每日業務邏輯
+      await this.processDailyOperations();
+
       // 更新統計
       this.totalDaysProcessed++;
       this.lastExecutionTime = Date.now() - startTime;
 
-      // 發送完成事件（系統級事件）
-      this.emitEvent('cycle_complete', {
+      // 發送每日完成事件（系統級事件）
+      this.emitEvent('day_complete', {
         day: newDay,
         duration: this.lastExecutionTime
       });
 
       // 技術日誌：顯示執行時間等技術資訊
-      console.log(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
+      systemLogger.debug(`✅ DayManager: 第 ${newDay} 天處理完成 (${this.lastExecutionTime}ms)`);
 
       return {
         success: true,
@@ -258,8 +267,8 @@ class DayManager extends BaseManager {
     } catch (error) {
       this.logError('每日循環執行失敗', error);
 
-      // 發送失敗事件（系統級事件）
-      this.emitEvent('cycle_failed', {
+      // 發送每日失敗事件（系統級事件）
+      this.emitEvent('day_failed', {
         day: newDay,
         error: error.message
       });
@@ -279,21 +288,14 @@ class DayManager extends BaseManager {
    * @returns {Promise<void>}
    */
   async processDailyOperations() {
-    // 1. 重置租客每日狀態
-    await this._executeManagerOperation(
-      this.tenantManager,
-      'resetDailyStates',
-      '租客狀態重置'
-    );
-
-    // 2. 處理每日資源消費
+    // 1. 處理每日資源消費
     await this._executeManagerOperation(
       this.resourceManager,
       'processDailyConsumption',
       '資源消費處理'
     );
 
-    // 3. 處理被動技能（如果可用）
+    // 2. 處理被動技能（如果可用）
     if (this.skillManager) {
       await this._executeManagerOperation(
         this.skillManager,
@@ -302,7 +304,7 @@ class DayManager extends BaseManager {
       );
     }
 
-    // 4. 處理租客互助交易
+    // 3. 處理租客互助交易
     await this._executeManagerOperation(
       this.tradeManager,
       'processMutualAid',
@@ -363,16 +365,16 @@ class DayManager extends BaseManager {
         : manager[methodName]();
 
       // 技術日誌：只在 terminal 顯示
-      console.log(`✅ DayManager: ${operationName}完成`);
+      systemLogger.success(`✅ DayManager: ${operationName}完成`);
 
       // Debug 模式下才在遊戲日誌中顯示技術訊息
       if (this.isDebugMode && typeof this.isDebugMode === 'function' && this.isDebugMode()) {
-        this.addLog(`[DEBUG] ${operationName}完成`);
+        systemLogger.debug(`${operationName}完成`);
       }
 
       return result;
     } catch (error) {
-      console.error(`❌ DayManager: ${operationName}失敗 -`, error);
+      systemLogger.error(`❌ DayManager: ${operationName}失敗 -`, error);
       // 錯誤訊息需要在遊戲日誌中顯示，但使用更友善的用語
       this.addLog(`⚠️ 系統處理異常`, 'danger');
       return null;

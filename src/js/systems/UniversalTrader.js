@@ -6,6 +6,7 @@
  * 架構改進：純函數設計、輕量快取、簡化狀態管理
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import BaseManager from "./BaseManager.js";
 
 // ==========================================
@@ -390,7 +391,7 @@ export class UniversalTrader extends BaseManager {
     /** @type {Object} 資源名稱對照表 */
     this.resourceNames = null;
 
-    this.addLog('UniversalTrader 已建立（重組架構）');
+    systemLogger.info('UniversalTrader 已建立（重組架構）');
   }
 
   // ==========================================
@@ -423,7 +424,7 @@ export class UniversalTrader extends BaseManager {
    */
   async initialize() {
     try {
-      this.addLog("開始載入交易配置", "event");
+      systemLogger.info("開始載入交易配置");
 
       // 載入配置（快速失敗模式）
       await this.loadTradeConfigurations();
@@ -504,18 +505,18 @@ export class UniversalTrader extends BaseManager {
 
       // 檢查是否為無效值
       if (value === undefined || value === null) {
-        console.warn(`配置項目未載入: ${config}，值為:`, value);
+        systemLogger.warn(`配置項目未載入: ${config}，值為:`, value);
         return false;
       }
 
       // 對於物件型配置，檢查是否為空物件
       if (typeof value === 'object' && Object.keys(value).length === 0) {
-        console.warn(`配置項目為空物件: ${config}，值為:`, value);
+        systemLogger.warn(`配置項目為空物件: ${config}，值為:`, value);
         return false;
       }
 
       // 除錯輸出：顯示成功載入的配置
-      console.log(`✓ 配置項目載入成功: ${config}，類型: ${typeof value}`);
+      systemLogger.debug(`✓ 配置項目載入成功: ${config}，類型: ${typeof value}`);
     }
 
     return true;
@@ -582,11 +583,11 @@ export class UniversalTrader extends BaseManager {
       // 儲存快取
       this.dailyTradeCache.set(cacheKey, finalOptions);
 
-      console.log(`生成 ${finalOptions.length} 個交易選項給角色 ${character.name}`);
+      systemLogger.info(`生成 ${finalOptions.length} 個交易選項給角色 ${character.name}`);
       return finalOptions;
 
     } catch (error) {
-      console.log("生成角色交易選項失敗", error);
+      systemLogger.error("生成角色交易選項失敗", error);
       return [];
     }
   }

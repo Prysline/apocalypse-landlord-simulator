@@ -9,6 +9,7 @@ import BaseManager from "./BaseManager.js";
 import SatisfactionManager from "./SatisfactionManager.js";
 import { getValidator } from "../utils/validators.js";
 import RelationshipManager from "./RelationshipManager.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -121,7 +122,7 @@ export class TenantManager extends BaseManager {
     this.autonomousHistory = [];
 
     /** @type {boolean} 自主探索功能啟用狀態 */
-    this.autonomousExplorationEnabled = false;
+    this.autonomousExplorationEnabled = true;
 
     /** @type {Object|null} 驗證器實例 */
     this.validator = getValidator({
@@ -130,7 +131,7 @@ export class TenantManager extends BaseManager {
       logErrors: true,
     });
 
-    console.log("🏘️ TenantManager 初始化中...");
+    systemLogger.info("🏘️ TenantManager 初始化中...");
   }
 
   // ==========================================
@@ -153,6 +154,17 @@ export class TenantManager extends BaseManager {
     }, { skipPrefix: true });
 
     // === 探索系統事件監聽器 ===
+    // 監聽自主探索主要資源分配事件
+    this.onEvent('exploration_autonomous_main_distribution', (eventObj) => {
+      const { participants, resourceType, amountPerPerson, reason } = eventObj.data;
+
+      participants.forEach(tenantId => {
+        this.modifyPersonalResource(tenantId, resourceType, amountPerPerson, reason);
+      });
+
+      this.addLog(`自主探索主要資源分配完成: ${participants.length} 人各得 ${resourceType} x${amountPerPerson}`);
+    }, { skipPrefix: true });
+
     // 監聽超額資源分配事件
     this.onEvent('exploration_surplus_distribution', (eventObj) => {
       const { participants, resourceType, amountPerPerson, reason } = eventObj.data;
@@ -173,6 +185,21 @@ export class TenantManager extends BaseManager {
       });
 
       this.addLog(`額外獎勵分配完成: ${participants.length} 人各得 ${resourceType} x${amountPerPerson}`);
+    }, { skipPrefix: true });
+
+    // 監聽基礎報酬分配事件
+    this.onEvent('exploration_base_payment_distribution', (eventObj) => {
+      const { participants, payments, reason } = eventObj.data;
+
+      participants.forEach(tenantId => {
+        for (const [resourceType, amount] of Object.entries(payments)) {
+          if (amount > 0) {
+            this.modifyPersonalResource(tenantId, resourceType, amount, reason);
+          }
+        }
+      });
+
+      this.addLog(`基礎報酬分配完成: ${participants.length} 人獲得委託基礎報酬`);
     }, { skipPrefix: true });
 
     // 監聽佣金分配事件
@@ -197,19 +224,85 @@ export class TenantManager extends BaseManager {
       this.addLog(`租客 ${tenantId} 在 ${explorationType} 探索中受傷`);
     }, { skipPrefix: true });
 
+    // 監聽探索開始事件，設置租客狀態
+    this.onEvent('exploration_started', (eventObj) => {
+      const { participants, type } = eventObj.data;
+
+      participants.forEach(participantId => {
+        const tenant = this.getTenant(participantId);
+        if (tenant) {
+          tenant.onMission = true;
+          tenant.missionType = type;
+
+          // 通知UI更新
+          this.emitEvent('tenant_status_changed', {
+            tenantId: participantId,
+            statusType: 'onMission',
+            newValue: true
+          });
+        }
+      });
+
+      this.addLog(`租客開始${type === 'commission' ? '委託' : '自主'}探索任務`);
+    }, { skipPrefix: true });
+
+    // 監聽探索完成事件，重置租客狀態
+    this.onEvent('exploration_completed', (eventObj) => {
+      const { type, result } = eventObj.data;
+
+      if (result?.participants) {
+        result.participants.forEach(participantResult => {
+          const tenant = this.getTenant(participantResult.tenantId);
+          if (tenant) {
+            tenant.onMission = false;
+            tenant.missionType = null;
+
+            // 通知UI更新
+            this.emitEvent('tenant_status_changed', {
+              tenantId: participantResult.tenantId,
+              statusType: 'onMission',
+              newValue: false
+            });
+          }
+        });
+      }
+
+      this.addLog(`${type === 'commission' ? '委託' : '自主'}探索任務完成`);
+    }, { skipPrefix: true });
+
+    // 監聽參與者受傷事件（新的事件處理）
+    this.onEvent('participant_injured', (eventObj) => {
+      const { tenantId, tenantName, explorationType } = eventObj.data;
+
+      // 設置租客的受傷狀態
+      const tenant = this.getTenant(tenantId);
+      if (tenant) {
+        tenant.injured = true;
+        this.addLog(`${tenantName} 在${explorationType === 'commission' ? '委託' : '自主'}探索中受傷 🩹`);
+
+        // 通知UI更新
+        this.emitEvent('tenant_status_changed', {
+          tenantId: tenantId,
+          statusType: 'injured',
+          newValue: true
+        });
+      }
+    }, { skipPrefix: true });
+
     // 監聽關係度變化事件
-    this.onEvent('exploration_relationship_change', (eventObj) => {
+    this.onEvent('relationship_change', (eventObj) => {
       const { tenantId, change, reason } = eventObj.data;
+      const tenant = this.gameState.findPersonById(tenantId)
 
       if (this.satisfactionManager) {
         this.satisfactionManager.modifySatisfaction(tenantId, change, reason);
-        this.addLog(`租客 ${tenantId} 滿意度變化: ${change > 0 ? '+' : ''}${change} (${reason})`);
+        this.addLog(`租客 ${tenant.name} 滿意度變化: ${change > 0 ? '+' : ''}${change} (${reason})`);
       } else {
         this.logWarning(`無法更新租客 ${tenantId} 滿意度: SatisfactionManager 未初始化`);
       }
     }, { skipPrefix: true });
 
-    console.log("✅ TenantManager 事件監聽器設置完成");
+    systemLogger.success("✅ TenantManager 事件監聽器設置完成");
   }
 
   // ==========================================
@@ -217,15 +310,15 @@ export class TenantManager extends BaseManager {
   // ==========================================
 
   async initialize() {
-    console.log("👥 載入租客管理系統配置...");
+    systemLogger.info("👥 載入租客管理系統配置...");
 
     await this.loadConfigurations();
     this.initializeSatisfactionManager();
+    this.initializeRelationshipManager();
     this.initializeTenantData();
     this.setupEventListeners();
 
     this.markInitialized(true);
-    console.log("✅ TenantManager 初始化完成");
 
     return true;
   }
@@ -248,7 +341,7 @@ export class TenantManager extends BaseManager {
       refundRate: 0.5,
     };
 
-    console.log("📋 租客系統配置載入完成");
+    systemLogger.success("📋 租客系統配置載入完成");
   }
 
   initializeSatisfactionManager() {
@@ -265,7 +358,22 @@ export class TenantManager extends BaseManager {
 
     // 初始化滿意度管理器
     this.satisfactionManager.initialize();
-    console.log("😊 滿意度管理器初始化完成");
+    systemLogger.success("😊 滿意度管理器初始化完成");
+  }
+
+  initializeRelationshipManager() {
+    const gameRules = this.dataManager.getGameRules();
+    const relationshipConfig = gameRules.gameBalance?.relationships || {};
+
+    this.relationshipManager = new RelationshipManager(
+      this.gameState,
+      this.eventBus,
+      relationshipConfig
+    );
+
+    // 初始化關係管理器
+    this.relationshipManager.initialize();
+    systemLogger.success("🤝 關係管理器初始化完成");
   }
 
   initializeTenantData() {
@@ -314,7 +422,7 @@ export class TenantManager extends BaseManager {
       throw new Error("系統未初始化");
     }
 
-    console.log(`👤 開始雇用租客ID: ${applicantId}`);
+    systemLogger.debug(`👤 開始雇用租客ID: ${applicantId}`);
 
     const applicant = this.findApplicantById(applicantId);
     if (!applicant) {
@@ -325,7 +433,7 @@ export class TenantManager extends BaseManager {
       };
     }
 
-    console.log(`✅ 找到申請者: ${applicant.name} (${applicant.type})`);
+    systemLogger.debug(`✅ 找到申請者: ${applicant.name} (${applicant.type})`);
 
     this.validateHiring(applicant, targetRoomId);
     const room = this.assignRoom(targetRoomId);
@@ -424,6 +532,7 @@ export class TenantManager extends BaseManager {
       skill: applicant.skill,
       rent: applicant.rent,
       infected: applicant.infected || false,
+      injured: applicant.injured || false,
       onMission: false,
       personalResources: { ...applicant.personalResources },
       appearance: applicant.appearance,
@@ -462,7 +571,7 @@ export class TenantManager extends BaseManager {
       throw new Error("系統未初始化");
     }
 
-    console.log(`🚪 開始驅逐租客ID: ${tenantId} (原因: ${reason})`);
+    systemLogger.info(`🚪 開始驅逐租客ID: ${tenantId} (原因: ${reason})`);
 
     const tenantInfo = this.findTenantAndRoom(tenantId);
     if (!tenantInfo) {
@@ -619,7 +728,7 @@ export class TenantManager extends BaseManager {
     }
 
     this.gameState.setStateValue("applicants", applicants, "生成新申請者");
-    console.log(`👥 生成了 ${applicants.length} 個申請者`);
+    systemLogger.info(`👥 生成了 ${applicants.length} 個申請者`);
     return applicants;
   }
 
@@ -627,6 +736,15 @@ export class TenantManager extends BaseManager {
     const tenantType = this.getRandomTenantType();
     const name = this.generateRandomName();
     const personId = this.generatePersonId();
+
+    // 生成隨機化個人資源
+    const personalResources = this.generateRandomPersonalResources(
+      tenantType.personalResources,
+      tenantType
+    );
+
+    // 分析資源狀況
+    const resourceStatus = this.analyzeResourceStatus(personalResources, tenantType);
 
     const applicant = {
       id: personId,
@@ -636,18 +754,30 @@ export class TenantManager extends BaseManager {
       skill: tenantType.skill,
       rent: tenantType.rent,
       infected: Math.random() < tenantType.infectionRisk,
+      injured: false,
       revealedInfection: false,
       appearance: "",
       infectionRisk: tenantType.infectionRisk,
-      personalResources: { ...tenantType.personalResources },
+      personalResources: personalResources,
       description: tenantType.description,
+      // 保存資源狀況分析結果（可用於後續顯示）
+      resourceStatus: {
+        category: resourceStatus.category,
+        totalValue: resourceStatus.totalValue
+      }
     };
 
     this.registerPerson(personId, applicant, "applicant");
 
-    applicant.appearance = applicant.infected
+    // 生成外觀描述
+    const baseAppearance = applicant.infected
       ? this.getInfectedAppearance()
       : this.getNormalAppearance();
+
+    // 將資源狀況描述接在外觀描述後面
+    applicant.appearance = resourceStatus.description
+      ? `${baseAppearance}，${resourceStatus.description}`
+      : baseAppearance;
 
     return applicant;
   }
@@ -672,6 +802,173 @@ export class TenantManager extends BaseManager {
     const rules = this.dataManager.getGameRules();
     const normalAppearances = rules.characterGeneration.appearances.normal;
     return normalAppearances[Math.floor(Math.random() * normalAppearances.length)];
+  }
+
+  /**
+   * 生成隨機化個人資源
+   * @param {Object} baseResources - 基礎資源配置
+   * @param {Object} tenantType - 租客類型配置
+   * @returns {Object} 隨機化後的個人資源
+   */
+  generateRandomPersonalResources(baseResources, tenantType) {
+    const rules = this.dataManager.getGameRules();
+    const config = rules.characterGeneration?.personalResourceVariation;
+
+    if (!config?.enabled) {
+      return { ...baseResources };
+    }
+
+    const randomizedResources = {};
+
+    for (const [resourceType, baseAmount] of Object.entries(baseResources)) {
+      const rule = config.resourceRules?.[resourceType];
+
+      if (!rule) {
+        randomizedResources[resourceType] = baseAmount;
+        continue;
+      }
+
+      let finalAmount;
+
+      if (rule.type === 'percentage') {
+        const multiplier = this._getRandomInRange(rule.min, rule.max);
+        finalAmount = Math.round(baseAmount * multiplier);
+      } else if (rule.type === 'fixed') {
+        const bonus = this._getRandomInRange(rule.min, rule.max);
+        finalAmount = Math.max(0, Math.round(baseAmount + bonus));
+      } else {
+        finalAmount = Math.round(baseAmount);
+      }
+
+      // 四捨五入處理
+      if (rule.roundTo) {
+        finalAmount = Math.round(finalAmount / rule.roundTo) * rule.roundTo;
+      }
+
+      // 應用職業特色資源保護
+      const specialRules = config.specialRules?.minimumResourcePreservation;
+      if (specialRules?.enabled && specialRules.rules?.[tenantType.typeId]) {
+        const minRule = specialRules.rules[tenantType.typeId]?.[resourceType];
+        if (minRule?.min !== undefined) {
+          finalAmount = Math.max(finalAmount, minRule.min);
+        }
+      }
+
+      randomizedResources[resourceType] = Math.max(0, finalAmount);
+    }
+
+    return randomizedResources;
+  }
+
+  /**
+   * 獲取範圍內隨機數
+   * @param {number} min - 最小值
+   * @param {number} max - 最大值
+   * @returns {number} 隨機數
+   * @private
+   */
+  _getRandomInRange(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
+  /**
+   * 分析個人資源狀況並生成描述
+   * @param {Object} personalResources - 個人資源
+   * @param {Object} tenantType - 租客類型配置
+   * @returns {Object} 資源狀況分析結果
+   */
+  analyzeResourceStatus(personalResources, tenantType) {
+    const baseResources = tenantType.personalResources;
+    let wealthyCount = 0;
+    let poorCount = 0;
+    let specializedCount = 0;
+
+    // 分析各項資源相對於基礎值的狀況
+    for (const [resourceType, amount] of Object.entries(personalResources)) {
+      const baseAmount = baseResources[resourceType] || 0;
+      const ratio = baseAmount > 0 ? amount / baseAmount : (amount > 0 ? 2 : 1);
+
+      if (ratio >= 1.3) {
+        wealthyCount++;
+      } else if (ratio <= 0.7) {
+        poorCount++;
+      }
+
+      // 檢查是否在專業領域有豐富資源
+      if (this._isSpecializedResource(resourceType, tenantType.typeId) && ratio >= 1.2) {
+        specializedCount++;
+      }
+    }
+
+    // 計算總資源價值（簡化計算）
+    const totalValue = personalResources.cash +
+                      (personalResources.food * 3) +
+                      (personalResources.materials * 2) +
+                      (personalResources.medical * 4) +
+                      (personalResources.fuel * 3);
+
+    let category;
+    let description = "";
+
+    if (specializedCount > 0) {
+      category = "specialized";
+      description = "在專業領域準備充分";
+    } else if (wealthyCount >= 2) {
+      category = "wealthy";
+      description = "看起來經濟狀況不錯";
+    } else if (poorCount >= 2) {
+      category = "poor";
+      description = "似乎手頭有些緊";
+    } else if (totalValue > this._getAverageTotalValue(tenantType)) {
+      category = "prepared";
+      description = "隨身攜帶了充足的物資";
+    } else {
+      category = "normal";
+      description = "";
+    }
+
+    return {
+      category,
+      description,
+      totalValue,
+      wealthyCount,
+      poorCount,
+      specializedCount
+    };
+  }
+
+  /**
+   * 檢查資源類型是否為該職業的專業資源
+   * @param {string} resourceType - 資源類型
+   * @param {string} jobType - 職業類型
+   * @returns {boolean} 是否為專業資源
+   * @private
+   */
+  _isSpecializedResource(resourceType, jobType) {
+    const specializations = {
+      'doctor': ['medical'],
+      'worker': ['materials'],
+      'farmer': ['food'],
+      'soldier': ['materials', 'fuel'],
+      'elder': ['cash']
+    };
+
+    return specializations[jobType]?.includes(resourceType) || false;
+  }
+
+  /**
+   * 獲取該職業的平均總資源價值
+   * @param {Object} tenantType - 租客類型配置
+   * @returns {number} 平均總資源價值
+   * @private
+   */
+  _getAverageTotalValue(tenantType) {
+    const base = tenantType.personalResources;
+    return base.cash +
+           (base.food * 3) +
+           (base.materials * 2) +
+           (base.medical * 4) +
+           (base.fuel * 3);
   }
 
   removeApplicant(applicantId) {
@@ -817,6 +1114,7 @@ export class TenantManager extends BaseManager {
 
       // 評估探索需求
       const trigger = this.evaluateAutonomousExplorationNeed(tenant);
+      systemLogger.debug('checkAutonomousExploration triggers:', triggers)
 
       if (trigger.shouldExplore) {
         // 機率檢查
@@ -913,6 +1211,9 @@ export class TenantManager extends BaseManager {
   isAutonomousExplorationOnCooldown(tenantId) {
     const currentDay = this.gameState.getStateValue('day', 1);
     const expireDay = this.autonomousCooldowns.get(tenantId);
+    if (expireDay === undefined) {
+      return false
+    }
 
     return expireDay && currentDay < expireDay;
   }
@@ -1042,7 +1343,7 @@ export class TenantManager extends BaseManager {
         throw new Error('探索系統配置未找到');
       }
 
-      this.addLog('自主探索配置已載入');
+      systemLogger.info('自主探索配置已載入');
 
     } catch (error) {
       this.logError('自主探索配置載入失敗', error);
@@ -1292,6 +1593,9 @@ export class TenantManager extends BaseManager {
    * 所有其他方法都應該使用這個基礎 API
    */
   findTenantAndRoom(tenantId) {
+    if (typeof tenantId === 'string') {
+      tenantId = Number(tenantId)
+    }
     const rooms = this.gameState.getStateValue("rooms", []);
 
     for (const room of rooms) {
@@ -1302,6 +1606,11 @@ export class TenantManager extends BaseManager {
     }
 
     return null;
+  }
+
+  getTenant(tenantId) {
+    const result = this.findTenantAndRoom(tenantId);
+    return result ? result.tenant : null;
   }
 
   findApplicantById(applicantId) {
@@ -1391,19 +1700,6 @@ export class TenantManager extends BaseManager {
     return stats;
   }
 
-  async resetDailyStates() {
-    this.gameState.setStateValue("dailyActions.scavengeUsed", 0, "每日重置");
-
-    const allTenants = this.gameState.getAllTenants();
-    allTenants.forEach(tenant => {
-      if (tenant.onMission) {
-        tenant.onMission = false;
-      }
-    });
-
-    return true;
-  }
-
   /**
    * 清理已離開租客的關係值記錄
    * @returns {number} 清理的記錄數量
@@ -1429,7 +1725,7 @@ export class TenantManager extends BaseManager {
 
       if (cleanedCount > 0) {
         this.gameState.setStateValue('tenantRelationships', relationships, '清理已離開租客的關係記錄');
-        this.addLog(`清理了 ${cleanedCount} 個無效的關係記錄`);
+        systemLogger.info(`清理了 ${cleanedCount} 個無效的關係記錄`);
       }
 
       return cleanedCount;
@@ -1438,6 +1734,22 @@ export class TenantManager extends BaseManager {
       this.logError('清理關係值記錄失敗', error);
       return 0;
     }
+  }
+
+  /**
+   * 修改租客滿意度（代理方法，委託給 SatisfactionManager）
+   * @param {string} tenantId - 租客ID
+   * @param {number} change - 滿意度變化值
+   * @param {string} [reason='交易互動'] - 變化原因
+   * @returns {boolean} 是否成功修改
+   */
+  modifyTenantSatisfaction(tenantId, change, reason = '交易互動') {
+    if (!this.satisfactionManager) {
+      this.logWarning(`無法修改租客 ${tenantId} 滿意度: SatisfactionManager 未初始化`);
+      return false;
+    }
+    this.satisfactionManager.modifySatisfaction(Number(tenantId), change, reason);
+    return true
   }
 
   cleanup() {
@@ -1460,7 +1772,7 @@ export class TenantManager extends BaseManager {
 
     // 調用父類清理
     super.cleanup();
-    console.log("TenantManager 已清理");
+    systemLogger.success("TenantManager 已清理");
   }
 }
 

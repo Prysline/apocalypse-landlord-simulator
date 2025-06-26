@@ -3,6 +3,7 @@
  * 職責：遊戲狀態映射、DOM更新
  */
 
+import systemLogger from '../utils/SystemLogger.js';
 export default class UIDisplay {
   constructor(gameApp, uiCore = null) {
     this.gameApp = gameApp;
@@ -12,7 +13,7 @@ export default class UIDisplay {
 
   async initialize() {
     this.cacheElements();
-    console.log('✅ UIDisplay 初始化完成');
+    systemLogger.success('✅ UIDisplay 初始化完成');
   }
 
   cacheElements() {
@@ -214,7 +215,14 @@ export default class UIDisplay {
 
       let statusIndicators = [];
       if (tenant.infected) statusIndicators.push('🦠已感染！');
-      if (tenant.onMission) statusIndicators.push('🚶執行任務中');
+      if (tenant.injured) statusIndicators.push('🩹受傷中');
+      if (tenant.onMission) {
+        const missionType = tenant.missionType === 'commission' ? '委託' : '探索';
+        statusIndicators.push(`🚩${missionType}中`);
+      }
+      if (tenant.rentDebt && tenant.rentDebt > 0) {
+        statusIndicators.push(`💸欠租$${tenant.rentDebt}`);
+      }
       if (tenant.roomReinforced) statusIndicators.push('🛡️已加固');
 
       // === 個人資源概況 ===
@@ -244,6 +252,22 @@ export default class UIDisplay {
 
     tenantListElement.innerHTML = tenantHTML;
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // =================== 基本DOM操作 ===================
 
@@ -284,7 +308,7 @@ export default class UIDisplay {
   // =================== 除錯支援 ===================
 
   debug() {
-    console.log('🖥️ UIDisplay 狀態:', {
+    systemLogger.debug('🖥️ UIDisplay 狀態:', {
       elements: this.elements.size,
       gameState: !!this.gameApp?.gameState
     });

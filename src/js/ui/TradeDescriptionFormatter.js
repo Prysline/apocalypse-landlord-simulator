@@ -1,5 +1,7 @@
 // @ts-check
 
+import systemLogger from "../utils/SystemLogger.js";
+
 /**
  * @fileoverview TradeDescriptionFormatter.js - 交易描述格式化器
  * 職責：統一管理所有交易相關的描述生成邏輯
@@ -19,7 +21,7 @@ export class TradeDescriptionFormatter {
    * @returns {string} 格式化後的描述
    */
   static formatTradeOption(option) {
-    console.log(option)
+    systemLogger.info(option)
     const { type, character, item, quantity, urgency, resourceType } = option;
     const characterName = character.name;
 

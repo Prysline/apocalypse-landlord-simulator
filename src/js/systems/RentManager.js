@@ -6,6 +6,7 @@
  * 架構：繼承 BaseManager，採用快速失敗配置載入模式
  */
 
+import systemLogger from "../utils/SystemLogger.js";
 import BaseManager from "./BaseManager.js";
 
 /**
@@ -176,12 +177,12 @@ export class RentManager extends BaseManager {
       );
 
       // 提供具體修復建議
-      console.error("🔧 RentManager 配置修復建議：");
-      console.error("1. 確認 rules.json 中的 gameBalance.economy.rentPayment 包含：");
-      console.error("   - resourceExchangeRates: { food: 1.5, materials: 3, medical: 4, fuel: 3 }");
-      console.error("   - reinforcementBonus: 0.2");
-      console.error("   - resourceProcessingOrder: ['food', 'materials', 'medical', 'fuel']");
-      console.error("2. 確認 gameBalance.personalWealth.resourceNames 存在");
+      systemLogger.error("🔧 RentManager 配置修復建議：");
+      systemLogger.error("1. 確認 rules.json 中的 gameBalance.economy.rentPayment 包含：");
+      systemLogger.error("   - resourceExchangeRates: { food: 1.5, materials: 3, medical: 4, fuel: 3 }");
+      systemLogger.error("   - reinforcementBonus: 0.2");
+      systemLogger.error("   - resourceProcessingOrder: ['food', 'materials', 'medical', 'fuel']");
+      systemLogger.error("2. 確認 gameBalance.personalWealth.resourceNames 存在");
 
       throw error;
     }
@@ -218,17 +219,34 @@ export class RentManager extends BaseManager {
         summary: ""
       };
 
-      // 取得所有健康租客
+      // 取得所有健康且在家的租客
       const healthyTenants = this.getHealthyTenants();
+      const availableTenants = healthyTenants.filter(tenant => !tenant.onMission);
+      const onMissionTenants = healthyTenants.filter(tenant => tenant.onMission);
 
-      if (healthyTenants.length === 0) {
-        result.summary = "📭 今日沒有租客繳納房租";
+      // Debug: 記錄租客狀態
+      systemLogger.debug(`RentManager - 租客狀態檢查:`);
+      healthyTenants.forEach(tenant => {
+        systemLogger.debug(`  ${tenant.name}: onMission=${tenant.onMission}, missionType=${tenant.missionType || 'none'}`);
+      });
+
+      // 處理外出租客的欠款累積
+      for (const tenant of onMissionTenants) {
+        this.accumulateRentDebt(tenant);
+      }
+
+      if (availableTenants.length === 0) {
+        let summary = "📭 今日沒有租客繳納房租";
+        if (onMissionTenants.length > 0) {
+          summary += ` (${onMissionTenants.length} 位租客外出中，累積欠款)`;
+        }
+        result.summary = summary;
         this.addLog(result.summary, "event");
         return result;
       }
 
-      // 逐個處理租客租金
-      for (const tenant of healthyTenants) {
+      // 逐個處理可用租客租金
+      for (const tenant of availableTenants) {
         const tenantResult = this.processIndividualRent(tenant);
 
         if (tenantResult.success) {
@@ -279,19 +297,43 @@ export class RentManager extends BaseManager {
    * @returns {Object} 個別租客處理結果
    */
   processIndividualRent(tenant) {
-    const rentDue = tenant.rent;
-    const room = this.findTenantRoom(tenant);
-
     // 確保租客有個人資源
     this.ensurePersonalResources(tenant);
+    
+    // 處理累積欠款
+    const totalRentDue = tenant.rent + (tenant.rentDebt || 0);
+    const room = this.findTenantRoom(tenant);
 
     // 嘗試現金支付
-    if (tenant.personalResources.cash >= rentDue) {
-      return this.processDirectCashPayment(tenant, rentDue, room);
+    if (tenant.personalResources.cash >= totalRentDue) {
+      const result = this.processDirectCashPayment(tenant, totalRentDue, room);
+      if (result.success && tenant.rentDebt > 0) {
+        this.addLog(`${tenant.name} 結清了 $${tenant.rentDebt} 的欠款`, "rent");
+        tenant.rentDebt = 0;
+      }
+      return result;
     }
 
     // 嘗試資源抵付
-    return this.processResourcePayment(tenant, rentDue, room);
+    const result = this.processResourcePayment(tenant, totalRentDue, room);
+    if (result.success && tenant.rentDebt > 0) {
+      this.addLog(`${tenant.name} 結清了 $${tenant.rentDebt} 的欠款`, "rent");
+      tenant.rentDebt = 0;
+    }
+    return result;
+  }
+
+  /**
+   * 累積租客租金欠款
+   * @param {Object} tenant - 租客物件
+   */
+  accumulateRentDebt(tenant) {
+    if (!tenant.rentDebt) {
+      tenant.rentDebt = 0;
+    }
+    tenant.rentDebt += tenant.rent;
+    
+    this.addLog(`${tenant.name} 外出中，累積租金欠款 $${tenant.rent} (總欠款: $${tenant.rentDebt})`, "rent");
   }
 
   /**

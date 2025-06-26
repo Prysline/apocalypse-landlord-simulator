@@ -7,6 +7,7 @@
 
 import BaseManager from "./BaseManager.js";
 import { SYSTEM_LIMITS } from "../utils/constants.js";
+import systemLogger from "../utils/SystemLogger.js";
 
 /**
  * @see {@link ../Type.js} 完整類型定義
@@ -142,8 +143,6 @@ export class ResourceManager extends BaseManager {
 
     // 標記初始化完成
     this.markInitialized();
-
-    console.log("✅ ResourceManager v2.0 (BaseManager 繼承版) 初始化完成");
   }
 
   // ==========================================
@@ -789,18 +788,18 @@ export class ResourceManager extends BaseManager {
 
   /**
    * 院子採集 - 主要入口點
-   * @returns {boolean} 採集是否成功
+   * @returns {{success: boolean, error?: string, description?: string, amount?: number}} 採集結果
    */
   harvestYard() {
     if (!this.isActive) {
       this.logWarning("ResourceManager 已停用，無法進行院子採集");
-      return false;
+      return { success: false, error: "資源管理器已停用" };
     }
 
     try {
       // 檢查採集條件
       if (!this.canHarvest()) {
-        return false;
+        return { success: false, error: this._getHarvestErrorMessage() };
       }
 
       // 取得基礎採集量（純基礎功能，不計算技能加成）
@@ -823,13 +822,17 @@ export class ResourceManager extends BaseManager {
         });
 
         this.addLog(`院子採集獲得 ${baseAmount} 食物`, "event");
-        return true;
+        return { 
+          success: true, 
+          description: `院子採集獲得 ${baseAmount} 食物`, 
+          amount: baseAmount 
+        };
       }
 
-      return false;
+      return { success: false, error: "資源修改失敗" };
     } catch (error) {
       this.logError("院子採集失敗", error);
-      return false;
+      return { success: false, error: error.message || "採集系統錯誤" };
     }
   }
 
@@ -860,6 +863,29 @@ export class ResourceManager extends BaseManager {
     } catch (error) {
       this.logError("檢查採集條件失敗", error);
       return false;
+    }
+  }
+
+  /**
+   * 取得採集錯誤訊息
+   * @private
+   * @returns {string} 錯誤訊息
+   */
+  _getHarvestErrorMessage() {
+    try {
+      const harvestUsed = this.gameState.getStateValue("harvestUsed", false);
+      if (harvestUsed) {
+        return "今日已進行過院子採集";
+      }
+
+      const harvestCooldown = this.gameState.getStateValue("harvestCooldown", 0);
+      if (harvestCooldown > 0) {
+        return `院子採集冷卻中，剩餘 ${harvestCooldown} 天`;
+      }
+
+      return "無法進行採集";
+    } catch (error) {
+      return "採集條件檢查失敗";
     }
   }
 
@@ -1338,14 +1364,29 @@ export class ResourceManager extends BaseManager {
     try {
       const tenants = this.gameState.getAllTenants();
 
-      // 簡單消費計算：房東2食物 + 租客每人2食物 + 1燃料
-      const foodConsumption = 2 + (tenants.length * 2);
+      // 房東消費：2食物 + 1燃料（由房東資源池扣除）
+      const landlordFoodConsumption = 2;
       const fuelConsumption = 1;
 
-      // 執行消費
-      this.modifyResource('food', -foodConsumption, '每日食物消費', 'daily_cycle');
+      // 執行房東消費
+      this.modifyResource('food', -landlordFoodConsumption, '房東每日食物消費', 'daily_cycle');
       this.modifyResource('fuel', -fuelConsumption, '每日燃料消費', 'daily_cycle');
 
+      // 租客個人食物消費（從個人資源扣除）
+      let tenantsConsumed = 0;
+      for (const tenant of tenants) {
+        if (tenant.personalResources && tenant.personalResources.food >= 2) {
+          tenant.personalResources.food -= 2;
+          tenantsConsumed++;
+          this.addLog(`租客 ${tenant.name} 消費個人食物 2份`);
+        } else {
+          // 如果個人食物不足，記錄並可能影響滿意度
+          this.addLog(`租客 ${tenant.name} 個人食物不足，未能正常進食`);
+          this.emitEvent('tenant_insufficient_food', { tenantId: tenant.id, name: tenant.name });
+        }
+      }
+
+      systemLogger.info(`每日消費完成: 房東食物 ${landlordFoodConsumption}份, 燃料 ${fuelConsumption}份, ${tenantsConsumed}位租客消費個人食物`);
       return true;
     } catch (error) {
       this.logError("每日消費處理失敗", error);

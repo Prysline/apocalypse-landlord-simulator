@@ -4,6 +4,12 @@
  * 所有 HTML onclick 都調用 UICore 的方法
  */
 
+import systemLogger from '../utils/SystemLogger.js';
+import CommissionModal from './modal/CommissionModal.js';
+import SkillModal from './modal/SkillModal.js';
+import TenantModal from './modal/TenantModal.js';
+import TradeModal from './modal/TradeModal.js';
+import VisitorModal from './modal/VisitorModal.js';
 import { TradeDescriptionFormatter } from './TradeDescriptionFormatter.js';
 import UIDisplay from './UIDisplay.js';
 import UIModal from './UIModal.js';
@@ -13,6 +19,13 @@ export default class UICore {
     this.gameApp = gameApp;
     this.display = null;
     this.modal = null;
+
+    this.tenantModal = null;
+    this.tradeModal = null;
+    this.visitorModal = null;
+    this.skillModal = null;
+    this.commissionModal = null;
+
     this.isReady = false;
     this.confirmCallback = null;
 
@@ -21,21 +34,17 @@ export default class UICore {
       systemReady: false
     };
 
-    this.thresholds = {
-      resources: {
-        critical: { food: 2, materials: 1, medical: 1, fuel: 1, cash: 5 },
-        warning: { food: 5, materials: 3, medical: 2, fuel: 2, cash: 15 }
-      }
-    };
+    // 阈值从配置文件加载，在 _loadThresholds() 中初始化
+    this.thresholds = {};
 
     this.updateTimer = null;
-    console.log("🎨 UICore 已初始化");
+    systemLogger.success("🎨 UICore 已初始化");
   }
 
   // =================== 核心初始化 ===================
 
   async initialize() {
-    console.log('🎨 UICore 初始化開始');
+    systemLogger.info('🎨 UICore 初始化開始');
 
     try {
       await this._waitForGameApp();
@@ -44,8 +53,22 @@ export default class UICore {
       this.display = new UIDisplay(this.gameApp, this);
       this.modal = new UIModal(this.gameApp, this);
 
+      this.tenantModal = new TenantModal(this.gameApp, this);
+      this.tradeModal = new TradeModal(this.gameApp, this);
+      this.visitorModal = new VisitorModal(this.gameApp, this);
+      this.skillModal = new SkillModal(this.gameApp, this);
+      this.commissionModal = new CommissionModal(this.gameApp, this);
+
       await this.display.initialize();
       await this.modal.initialize();
+      await this.tenantModal.initialize();
+      await this.tradeModal.initialize();
+      await this.visitorModal.initialize();
+      await this.skillModal.initialize();
+      await this.commissionModal.initialize();
+
+      // 等待所有關鍵子系統完全就緒
+      await this._waitForCriticalSubsystems();
 
       this.bindEvents();
       this.bindDebugEvents();
@@ -58,11 +81,68 @@ export default class UICore {
       this.isReady = true;
       this.uiState.systemReady = true;
 
-      console.log('✅ UICore 初始化完成');
+      systemLogger.success('✅ UICore 初始化完成');
     } catch (error) {
-      console.error("❌ UICore 初始化失敗:", error);
+      systemLogger.error("❌ UICore 初始化失敗:", error);
       throw error;
     }
+  }
+
+  /**
+   * 等待關鍵子系統完全初始化
+   * @private
+   */
+  async _waitForCriticalSubsystems() {
+    systemLogger.info('⏳ 等待關鍵子系統初始化...');
+
+    const criticalSystems = [
+      {
+        name: 'TradeManager',
+        checker: () => this.gameApp.tradeManager?.isInitialized(),
+        subChecker: () => this.gameApp.tradeManager?.universalTrader?.isConfigurationLoaded()
+      },
+      {
+        name: 'TenantManager',
+        checker: () => this.gameApp.tenantManager?.isInitialized()
+      },
+      {
+        name: 'ResourceManager',
+        checker: () => this.gameApp.resourceManager?.isInitialized()
+      },
+      {
+        name: 'SkillManager',
+        checker: () => this.gameApp.skillManager?.isInitialized()
+      }
+    ];
+
+    const maxAttempts = 50; // 最多等待5秒
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const notReady = criticalSystems.filter(system => {
+        const mainReady = system.checker();
+        const subReady = system.subChecker ? system.subChecker() : true;
+        return !mainReady || !subReady;
+      });
+
+      if (notReady.length === 0) {
+        systemLogger.success('✅ 所有關鍵子系統已就緒');
+        return;
+      }
+
+      systemLogger.info(`⏳ 等待系統: ${notReady.map(s => s.name).join(', ')}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    // 如果等待超時，拋出錯誤
+    const stillNotReady = criticalSystems.filter(system => {
+      const mainReady = system.checker();
+      const subReady = system.subChecker ? system.subChecker() : true;
+      return !mainReady || !subReady;
+    });
+
+    throw new Error(`關鍵子系統初始化超時: ${stillNotReady.map(s => s.name).join(', ')}`);
   }
 
   // =================== 統一對外介面 - 模態框控制 ===================
@@ -71,52 +151,35 @@ export default class UICore {
    * 顯示訪客模態框 (對外介面)
    */
   showVisitors() {
-    this.closeModal()
-    const visitors = this.gameApp.gameState?.getStateValue('applicants', []) || [];
-    this.modal.setVisitorContent(visitors);
-    this.modal.show('visitorModal');
-  }
-
-  /**
-   * 顯示搜刮模態框 (對外介面)
-   */
-  showScavenge() {
-    const scavengeUsed = this.gameApp.gameState?.getStateValue('scavengeUsed', 0) || 0;
-    const remaining = 2 - scavengeUsed;
-
-    const allTenants = this.gameApp.gameState?.getAllTenants() || [];
-    const availableTenants = allTenants.filter(tenant =>
-      !tenant.onMission && !tenant.infected
-    );
-
-    this.modal.setScavengeContent(availableTenants, remaining);
-    this.modal.show('scavengeModal');
+    if (this.visitorModal) {
+      this.visitorModal.showVisitors();
+    } else {
+      systemLogger.error('VisitorModal 未初始化');
+      this.gameApp.gameState?.addLog('訪客系統未載入', 'danger');
+    }
   }
 
   /**
    * 顯示技能模態框 (對外介面)
    */
   showSkills() {
-    const skillManager = this.gameApp.skillManager;
-    const skills = skillManager?.getAvailableSkills ? skillManager.getAvailableSkills() : [];
-
-    this.modal.setSkillContent(skills);
-    this.modal.show('skillModal');
+    if (this.skillModal) {
+      this.skillModal.showSkills();
+    } else {
+      systemLogger.error('SkillModal 未初始化');
+      this.gameApp.gameState?.addLog('技能系統未載入', 'danger');
+    }
   }
 
   /**
    * 顯示房間模態框 (對外介面)
    */
   showRoomModal(room) {
-    const tenant = this.gameApp.gameState?.getRoomTenant(room.id);
-
-    if (tenant) {
-      const satisfaction = this.gameApp.gameState?.getStateValue(`tenantSatisfaction.${tenant.name}`, 50) || 50;
-      this.modal.setTenantContent(room, satisfaction);
+    if (this.tenantModal) {
+      this.tenantModal.showRoom(room);
     } else {
-      this.modal.setEmptyRoomContent(room);
+      systemLogger.error('TenantModal 未初始化');
     }
-    this.modal.show('tenantModal');
   }
 
   /**
@@ -124,33 +187,11 @@ export default class UICore {
    * @param {string} characterId - 角色ID
    */
   showTradeModal(characterId) {
-    try {
-      if (!this.gameApp.tradeManager) {
-        this.gameApp.gameState?.addLog("交易系統未載入", "danger");
-        return;
-      }
-
-      // 獲取角色交易選項
-      const rawTradeOptions = this.gameApp.tradeManager.getCharacterTradeOptions(characterId);
-
-      // 在UI層添加描述格式化
-      const formattedOptions = this.formatTradeOptionsForDisplay(rawTradeOptions);
-
-      // 找到角色資訊
-      const character = this._findCharacterById(characterId);
-      if (!character) {
-        this.gameApp.gameState?.addLog("找不到指定角色", "danger");
-        return;
-      }
-
-      // 設置交易模態框內容
-      this.modal.setTradeContent(character, formattedOptions);
-      this.modal.show('tradeModal');
-
-      console.log(`顯示 ${character.name} 的交易選項，共 ${formattedOptions.length} 個`);
-    } catch (error) {
-      console.error("顯示交易模態框失敗:", error);
-      this.gameApp.gameState?.addLog("無法顯示交易選項", "danger");
+    if (this.tradeModal) {
+      this.tradeModal.showTradeModal(characterId);
+    } else {
+      systemLogger.error('TradeModal 未初始化');
+      this.gameApp.gameState?.addLog('交易系統未載入', 'danger');
     }
   }
 
@@ -178,12 +219,16 @@ export default class UICore {
    * 雇用租客 (對外介面)
    */
   async hireTenant(applicantId) {
-    if (this.gameApp.tenantManager?.hireTenant) {
-      const result = await this.gameApp.tenantManager.hireTenant(applicantId);
-      if (result.success) {
+    if (this.tenantModal) {
+      const result = await this.tenantModal.hireTenant(applicantId);
+      if (result) {
         this.closeAllModals();
         this.updateAll();
       }
+    } else {
+      systemLogger.error('TenantModal 未初始化');
+      this.gameApp.gameState?.addLog('租客系統未載入', 'danger');
+      return false;
     }
   }
 
@@ -191,41 +236,11 @@ export default class UICore {
    * 驅逐租客 (對外介面)
    */
   evictTenant(tenantId, isInfected = false) {
-    const tenantInfo = this.gameApp.tenantManager.findTenantAndRoom(tenantId);
-    if (!tenantInfo) {
-      console.error('找不到租客');
-      return;
-    }
-
-    const { tenant } = tenantInfo;
-
-    // UICore 處理確認邏輯
-    this.showConfirmModal(
-      isInfected ? "驅逐感染租客" : "租客退租確認",
-      `確定要${isInfected ? "驅逐感染的" : "讓"}租客 ${tenant.name} ${isInfected ? "" : "退租"}嗎？`,
-      async () => {
-        try {
-          await this.gameApp.tenantManager.evictTenant(tenantId, isInfected, "房東決定");
-          this.closeAllModals();
-          this.updateAll();
-        } catch (error) {
-          console.error("驅逐租客失敗:", error);
-          this.gameApp.gameState?.addLog("驅逐租客失敗", "danger");
-        }
-      }
-    );
-  }
-
-  /**
-   * 派遣租客搜刮 (對外介面)
-   */
-  sendTenantOnScavenge(tenantId) {
-    if (this.gameApp.resourceManager?.sendTenantOnScavenge) {
-      const result = this.gameApp.resourceManager.sendTenantOnScavenge(tenantId);
-      if (result.success) {
-        this.closeAllModals();
-        this.updateAll();
-      }
+    if (this.tenantModal) {
+      this.tenantModal.evictTenant(tenantId, isInfected);
+    } else {
+      systemLogger.error('TenantModal 未初始化');
+      this.gameApp.gameState?.addLog('租客系統未載入', 'danger');
     }
   }
 
@@ -235,36 +250,11 @@ export default class UICore {
      * @param {number} tenantId - 租客ID
      */
   async useSkillWithTenant(skillId, tenantId, options = {}) {
-    console.log(`使用技能: ${skillId}, 租客ID: ${tenantId}`);
-    console.log(options)
-    if (!this.gameApp?.skillManager?.executeSkill) {
-      console.error("技能系統未載入或無法執行技能");
-      this.gameApp.gameState?.addLog("技能系統未載入", "danger");
-      return;
-    }
-
-    try {
-      console.log(`執行技能: ${skillId}, 租客ID: ${tenantId}`);
-
-      // 直接執行技能，不需要查找租客ID
-      const result = await this.gameApp.skillManager.executeSkill(tenantId, skillId, options);
-
-      // 關閉模態框並更新顯示
-      this.closeAllModals();
-      this.updateAll();
-
-      // 添加日誌
-      if (this.gameApp.gameState) {
-        console.log(result)
-        if (result.success) {
-          console.log(`成功使用技能: ${result.skillId || skillId}`, "skill");
-        } else {
-          console.log(`無法使用技能: ${result.error || '未知錯誤'}`, "danger");
-        }
-      }
-    } catch (error) {
-      console.error("執行技能失敗:", error);
-      this.gameApp.gameState?.addLog("執行技能失敗", "danger");
+    if (this.skillModal) {
+      await this.skillModal.useSkillWithTenant(skillId, tenantId, options);
+    } else {
+      systemLogger.error('SkillModal 未初始化');
+      this.gameApp.gameState?.addLog('技能系統未載入', 'danger');
     }
   }
 
@@ -279,7 +269,7 @@ export default class UICore {
         return;
       }
 
-      console.log(`執行交易: ${tradeOptionId}`);
+      systemLogger.info(`執行交易: ${tradeOptionId}`);
 
       // 執行交易
       const result = await this.gameApp.tradeManager.executeResourceTrade(tradeOptionId);
@@ -293,15 +283,15 @@ export default class UICore {
         this.closeModal('tradeModal');
         this.updateAll();
 
-        console.log(`交易執行成功: ${description}`);
+        systemLogger.success(`交易執行成功: ${description}`);
       } else {
         // 交易失敗
         this.gameApp.gameState?.addLog(`交易失敗: ${result.error}`, "danger");
-        console.error(`交易失敗: ${result.error}`);
+        systemLogger.error(`交易失敗: ${result.error}`);
       }
 
     } catch (error) {
-      console.error("執行交易失敗:", error);
+      systemLogger.error("執行交易失敗:", error);
       this.gameApp.gameState?.addLog("交易系統錯誤", "danger");
     }
   }
@@ -314,13 +304,15 @@ export default class UICore {
       if (this.gameApp.tradeManager?.collectRent) {
         const result = await this.gameApp.tradeManager.collectRent(); // 正確方法名 + await
         if (result.success) {
-          this.gameApp.gameState?.addLog(result.summary, 'rent');
+          systemLogger.info(result.summary);
         } else {
           this.gameApp.gameState?.addLog(result.error || '收租失敗', 'danger');
         }
+      } else {
+        this.gameApp.gameState?.addLog('交易系統未載入', 'danger');
       }
     } catch (error) {
-      console.error('收租失敗:', error);
+      systemLogger.error('收租失敗:', error);
       this.gameApp.gameState?.addLog('收租系統錯誤', 'danger');
     }
     this.updateAll(); // 確保UI更新
@@ -330,11 +322,20 @@ export default class UICore {
    * 院子採集 (對外介面)
    */
   harvestYard() {
-    if (this.gameApp.resourceManager?.harvestYard) {
-      const result = this.gameApp.resourceManager.harvestYard();
-      if (result.success) {
-        this.gameApp.gameState?.addLog(`採集: ${result.description}`, 'success');
+    try {
+      if (this.gameApp.resourceManager?.harvestYard) {
+        const result = this.gameApp.resourceManager.harvestYard();
+        if (result.success) {
+          this.gameApp.gameState?.addLog(`採集: ${result.description}`, 'success');
+        } else {
+          this.gameApp.gameState?.addLog(result.error || '採集失敗', 'danger');
+        }
+      } else {
+        this.gameApp.gameState?.addLog('資源系統未載入', 'danger');
       }
+    } catch (error) {
+      systemLogger.error('院子採集失敗:', error);
+      this.gameApp.gameState?.addLog('採集系統錯誤', 'danger');
     }
     this.updateAll();
   }
@@ -347,8 +348,17 @@ export default class UICore {
       '確認進入下一天',
       '確定要進入下一天嗎？',
       async () => {
-        await this.gameApp.dayManager.executeNextDay()
-        this.updateAll();
+        try {
+          if (this.gameApp.dayManager?.executeNextDay) {
+            await this.gameApp.dayManager.executeNextDay();
+            this.updateAll();
+          } else {
+            this.gameApp.gameState?.addLog('日期系統未載入', 'danger');
+          }
+        } catch (error) {
+          systemLogger.error('進入下一天失敗:', error);
+          this.gameApp.gameState?.addLog('日期系統錯誤', 'danger');
+        }
       }
     );
   }
@@ -381,6 +391,27 @@ export default class UICore {
   handleConfirmNo() {
     this.confirmCallback = null;
     this.closeModal('confirmModal');
+  }
+
+  // =================== 探索結算處理 ===================
+
+  /**
+   * 顯示探索結算模態框
+   * @param {Object} commission - 委託資訊
+   * @param {Object} explorationResult - 探索結果物件
+   */
+  showExplorationResult(commission, explorationResult) {
+    systemLogger.debug('UICore|showExplorationResult - commission:', commission, 'explorationResult:', explorationResult)
+    try {
+      if (this.commissionModal) {
+        this.commissionModal.showExplorationResult(commission, explorationResult);
+        systemLogger.info('探索結算模態框已顯示');
+      } else {
+        systemLogger.error('CommissionModal 未初始化，無法顯示探索結算');
+      }
+    } catch (error) {
+      systemLogger.error('顯示探索結算失敗:', error);
+    }
   }
 
   // =================== 房間處理 ===================
@@ -452,15 +483,6 @@ export default class UICore {
 
   // =================== 交易輔助方法 ===================
 
-  /**
-   * 根據ID尋找角色
-   * @private
-   * @param {string} personId - 角色ID
-   * @returns {Object|null} 角色物件
-   */
-  _findCharacterById(personId) {
-    return this.gameApp.gameState?.findPersonById(Number(personId)) || null;
-  }
 
   /**
    * 格式化交易選項供顯示使用 (UI層職責)
@@ -510,22 +532,20 @@ export default class UICore {
   }
 
   _loadThresholds() {
-    try {
-      const gameRules = this.gameApp.dataManager?.getGameRules();
-      if (gameRules?.gameDefaults?.resources) {
-        this.thresholds.resources.warning = {
-          ...this.thresholds.resources.warning,
-          ...gameRules.gameDefaults.resources.warningThresholds
-        };
-        this.thresholds.resources.critical = {
-          ...this.thresholds.resources.critical,
-          ...gameRules.gameDefaults.resources.criticalThresholds
-        };
-      }
-      console.log("📊 閾值配置載入完成");
-    } catch (error) {
-      console.warn("⚠️ 使用預設閾值配置");
+    const gameRules = this.gameApp.dataManager?.getGameRules();
+    const resourceConfig = gameRules?.gameBalance?.resources
+    if (!resourceConfig) {
+      const error = new Error("無法載入資源閾值配置 - 配置文件或dataManager不可用");
+      systemLogger.error("❌ 閾值配置載入失敗", error);
+      throw error;
     }
+
+    this.thresholds.resources = {
+      warning: resourceConfig.warningThresholds || {},
+      critical: resourceConfig.criticalThresholds || {}
+    };
+
+    systemLogger.success("📊 閾值配置載入完成");
   }
 
   // =================== 共用邏輯中心 ===================
@@ -553,6 +573,10 @@ export default class UICore {
       tenant: {
         soldier: '🛡️', doctor: '⚕️', worker: '🔧',
         farmer: '🌾', trader: '💼', elder: '👴'
+      },
+      tenantHuman: {
+        soldier: '👮‍♂️', doctor: '👨‍⚕️', worker: '👩‍🔧',
+        farmer: '🧑‍🌾', trader: '👨‍💼', elder: '👴'
       },
       resource: {
         cash: '💰', food: '🍖', materials: '🔧',
@@ -697,7 +721,7 @@ export default class UICore {
   getResourceName(resourceType) {
     const config = this._getPersonalWealthConfig();
     const resourceNames = config.resourceNames || {
-      food: '食物', materials: '建材', medical: '醫療',
+      food: '食物', materials: '建材', medical: '醫療用品',
       fuel: '燃料', cash: '現金'
     };
 
@@ -716,15 +740,37 @@ export default class UICore {
 
     this.gameApp.eventBus.on("tenant_tenantHired", () => this.updateAll());
     this.gameApp.eventBus.on("tenant_tenantEvicted", () => this.updateAll());
+
+    // 監聽探索結算事件
+    this.gameApp.eventBus.on("exploration_show_result_modal", (eventData) => {
+      systemLogger.debug('_setupGameStateListeners - eventData:', eventData)
+      const commission = eventData.data.commission;
+      const explorationResult = eventData.data.explorationResult;
+
+      // 豐富參與者資訊
+      if (explorationResult.participants) {
+        explorationResult.participants = explorationResult.participants.map(item => {
+          const participant = this.gameApp.gameState.findPersonById(item.tenantId);
+          return {
+            ...participant,
+            ...item
+          };
+        });
+      }
+
+      this.showExplorationResult(commission, explorationResult);
+    });
   }
 
   bindEvents() {
     this.bindButton('collectRentBtn', () => this.collectRent());
     this.bindButton('showVisitorsBtn', () => this.showVisitors());
-    this.bindButton('showScavengeBtn', () => this.showScavenge());
     this.bindButton('harvestYardBtn', () => this.harvestYard());
     this.bindButton('showSkillBtn', () => this.showSkills());
     this.bindButton('nextDayBtn', () => this.nextDay());
+    this.bindButton('showCommissionBtn', () => this.showCommissionModal());
+
+    this.bindCommissionEvents()
 
     // 房間點擊事件
     document.addEventListener('click', (e) => {
@@ -740,7 +786,8 @@ export default class UICore {
     // 模態框關閉事件
     document.querySelectorAll(".modal").forEach((modal) => {
       modal.addEventListener("click", (/** @type {MouseEvent} */ e) => {
-        if (e.target === modal) {
+        // 排除 commissionModal，防止背景點擊意外關閉
+        if (e.target === modal && modal.id !== 'commissionModal') {
           this.closeModal();
         }
       });
@@ -750,7 +797,7 @@ export default class UICore {
     this.bindButton("confirmYes", () => this.handleConfirmYes());
     this.bindButton("confirmNo", () => this.closeModal());
 
-    console.log("🔗 事件監聽器綁定完成");
+    systemLogger.success("🔗 事件監聽器綁定完成");
   }
 
   bindButton(id, handler) {
@@ -803,6 +850,117 @@ export default class UICore {
     }, 1000);
   }
 
+
+  addLog(message, type = "default") {
+    this.gameApp.gameState.addLog(message, type)
+  }
+
+  // =================== 委託探索系統對外介面 ===================
+
+  /**
+   * 顯示委託探索模態框
+   */
+  showCommissionModal() {
+    if (this.commissionModal) {
+      this.commissionModal.showCommissionModal();
+    } else {
+      systemLogger.error('CommissionModal 未初始化');
+      this.gameApp.gameState?.addLog('委託系統未載入', 'danger');
+    }
+  }
+
+  /**
+   * 處理租客選擇
+   * @param {string} tenantId - 租客ID
+   */
+  handleTenantSelection(tenantId) {
+    if (this.commissionModal) {
+      this.commissionModal.handleTenantSelection(tenantId);
+    } else {
+      systemLogger.error('CommissionModal 未初始化');
+    }
+  }
+
+  /**
+   * 處理資源輸入變更
+   * @param {Event} event - 輸入事件
+   */
+  handleResourceInputChange(event) {
+    if (this.commissionModal) {
+      this.commissionModal.handleResourceInputChange(event);
+    } else {
+      systemLogger.error('CommissionModal 未初始化');
+    }
+  }
+
+  /**
+   * 切換委託頁籤
+   * @param {string} tabName - 頁籤名稱
+   */
+  switchCommissionTab(tabName) {
+    if (this.commissionModal) {
+      this.commissionModal.switchCommissionTab(tabName);
+    } else {
+      systemLogger.error('CommissionModal 未初始化');
+    }
+  }
+
+  // =================== 初始化綁定 ===================
+
+  /**
+   * 綁定委託相關事件（在 bindEvents 方法中調用）
+   */
+  bindCommissionEvents() {
+    // 頁籤切換
+    document.querySelectorAll('.commission-tabs .tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tab = /** @type {HTMLElement} */(e.target).getAttribute('data-tab');
+        if (tab) {
+          this.switchCommissionTab(tab);
+        };
+      });
+    });
+
+    // 表單提交委託給 CommissionModal
+    const form = document.getElementById('commissionForm');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (this.commissionModal) {
+          this.commissionModal.handleCommissionFormSubmit(e);
+        }
+      });
+    }
+
+    // 提交按鈕點擊事件（因為按鈕不是type="submit"）
+    const submitBtn = document.getElementById('submitCommission');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this.commissionModal) {
+          this.commissionModal.handleCommissionFormSubmit(e);
+        }
+      });
+    }
+
+    // 綁定所有資源輸入的變更事件
+    const resourceInputSelectors = [
+      '#targetResource', '#targetAmount',
+      '#basePaymentCash', '#basePaymentFood', '#basePaymentMaterials', '#basePaymentMedical', '#basePaymentFuel',
+      '#commissionCash', '#commissionFood', '#commissionMaterials', '#commissionMedical', '#commissionFuel'
+    ];
+
+    resourceInputSelectors.forEach(selector => {
+      const input = document.querySelector(selector);
+      if (input) {
+        input.addEventListener('input', (e) => this.handleResourceInputChange(e));
+        input.addEventListener('change', (e) => this.handleResourceInputChange(e));
+      }
+    });
+
+    systemLogger.success('🔗 委託事件監聽器綁定完成');
+  }
+
   // =================== 除錯功能 ===================
 
   bindDebugEvents() {
@@ -853,9 +1011,51 @@ export default class UICore {
     if (this.gameApp?.tenantManager?.generateApplicants) {
       const applicants = this.gameApp.tenantManager.generateApplicants();
       this.gameApp.gameState.setStateValue('applicants', applicants)
-      this.gameApp.gameState?.addLog('除錯：重新生成訪客','success');
+      this.gameApp.gameState?.addLog('除錯：重新生成訪客', 'success');
       this.updateAll();
     }
+  }
+
+  // =================== 新增便捷存取方法 ===================
+
+  /**
+   * 取得 TenantModal 實例
+   * @returns {TenantModal|null}
+   */
+  getTenantModal() {
+    return this.tenantModal;
+  }
+
+  /**
+   * 取得 TradeModal 實例
+   * @returns {TradeModal|null}
+   */
+  getTradeModal() {
+    return this.tradeModal;
+  }
+
+  /**
+   * 取得 VisitorModal 實例
+   * @returns {VisitorModal|null}
+   */
+  getVisitorModal() {
+    return this.visitorModal;
+  }
+
+  /**
+   * 取得 SkillModal 實例
+   * @returns {SkillModal|null}
+   */
+  getSkillModal() {
+    return this.skillModal;
+  }
+
+  /**
+   * 取得 CommissionModal 實例
+   * @returns {CommissionModal|null}
+   */
+  getCommissionModal() {
+    return this.commissionModal;
   }
 
   // =================== 公開介面 ===================
@@ -865,13 +1065,18 @@ export default class UICore {
       ready: this.isReady,
       display: !!this.display,
       modal: !!this.modal,
+      tenantModal: !!this.tenantModal,
+      tradeModal: !!this.tradeModal,
+      visitorModal: !!this.visitorModal,
+      skillModal: !!this.skillModal,
+      commissionModal: !!this.commissionModal,
       gameApp: !!this.gameApp
     };
   }
 
   debug() {
-    console.log('🔧 UICore 狀態:', this.getStatus());
-    console.log('📊 閾值配置:', this.thresholds);
+    systemLogger.debug('🔧 UICore 狀態:', this.getStatus());
+    systemLogger.debug('📊 閾值配置:', this.thresholds);
   }
 
   destroy() {

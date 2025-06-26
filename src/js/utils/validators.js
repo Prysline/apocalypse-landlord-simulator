@@ -1,5 +1,7 @@
 // @ts-check
 
+import systemLogger from "./SystemLogger.js";
+
 /**
  * @fileoverview Validator.js - 輕量級驗證系統
  * 職責：提供關鍵操作的簡單驗證，可選啟用
@@ -364,7 +366,7 @@ export class Validator {
     this.stats.failed++;
 
     if (this.logErrors) {
-      console.warn("🚨 驗證失敗:", message);
+      systemLogger.error("🚨 驗證失敗:", message);
     }
 
     return {
@@ -445,7 +447,7 @@ export class Validator {
    */
   setEnabled(enabled) {
     this.enabled = enabled;
-    console.log(`驗證器已${enabled ? "啟用" : "停用"}`);
+    systemLogger.info(`驗證器已${enabled ? "啟用" : "停用"}`);
   }
 
   /**
@@ -455,7 +457,7 @@ export class Validator {
    */
   setStrictMode(strict) {
     this.strictMode = strict;
-    console.log(`${strict ? "啟用" : "停用"}嚴格驗證模式`);
+    systemLogger.info(`${strict ? "啟用" : "停用"}嚴格驗證模式`);
   }
 }
 

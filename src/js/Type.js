@@ -122,6 +122,7 @@
  * @property {string} appearance - 外觀描述
  * @property {boolean} infected - 感染狀態
  * @property {boolean} revealedInfection - 是否已發現感染
+ * @property {boolean} injured - 受傷狀態
  * @property {PersonalResources} personalResources - 個人資源
  * @property {boolean} tradingInterest - 交易興趣
  * @property {Resources} tradingResources - 可交易的資源
@@ -158,6 +159,7 @@
  * @property {string} skill - 技能描述
  * @property {number} rent - 房租金額
  * @property {boolean} [infected] - 是否感染
+ * @property {boolean} [injured] - 是否受傷
  * @property {boolean} [onMission] - 是否執行任務中
  * @property {PersonalResources} [personalResources] - 個人資源
  * @property {string} [appearance] - 外觀描述

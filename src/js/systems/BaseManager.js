@@ -1,5 +1,7 @@
 // @ts-check
 
+import systemLogger from '../utils/SystemLogger.js';
+
 /**
  * @fileoverview BaseManager.js v2.0 - 業務管理器基礎類別（混合分層前綴策略）
  * 職責：提供統一的事件通信、日誌記錄、狀態管理等基礎功能
@@ -29,9 +31,9 @@
  */
 
 /**
- * 業務管理器基礎類別 v2.0（混合分層前綴策略）
+ * 業務管理器基礎類別 （混合分層前綴策略）
  * 為所有業務管理器提供統一的基礎功能架構
- * 核心創新：智慧事件前綴解析，自動區分系統、業務、模組三層事件
+ * 智慧事件前綴解析，自動區分系統、業務、模組三層事件
  * @class
  * @abstract
  */
@@ -116,8 +118,9 @@ export class BaseManager {
     // 驗證必要依賴
     this._validateDependencies();
 
-    console.log(
-      `🏗️ ${managerType} BaseManager v2.0 混合分層前綴策略初始化完成`
+    systemLogger.success(
+      `🏗️混合分層前綴策略初始化完成`,
+      { prefix: managerType }
     );
   }
 
@@ -289,7 +292,7 @@ export class BaseManager {
    */
   emitEvent(eventName, data = null, options = {}) {
     if (!this.eventBus) {
-      console.warn(
+      systemLogger.warn(
         `⚠️ ${this.managerType} EventBus 不可用，無法發送事件: ${eventName}`
       );
       return;
@@ -323,7 +326,7 @@ export class BaseManager {
         const category = this._getEventCategory(finalEventName);
         const crossModule = this._isCrossModuleEvent(finalEventName);
 
-        console.debug(
+        systemLogger.debug(
           `📡 ${this.managerType} 發送事件: ${finalEventName}`,
           `[${category}${crossModule ? " | 跨模組" : ""}]`,
           { data, metadata: eventOptions }
@@ -333,7 +336,7 @@ export class BaseManager {
       // 更新最後活動時間
       this._updateLastActivity();
     } catch (error) {
-      console.error(
+      systemLogger.error(
         `❌ ${this.managerType} 發送事件失敗 (${eventName}):`,
         error
       );
@@ -352,7 +355,7 @@ export class BaseManager {
    */
   onEvent(eventName, callback, options = {}) {
     if (!this.eventBus) {
-      console.warn(
+      systemLogger.warn(
         `⚠️ ${this.managerType} EventBus 不可用，無法監聽事件: ${eventName}`
       );
       return;
@@ -369,7 +372,7 @@ export class BaseManager {
         try {
           callback(eventObj);
         } catch (error) {
-          console.error(
+          systemLogger.error(
             `❌ ${this.managerType} 事件處理器錯誤 (${finalEventName}):`,
             error
           );
@@ -385,12 +388,12 @@ export class BaseManager {
 
       if (this.isDebugMode()) {
         const category = this._getEventCategory(finalEventName);
-        console.debug(
+        systemLogger.debug(
           `👂 ${this.managerType} 監聽事件: ${finalEventName} [${category}]`
         );
       }
     } catch (error) {
-      console.error(
+      systemLogger.error(
         `❌ ${this.managerType} 註冊事件監聽器失敗 (${eventName}):`,
         error
       );
@@ -435,7 +438,7 @@ export class BaseManager {
         this.gameState.addLog(displayMessage, type);
       } else if (options.forceConsole || !this.gameState) {
         // 後備方案：控制台輸出
-        console.log(`[${type.toUpperCase()}] ${displayMessage}`);
+        systemLogger.info(`[${type.toUpperCase()}] ${displayMessage}`);
       }
 
       // 發送日誌事件（供其他模組監聽）
@@ -458,8 +461,8 @@ export class BaseManager {
       this._updateLastActivity();
     } catch (error) {
       // 日誌記錄失敗時的緊急處理
-      console.error(`❌ ${this.managerType} 日誌記錄失敗:`, error);
-      console.log(`[EMERGENCY] ${message}`);
+      systemLogger.error(`❌ ${this.managerType} 日誌記錄失敗:`, error);
+      systemLogger.info(`[EMERGENCY] ${message}`);
     }
   }
 
@@ -479,11 +482,12 @@ export class BaseManager {
       fullMessage = `${message}: ${errorDetails}`;
     }
 
-    this.addLog(fullMessage, "danger", { forceConsole: true });
-
-    // 如果有錯誤物件，也輸出堆疊追蹤
-    if (error instanceof Error && this.isDebugMode()) {
-      console.error(`${this.managerType} 錯誤堆疊:`, error.stack);
+    if (error instanceof Error) {
+      // 程式性錯誤：僅使用 SystemLogger
+      systemLogger.error(`[${this.managerType}] ${message}`, error);
+    } else {
+      // 遊戲邏輯錯誤：僅使用 addLog
+      this.addLog(fullMessage, "danger", { forceConsole: true });
     }
   }
 
@@ -508,6 +512,49 @@ export class BaseManager {
   }
 
   // ==========================================
+  // 明確的系統級方法
+  // ==========================================
+
+  /**
+   * 記錄系統錯誤（明確語義）
+   * 專門用於系統級錯誤，不會混淆到遊戲日誌
+   * @param {string} message - 錯誤訊息
+   * @param {Error|string} [error] - 錯誤詳情
+   * @returns {void}
+   */
+  logSystemError(message, error = null) {
+    const systemMessage = `[${this.managerType}] ${message}`;
+    systemLogger.error(systemMessage, error);
+  }
+
+  /**
+   * 記錄系統警告（明確語義）
+   * @param {string} message - 警告訊息
+   * @returns {void}
+   */
+  logSystemWarning(message) {
+    systemLogger.warn(`[${this.managerType}] ${message}`);
+  }
+
+  /**
+   * 記錄系統成功（明確語義）
+   * @param {string} message - 成功訊息
+   * @returns {void}
+   */
+  logSystemSuccess(message) {
+    systemLogger.success(`[${this.managerType}] ${message}`);
+  }
+
+  /**
+   * 記錄系統資訊（新增，AI常用）
+   * @param {string} message - 資訊內容
+   * @returns {void}
+   */
+  logSystemInfo(message) {
+    systemLogger.info(`[${this.managerType}] ${message}`);
+  }
+
+  // ==========================================
   // 基礎狀態管理
   // ==========================================
 
@@ -524,7 +571,7 @@ export class BaseManager {
     this._lastUpdated = Date.now();
 
     const status = configLoaded ? "完全初始化" : "部分初始化（配置載入失敗）";
-    console.log(`✅ ${this.managerType} ${status}完成`);
+    systemLogger.info(`${status}完成`, { prefix: this.managerType});
 
     // 發送初始化完成事件
     this.emitEvent("initialized", {
@@ -589,7 +636,7 @@ export class BaseManager {
     this.logSuccess("事件命名規則已更新");
 
     if (this.isDebugMode()) {
-      console.debug(
+      systemLogger.debug(
         `${this.managerType} 更新後的事件命名規則:`,
         this._eventNamingRules
       );
@@ -629,7 +676,7 @@ export class BaseManager {
     }
 
     if (!this.eventBus) {
-      console.warn(`⚠️ ${this.managerType} 缺少 EventBus，部分功能將不可用`);
+      systemLogger.warn(`⚠️ ${this.managerType} 缺少 EventBus，部分功能將不可用`);
     }
 
     if (!this.managerType) {
@@ -728,28 +775,25 @@ export class BaseManager {
   debugEventNaming() {
     if (!this.isDebugMode()) return;
 
-    console.group(`🔍 ${this.managerType} 事件前綴解析示例`);
+    systemLogger.withGroup(`🔍 ${this.managerType} 事件前綴解析示例`, () => {
+      const testEvents = [
+        "system_ready", // 系統級
+        "harvest_completed", // 業務領域
+        "resource_modified", // 已有模組前綴
+        "threshold_warning", // 需要添加模組前綴
+        "custom_event", // 需要添加模組前綴
+      ];
 
-    const testEvents = [
-      "system_ready", // 系統級
-      "harvest_completed", // 業務領域
-      "resource_modified", // 已有模組前綴
-      "threshold_warning", // 需要添加模組前綴
-      "custom_event", // 需要添加模組前綴
-    ];
+      testEvents.forEach((event) => {
+        const resolved = this._resolveEventName(event);
+        const category = this._getEventCategory(resolved);
+        const crossModule = this._isCrossModuleEvent(resolved);
 
-    testEvents.forEach((event) => {
-      const resolved = this._resolveEventName(event);
-      const category = this._getEventCategory(resolved);
-      const crossModule = this._isCrossModuleEvent(resolved);
-
-      console.log(
-        `${event} → ${resolved}`,
-        `[${category}${crossModule ? " | 跨模組" : ""}]`
-      );
+        systemLogger.debug(
+          `${event} → ${resolved} [${category}${crossModule ? " | 跨模組" : ""}]`
+        );
+      });
     });
-
-    console.groupEnd();
   }
 }
 
