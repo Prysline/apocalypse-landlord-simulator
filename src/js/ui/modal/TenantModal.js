@@ -211,7 +211,7 @@ export default class TenantModal extends BaseModal {
       return '<p>暫無個人資源資訊</p>';
     }
 
-    const resources = ['food', 'materials', 'medical', 'fuel'];
+    const resources = ['cash', 'food', 'materials', 'medical', 'fuel'];
     const resourceHTML = resources.map(resourceType => {
       const amount = tenant.personalResources[resourceType] || 0;
       const icon = this._getIcon(resourceType, 'resource');

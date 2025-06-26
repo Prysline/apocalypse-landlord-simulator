@@ -154,6 +154,17 @@ export class TenantManager extends BaseManager {
     }, { skipPrefix: true });
 
     // === 探索系統事件監聽器 ===
+    // 監聽自主探索主要資源分配事件
+    this.onEvent('exploration_autonomous_main_distribution', (eventObj) => {
+      const { participants, resourceType, amountPerPerson, reason } = eventObj.data;
+
+      participants.forEach(tenantId => {
+        this.modifyPersonalResource(tenantId, resourceType, amountPerPerson, reason);
+      });
+
+      this.addLog(`自主探索主要資源分配完成: ${participants.length} 人各得 ${resourceType} x${amountPerPerson}`);
+    }, { skipPrefix: true });
+
     // 監聽超額資源分配事件
     this.onEvent('exploration_surplus_distribution', (eventObj) => {
       const { participants, resourceType, amountPerPerson, reason } = eventObj.data;
@@ -281,10 +292,11 @@ export class TenantManager extends BaseManager {
     // 監聽關係度變化事件
     this.onEvent('relationship_change', (eventObj) => {
       const { tenantId, change, reason } = eventObj.data;
+      const tenant = this.gameState.findPersonById(tenantId)
 
       if (this.satisfactionManager) {
         this.satisfactionManager.modifySatisfaction(tenantId, change, reason);
-        this.addLog(`租客 ${tenantId} 滿意度變化: ${change > 0 ? '+' : ''}${change} (${reason})`);
+        this.addLog(`租客 ${tenant.name} 滿意度變化: ${change > 0 ? '+' : ''}${change} (${reason})`);
       } else {
         this.logWarning(`無法更新租客 ${tenantId} 滿意度: SatisfactionManager 未初始化`);
       }
@@ -723,15 +735,12 @@ export class TenantManager extends BaseManager {
 
     // 生成隨機化個人資源
     const personalResources = this.generateRandomPersonalResources(
-      tenantType.personalResources, 
+      tenantType.personalResources,
       tenantType
     );
 
-    // 分析資源狀況並增強描述
+    // 分析資源狀況
     const resourceStatus = this.analyzeResourceStatus(personalResources, tenantType);
-    const enhancedDescription = resourceStatus.description 
-      ? `${tenantType.description}。${resourceStatus.description}`
-      : tenantType.description;
 
     const applicant = {
       id: personId,
@@ -746,7 +755,7 @@ export class TenantManager extends BaseManager {
       appearance: "",
       infectionRisk: tenantType.infectionRisk,
       personalResources: personalResources,
-      description: enhancedDescription,
+      description: tenantType.description,
       // 保存資源狀況分析結果（可用於後續顯示）
       resourceStatus: {
         category: resourceStatus.category,
@@ -756,9 +765,15 @@ export class TenantManager extends BaseManager {
 
     this.registerPerson(personId, applicant, "applicant");
 
-    applicant.appearance = applicant.infected
+    // 生成外觀描述
+    const baseAppearance = applicant.infected
       ? this.getInfectedAppearance()
       : this.getNormalAppearance();
+
+    // 將資源狀況描述接在外觀描述後面
+    applicant.appearance = resourceStatus.description
+      ? `${baseAppearance}，${resourceStatus.description}`
+      : baseAppearance;
 
     return applicant;
   }
@@ -794,31 +809,31 @@ export class TenantManager extends BaseManager {
   generateRandomPersonalResources(baseResources, tenantType) {
     const rules = this.dataManager.getGameRules();
     const config = rules.characterGeneration?.personalResourceVariation;
-    
+
     if (!config?.enabled) {
       return { ...baseResources };
     }
 
     const randomizedResources = {};
-    
+
     for (const [resourceType, baseAmount] of Object.entries(baseResources)) {
       const rule = config.resourceRules?.[resourceType];
-      
+
       if (!rule) {
         randomizedResources[resourceType] = baseAmount;
         continue;
       }
 
       let finalAmount;
-      
+
       if (rule.type === 'percentage') {
         const multiplier = this._getRandomInRange(rule.min, rule.max);
         finalAmount = Math.round(baseAmount * multiplier);
       } else if (rule.type === 'fixed') {
         const bonus = this._getRandomInRange(rule.min, rule.max);
-        finalAmount = Math.max(0, baseAmount + bonus);
+        finalAmount = Math.max(0, Math.round(baseAmount + bonus));
       } else {
-        finalAmount = baseAmount;
+        finalAmount = Math.round(baseAmount);
       }
 
       // 四捨五入處理
@@ -863,18 +878,18 @@ export class TenantManager extends BaseManager {
     let wealthyCount = 0;
     let poorCount = 0;
     let specializedCount = 0;
-    
+
     // 分析各項資源相對於基礎值的狀況
     for (const [resourceType, amount] of Object.entries(personalResources)) {
       const baseAmount = baseResources[resourceType] || 0;
       const ratio = baseAmount > 0 ? amount / baseAmount : (amount > 0 ? 2 : 1);
-      
+
       if (ratio >= 1.3) {
         wealthyCount++;
       } else if (ratio <= 0.7) {
         poorCount++;
       }
-      
+
       // 檢查是否在專業領域有豐富資源
       if (this._isSpecializedResource(resourceType, tenantType.typeId) && ratio >= 1.2) {
         specializedCount++;
@@ -882,10 +897,10 @@ export class TenantManager extends BaseManager {
     }
 
     // 計算總資源價值（簡化計算）
-    const totalValue = personalResources.cash + 
-                      (personalResources.food * 3) + 
-                      (personalResources.materials * 2) + 
-                      (personalResources.medical * 4) + 
+    const totalValue = personalResources.cash +
+                      (personalResources.food * 3) +
+                      (personalResources.materials * 2) +
+                      (personalResources.medical * 4) +
                       (personalResources.fuel * 3);
 
     let category;
@@ -933,7 +948,7 @@ export class TenantManager extends BaseManager {
       'soldier': ['materials', 'fuel'],
       'elder': ['cash']
     };
-    
+
     return specializations[jobType]?.includes(resourceType) || false;
   }
 
@@ -945,10 +960,10 @@ export class TenantManager extends BaseManager {
    */
   _getAverageTotalValue(tenantType) {
     const base = tenantType.personalResources;
-    return base.cash + 
-           (base.food * 3) + 
-           (base.materials * 2) + 
-           (base.medical * 4) + 
+    return base.cash +
+           (base.food * 3) +
+           (base.materials * 2) +
+           (base.medical * 4) +
            (base.fuel * 3);
   }
 

@@ -533,15 +533,16 @@ export default class UICore {
 
   _loadThresholds() {
     const gameRules = this.gameApp.dataManager?.getGameRules();
-    if (!gameRules?.gameDefaults?.resources) {
+    const resourceConfig = gameRules?.gameBalance?.resources
+    if (!resourceConfig) {
       const error = new Error("無法載入資源閾值配置 - 配置文件或dataManager不可用");
       systemLogger.error("❌ 閾值配置載入失敗", error);
       throw error;
     }
 
     this.thresholds.resources = {
-      warning: gameRules.gameDefaults.resources.warningThresholds || {},
-      critical: gameRules.gameDefaults.resources.criticalThresholds || {}
+      warning: resourceConfig.warningThresholds || {},
+      critical: resourceConfig.criticalThresholds || {}
     };
 
     systemLogger.success("📊 閾值配置載入完成");
@@ -745,7 +746,7 @@ export default class UICore {
       systemLogger.debug('_setupGameStateListeners - eventData:', eventData)
       const commission = eventData.data.commission;
       const explorationResult = eventData.data.explorationResult;
-      
+
       // 豐富參與者資訊
       if (explorationResult.participants) {
         explorationResult.participants = explorationResult.participants.map(item => {
@@ -756,7 +757,7 @@ export default class UICore {
           };
         });
       }
-      
+
       this.showExplorationResult(commission, explorationResult);
     });
   }
